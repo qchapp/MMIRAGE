@@ -1,4 +1,7 @@
-"""Main script for processing dataset shards with MMIRAGE."""
+"""Main script for processing dataset shards with MMIRAGE.
+
+Supports both text-only and multimodal (vision-language) processing.
+"""
 
 import argparse
 from functools import reduce
@@ -10,10 +13,7 @@ from datasets import Dataset, DatasetDict
 from mmirage.core.loader.base import BaseDataLoaderConfig, DatasetLike
 from mmirage.core.process.mapper import MMIRAGEMapper
 
-from mmirage.config.utils import (
-    load_mmirage_config,
-)
-
+from mmirage.config.utils import load_mmirage_config
 from mmirage.core.writer.renderer import TemplateRenderer
 from mmirage.core.loader.utils import load_datasets_from_configs
 import logging
@@ -22,15 +22,19 @@ logger = logging.getLogger(__name__)
 
 
 def _count_rows(ds: DatasetLike) -> int:
+    """Count total rows in a dataset or dataset dict."""
     if isinstance(ds, DatasetDict):
         return sum(len(split) for split in ds.values())
     return len(ds)
 
+
 def _dataset_out_dir(shard_idx: int, ds_config: BaseDataLoaderConfig) -> str:
+    """Get output directory for a shard of a dataset."""
     return os.path.join(ds_config.output_dir, f"shard_{shard_idx}")
 
 
 def _shard_dataset(ds: DatasetLike, num_shards: int, shard_id: int) -> DatasetLike:
+    """Shard a dataset or dataset dict."""
     if isinstance(ds, DatasetDict):
         return DatasetDict(
             {
@@ -42,6 +46,7 @@ def _shard_dataset(ds: DatasetLike, num_shards: int, shard_id: int) -> DatasetLi
 
 
 def _remove_columns(ds: DatasetLike, enable: bool) -> List[str]:
+    """Get columns to remove from dataset if enabled."""
     if not enable:
         return []
     if isinstance(ds, DatasetDict):
@@ -54,6 +59,7 @@ def rewrite_batch(
     batch: Dict[str, List[Any]],
     mapper: MMIRAGEMapper,
     renderer: TemplateRenderer,
+    image_base_path: str = None,
 ) -> Dict[str, List[Any]]:
     """Rewrite a batch of samples by applying transformations.
 
@@ -61,6 +67,7 @@ def rewrite_batch(
         batch: Dictionary mapping column names to lists of values.
         mapper: MMIRAGEMapper for processing transformations.
         renderer: TemplateRenderer for generating output.
+        image_base_path: Optional base directory for resolving relative image paths.
 
     Returns:
         Dictionary mapping output keys to lists of rendered values.
@@ -73,7 +80,7 @@ def rewrite_batch(
             "Uncomputable variables detected. Verify your configuration and make sure that there is no undefined variables"
         )
 
-    batch_environment = mapper.rewrite_batch(batch)
+    batch_environment = mapper.rewrite_batch(batch, image_base_path)
     rendered_list = renderer.batch_render(batch_environment)
     return rendered_list
 
@@ -82,14 +89,14 @@ def main():
     """Process a single shard of the dataset.
 
     Loads configuration, datasets, processes the shard using MMIRAGE
-    transformations, and saves the result to disk.
+    transformations (including multimodal), and saves the result to disk.
     """
     ap = argparse.ArgumentParser(
-        "Rewrite the assistant turn inside `conversations` into Markdown using SGLang + HF map + sharding."
+        "Process dataset shards using MMIRAGE with SGLang."
     )
     ap.add_argument(
         "--config",
-        help="YAML config for SGLang engine + sampling + batch_size.",
+        help="YAML config for MMIRAGE pipeline.",
         required=True,
     )
     args = ap.parse_args()
@@ -124,6 +131,7 @@ def main():
     renderer = TemplateRenderer(processing_params.output_schema)
     ds_processed_all: List[DatasetLike] = []
     for ds_idx, ds_shard in enumerate(ds_all_shard):
+        ds_config = datasets_config[ds_idx]
         remove_columns = _remove_columns(ds_shard, processing_params.remove_columns)
         ds_processed = ds_shard.map(
             rewrite_batch,
@@ -131,19 +139,18 @@ def main():
             batch_size=loading_params.get_batch_size(),
             load_from_cache_file=False,
             desc=f"Shard {shard_id}/{num_shards - 1} dataset {ds_idx}",
-            fn_kwargs={"mapper": mapper, "renderer": renderer},
+            fn_kwargs={"mapper": mapper, "renderer": renderer, "image_base_path": ds_config.image_base_path},
             remove_columns=remove_columns,
         )
         ds_processed_all.append(ds_processed)
-    
+
     for ds_config, ds_processed in zip(datasets_config, ds_processed_all):
         out_dir = _dataset_out_dir(shard_id, ds_config)
         os.makedirs(out_dir, exist_ok=True)
         ds_processed.save_to_disk(out_dir)
 
-        logger.info(
-            f"✅ Saved dataset in: {out_dir} "
-        )
+        logger.info(f"✅ Saved dataset in: {out_dir}")
+
 
 if __name__ == "__main__":
     main()

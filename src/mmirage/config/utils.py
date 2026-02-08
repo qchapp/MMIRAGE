@@ -1,3 +1,5 @@
+"""Configuration loading utilities for MMIRAGE pipeline."""
+
 from typing import Any, Dict, List, TypeAlias, Union, cast
 from dacite import Config, from_dict
 import yaml
@@ -9,40 +11,45 @@ from mmirage.core.loader.base import BaseDataLoaderConfig, DataLoaderRegistry
 
 EnvValue: TypeAlias = Union[str, List["EnvValue"], Dict[str, "EnvValue"]]
 
+
 def load_mmirage_config(config_path: str) -> MMirageConfig:
     """
-    Load SGLang engine, sampling params, and batch size from YAML config.
+    Load MMIRAGE configuration from a YAML file.
+
+    Supports environment variable expansion and dynamic processor/loader
+    configuration based on registered types.
 
     Example config:
 
     processors:
       - type: llm
         server_args:
-          model_path: Qwen/Qwen3-4B-Instruct-2507
-          tp_size: 4          # use all 4 GPUs on the node
-          disable_custom_all_reduce: true
-        sampling_params:
+          model_path: Qwen/Qwen2-VL-7B-Instruct
+          tp_size: 4
+          trust_remote_code: true
+        chat_template: qwen2-vl
+        default_sampling_params:
           temperature: 0.1
           top_p: 0.9
           max_new_tokens: 1024
-          custom_params:
-            chat_template_kwargs:
-              enable_thinking: false
 
     loading_params:
       datasets:
-        - path: tests/mock_data/data.jsonl
+        - path: /path/to/dataset.jsonl
           type: JSONL
-      output_dir: tests/output
+          output_dir: /path/to/output
+          image_base_path: /path/to/images
       num_shards: 4
       shard_id: 0
-      conversations_field: "conversations"
       batch_size: 64
 
     processing_params:
       inputs:
         - name: text
           key: text
+        - name: image
+          key: image_path
+          type: image
 
       outputs:
         - name: formatted_answer
@@ -52,10 +59,8 @@ def load_mmirage_config(config_path: str) -> MMirageConfig:
             - question
             - answer
           prompt: |
-            Generate one question and its corresponding answer using the following text:
-            ```
+            Generate a Q&A pair from:
             {{ text }}
-            ```
 
       remove_columns: True
       output_schema:
@@ -64,6 +69,12 @@ def load_mmirage_config(config_path: str) -> MMirageConfig:
             content: "{{ formatted_answer.question }}"
           - role: "assistant"
             content: "{{ formatted_answer.answer }}"
+
+    Args:
+        config_path: Path to the YAML configuration file.
+
+    Returns:
+        MMirageConfig: Parsed and validated configuration object.
     """
 
     with open(config_path, "r") as f:

@@ -4,7 +4,7 @@ processors:
       model_path: Qwen/Qwen3-4B-Instruct-2507
       tp_size: 1
       disable_custom_all_reduce: true
-    sampling_params:
+    default_sampling_params:
       temperature: 0.1
       top_p: 0.9
       max_new_tokens: 1024
@@ -17,15 +17,9 @@ loading_params:
     - path: tests/mock_data/data.jsonl
       type: JSONL
       output_dir: tests/output/data
-    - path: 
-        train: tests/mock_data/data2/train.jsonl
-        test: tests/mock_data/data2/test.jsonl
-      type: JSONL
-      output_dir: tests/output/data2
 
   num_shards: 4
   shard_id: 0
-  conversations_field: "conversations"
   batch_size: 64
 
 processing_params:
@@ -46,7 +40,7 @@ processing_params:
         {{ text }}
         ```
   
-  remove_columns: True
+  remove_columns: true
   output_schema:
     conversations:
       - role: "user"

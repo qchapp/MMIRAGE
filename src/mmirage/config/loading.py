@@ -34,7 +34,8 @@ class LoadingParams:
         if isinstance(self.num_shards, str):
             try:
                 self.num_shards = int(self.num_shards)
-                if self.num_shards < 1: raise ValueError()
+                if self.num_shards < 1:
+                    raise ValueError()
             except (ValueError, TypeError):
                 raise ValueError(f"Invalid value for num_shards: {self.num_shards!r}")
         if isinstance(self.shard_id, str):

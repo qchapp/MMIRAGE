@@ -164,3 +164,7 @@ cython_debug/
 
 logs/
 else/
+
+# Test outputs
+tests/mock_data/output/
+tests/mock_data/shards/

@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union, override
+from typing import Dict, Optional, Union, override
 from datasets import (
     Dataset,
     DatasetDict,
     IterableDataset,
     IterableDatasetDict,
-    concatenate_datasets,
     load_dataset,
 )
 
@@ -28,7 +27,8 @@ class JSONLDataConfig(BaseDataLoaderConfig):
 
     Attributes:
         type: Type identifier (must be "JSONL").
-        path: File path to the JSONL file.
+        path: File path to the JSONL file, or dict mapping split names to paths.
+        output_dir: Directory for saving processed output.
     """
 
     path: Union[str, Dict[str, str]] = ""
@@ -39,7 +39,7 @@ class JSONLDataLoader(BaseDataLoader[JSONLDataConfig]):
     """Data loader for JSONL (JSON Lines) formatted datasets.
 
     Loads datasets from JSONL files using the Hugging Face datasets library.
-    Merges all splits into a single dataset if multiple splits are present.
+    Supports both single files and split-based loading.
 
     Note:
         Iterable datasets are not supported by this loader.

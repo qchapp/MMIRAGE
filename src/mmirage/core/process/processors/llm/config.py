@@ -7,7 +7,6 @@ from typing import Dict, Optional, Sequence, Type, Any, List
 from pydantic import BaseModel, create_model
 
 from mmirage.core.process.variables import BaseVar, OutputVar
-from sglang.srt.server_args import ServerArgs
 
 from mmirage.core.process.base import BaseProcessorConfig
 from jinja2 import Environment, meta
@@ -17,19 +16,38 @@ env = Environment()
 
 
 @dataclass
+class SGLangServerArgs:
+    """Server arguments for SGLang engine.
+
+    Attributes:
+        model_path: Path to the model or HuggingFace model ID.
+        tp_size: Tensor parallelism size.
+        trust_remote_code: Whether to trust remote code from HuggingFace.
+        disable_custom_all_reduce: Whether to disable custom all reduce.
+    """
+
+    model_path: str = "none"
+    tp_size: int = 1
+    trust_remote_code: bool = True
+    disable_custom_all_reduce: bool = False
+
+
+@dataclass
 class SGLangLLMConfig(BaseProcessorConfig):
     """Configuration for LLM processor using SGLang.
+
+    Supports both text-only and multimodal (vision-language) models.
 
     Attributes:
         type: Type identifier (must be "llm").
         server_args: SGLang server arguments including model path and TP size.
         default_sampling_params: Default sampling parameters for generation.
+        chat_template: Chat template name for vision-language models (e.g., "qwen2-vl").
     """
 
-    server_args: ServerArgs = field(
-        default_factory=lambda: ServerArgs(model_path="none")
-    )
+    server_args: SGLangServerArgs = field(default_factory=SGLangServerArgs)
     default_sampling_params: Dict[str, Any] = field(default_factory=dict)
+    chat_template: str = ""  # Empty means use tokenizer's default
 
 
 @dataclass

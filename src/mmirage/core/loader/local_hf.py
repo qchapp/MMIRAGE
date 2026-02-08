@@ -23,6 +23,7 @@ class LocalHFConfig(BaseDataLoaderConfig):
     Attributes:
         type: Type identifier (must be "loadable").
         path: Directory path to the saved Hugging Face dataset.
+        output_dir: Directory for saving processed output.
     """
 
     path: str = ""
@@ -34,7 +35,6 @@ class LocalHFDataLoader(BaseDataLoader[LocalHFConfig]):
 
     Loads datasets from disk that were previously saved using the
     Hugging Face datasets library's save_to_disk method.
-    Merges all splits into a single dataset if multiple splits are present.
 
     Note:
         Iterable datasets are not supported by this loader.

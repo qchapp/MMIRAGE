@@ -1,16 +1,35 @@
-"""LLM processor implementation using SGLang."""
+"""LLM processor implementation using SGLang with multimodal support."""
 
-from typing import List, override
+from __future__ import annotations
+
+from dataclasses import asdict
+import json
+import logging
+from typing import Any, List, Tuple
 
 import jinja2
-from mmirage.core.process.base import BaseProcessor, ProcessorRegistry
-from transformers import AutoTokenizer
-from mmirage.core.process.variables import VariableEnvironment
 import sglang as sgl
-import json
-from dataclasses import asdict
+from transformers import AutoTokenizer
 
+from mmirage.core.process.base import BaseProcessor, ProcessorRegistry
 from mmirage.core.process.processors.llm.config import LLMOutputVar, SGLangLLMConfig
+from mmirage.core.process.variables import VariableEnvironment
+
+try:
+    from typing import override  # Python 3.12+
+except ImportError:  # pragma: no cover
+    from typing_extensions import override  # type: ignore
+
+
+logger = logging.getLogger(__name__)
+
+# Common image tokens for known templates
+IMAGE_TOKENS = {
+    "qwen2-vl": "<|vision_start|><|image_pad|><|vision_end|>",
+    "llava": "<image>",
+    "internvl": "<image>",
+    "phi3_v": "<|image_1|>",
+}
 
 
 @ProcessorRegistry.register("llm", SGLangLLMConfig, LLMOutputVar)
@@ -19,6 +38,11 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
 
     Supports both plain text and JSON output formats, with automatic
     chat template formatting and structured output validation.
+
+    Also supports multimodal (vision-language) inputs. For SGLang, `image_data`
+    is expected to be *aligned with prompts*: a list where each element is
+    either None (text-only), a single image (path/URL/PIL), or (optionally)
+    a list of images for that prompt.
 
     Attributes:
         llm: SGLang engine for text generation.
@@ -36,9 +60,11 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         super().__init__(engine_args, **kwargs)
         self.llm = sgl.Engine(**asdict(engine_args.server_args))
         self.tokenizer = AutoTokenizer.from_pretrained(
-            engine_args.server_args.model_path
+            engine_args.server_args.model_path,
+            trust_remote_code=getattr(engine_args.server_args, "trust_remote_code", False),
         )
         self.sampling_params = engine_args.default_sampling_params
+        self.chat_template = engine_args.chat_template
 
     def build_prompt(
         self, prompt_template: str, vars_samples: List[VariableEnvironment]
@@ -52,20 +78,56 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         Returns:
             List of formatted prompts with chat template applied.
         """
-        prompts_for_output = []
-
+        prompts_for_output: List[str] = []
         jinja_template = jinja2.Template(prompt_template)
 
         for var in vars_samples:
-            user_prompt = [
-                {"role": "user", "content": jinja_template.render(**var.to_dict())}
-            ]
-            formatted_conv = self.tokenizer.apply_chat_template(
+            user_prompt = [{"role": "user", "content": jinja_template.render(**var.to_dict())}]
+            formatted = self.tokenizer.apply_chat_template(
                 user_prompt, tokenize=False, add_generation_prompt=True
             )
-            prompts_for_output.append(formatted_conv)
+            prompts_for_output.append(formatted)
 
         return prompts_for_output
+
+    def build_multimodal_prompt(
+        self, prompt_template: str, var_env: VariableEnvironment
+    ) -> Tuple[str, Any]:
+        """Build a prompt and extract images for SGLang Engine.
+
+        Returns:
+            (formatted_prompt, image_data_element)
+        """
+        jinja_template = jinja2.Template(prompt_template)
+        base_prompt = jinja_template.render(**var_env.to_dict())
+
+        # The image_data element must be aligned 1:1 with prompts.
+        imgs = var_env.get_images()
+        if not imgs:
+            image_data_elem: Any = None
+        elif len(imgs) == 1:
+            image_data_elem = imgs[0]
+        else:
+            image_data_elem = imgs
+
+        return base_prompt, image_data_elem
+
+    def _get_image_token(self) -> str:
+        """Get the image token for the current chat template."""
+        if not self.chat_template:
+            return "<image>"
+
+        # Import chat templates from sglang if available
+        try:
+            from sglang.srt.conversation import chat_templates  # type: ignore
+
+            if self.chat_template in chat_templates:
+                conv = chat_templates[self.chat_template].copy()
+                return conv.image_token
+        except Exception:
+            pass
+
+        return IMAGE_TOKENS.get(self.chat_template, "<image>")
 
     @override
     def batch_process_sample(
@@ -84,40 +146,134 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             ValueError: If output_type is JSON but no output_schema is defined.
             RuntimeError: If output batch size doesn't match input batch size.
         """
-        prompts_for_output = self.build_prompt(
-            prompt_template=output_var.prompt,
-            vars_samples=batch,
-        )
+        nb_samples = len(batch)
 
+        # Prepare sampling params
         sampling_params_output = self.sampling_params.copy()
 
         if output_var.output_type == "JSON":
             json_schema = output_var.get_output_schema()
             if json_schema is None:
                 raise ValueError(
-                    f"Output variable {output_var.name} has output_type=JSON "
-                    "but no output_schema defined."
+                    f"Output variable {output_var.name} has output_type=JSON but no output_schema defined."
                 )
-
             sampling_params_output["json_schema"] = json.dumps(
                 json_schema.model_json_schema()
             )
 
-        outputs_for_output = self.llm.generate(
-            prompts_for_output, sampling_params_output
-        )
+        # Separate samples into text-only and multimodal groups
+        text_only_indices: List[int] = []
+        multimodal_indices: List[int] = []
+        for i in range(nb_samples):
+            if batch[i].has_images():
+                multimodal_indices.append(i)
+            else:
+                text_only_indices.append(i)
 
-        if len(outputs_for_output) != len(batch):
-            raise RuntimeError(
-                f"Mismatch between the number of generated answers ({len(outputs_for_output)}) and the size of the batch ({len(batch)})"
-            )
+        results: dict[int, VariableEnvironment] = {}
 
-        mapped_batch = []
-        for i, llm_output in enumerate(outputs_for_output):
-            value = llm_output.get("text", "")
-            if output_var.output_type == "JSON":
-                value = json.loads(llm_output.get("text", "{}"))
+        # Text-only batch
+        if text_only_indices:
+            text_only_envs = [batch[i] for i in text_only_indices]
+            text_only_prompts = self.build_prompt(output_var.prompt, text_only_envs)
 
-            mapped_batch.append(batch[i].with_variable(output_var.name, value))
+            try:
+                text_only_outputs = self.llm.generate(
+                    prompt=text_only_prompts,
+                    sampling_params=sampling_params_output,
+                )
 
-        return mapped_batch
+                if not isinstance(text_only_outputs, list) or len(text_only_outputs) != len(text_only_indices):
+                    raise RuntimeError(
+                        f"Mismatch between text-only prompts and outputs for '{output_var.name}': "
+                        f"{len(text_only_prompts)} vs "
+                        f"{len(text_only_outputs) if isinstance(text_only_outputs, list) else 'non-list'}"
+                    )
+
+                for local_idx, global_i in enumerate(text_only_indices):
+                    value = text_only_outputs[local_idx].get("text", "").strip()
+                    if output_var.output_type == "JSON":
+                        try:
+                            value = json.loads(value)
+                        except json.JSONDecodeError:
+                            value = {}
+                    results[global_i] = batch[global_i].with_variable(output_var.name, value)
+
+            except Exception as e:
+                logger.error(
+                    f"Batch generation failed for text-only samples in output '{output_var.name}': {e}"
+                )
+                for global_i in text_only_indices:
+                    empty_val = {} if output_var.output_type == "JSON" else ""
+                    results[global_i] = batch[global_i].with_variable(output_var.name, empty_val)
+
+        # Multimodal batch
+        if multimodal_indices:
+            image_token = self._get_image_token()
+            jinja_template = jinja2.Template(output_var.prompt)
+
+            multimodal_prompts: List[str] = []
+            multimodal_image_data: List[Any] = []
+
+            for global_i in multimodal_indices:
+                var_env = batch[global_i]
+                base_prompt = jinja_template.render(**var_env.to_dict())
+
+                # Format prompt with chat template
+                user_prompt = [{"role": "user", "content": base_prompt}]
+                formatted_prompt = self.tokenizer.apply_chat_template(
+                    user_prompt, tokenize=False, add_generation_prompt=True
+                )
+
+                # Append image token (common pattern for VL templates)
+                formatted_prompt = f"{formatted_prompt}\n{image_token}\n"
+                multimodal_prompts.append(formatted_prompt)
+
+                # `image_data` must be aligned 1:1 with prompts.
+                imgs = var_env.get_images()
+                if not imgs:
+                    multimodal_image_data.append(None)
+                elif len(imgs) == 1:
+                    multimodal_image_data.append(imgs[0])
+                else:
+                    multimodal_image_data.append(imgs)
+
+            try:
+                multimodal_outputs = self.llm.generate(
+                    prompt=multimodal_prompts,
+                    sampling_params=sampling_params_output,
+                    image_data=multimodal_image_data,
+                )
+
+                if not isinstance(multimodal_outputs, list) or len(multimodal_outputs) != len(multimodal_indices):
+                    raise RuntimeError(
+                        f"Mismatch between multimodal prompts and outputs for '{output_var.name}': "
+                        f"{len(multimodal_prompts)} vs "
+                        f"{len(multimodal_outputs) if isinstance(multimodal_outputs, list) else 'non-list'}"
+                    )
+
+                for local_idx, global_i in enumerate(multimodal_indices):
+                    value = multimodal_outputs[local_idx].get("text", "").strip()
+                    if output_var.output_type == "JSON":
+                        try:
+                            value = json.loads(value)
+                        except json.JSONDecodeError:
+                            value = {}
+                    results[global_i] = batch[global_i].with_variable(output_var.name, value)
+
+            except Exception as e:
+                logger.error(
+                    f"Batch generation failed for multimodal samples in output '{output_var.name}': {e}"
+                )
+                for global_i in multimodal_indices:
+                    empty_val = {} if output_var.output_type == "JSON" else ""
+                    results[global_i] = batch[global_i].with_variable(output_var.name, empty_val)
+
+        return [results[i] for i in range(nb_samples)]
+
+    def shutdown(self) -> None:
+        """Shutdown the LLM engine."""
+        try:
+            self.llm.shutdown()
+        except Exception as e:
+            logger.warning(f"Error shutting down LLM: {e}")

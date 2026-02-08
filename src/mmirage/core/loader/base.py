@@ -19,15 +19,18 @@ class BaseDataLoaderConfig:
     Attributes:
         type: String identifier for the loader type (e.g., "JSONL", "loadable").
         output_dir: Directory path for saving processed output shards.
+        image_base_path: Optional base directory for resolving relative image paths in this dataset.
     """
 
     type: str
     output_dir: str
+    image_base_path: Optional[str] = None
 
 
 C = TypeVar("C", bound=BaseDataLoaderConfig)
 
 DatasetLike = Dataset | DatasetDict
+
 
 class BaseDataLoader(abc.ABC, Generic[C]):
     """Abstract base class for data loaders.

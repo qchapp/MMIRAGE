@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Any, Dict, Optional, List
 from jinja2 import Template, Environment
 from jinja2.nodes import Output, Name
+from PIL import Image
 
 from mmirage.core.process.variables import VariableEnvironment
 import logging
@@ -16,8 +17,9 @@ JINJA_ENV = Environment()
 class TemplateRenderer:
     """Renderer for generating output from variable environments using Jinja2 templates.
 
-    Supports nested templates (dicts and lists) and optimized handling of
-    simple variable references.
+    Supports nested templates (dicts and lists), optimized handling of
+    simple variable references, and proper handling of non-string values
+    like PIL Images.
 
     Attributes:
         output_schema: Dictionary defining the structure of output samples.
@@ -81,6 +83,9 @@ class TemplateRenderer:
     ) -> Any:
         """Recursively fill a template object with values from a variable environment.
 
+        Properly handles non-string values like PIL Images by returning them
+        directly when the template is a simple variable reference.
+
         Args:
             template_obj: Template object (str, dict, list, or other type).
             context: Variable environment containing variable values.
@@ -98,13 +103,23 @@ class TemplateRenderer:
             return [self._fill_template_recursive(v, context) for v in template_obj]
 
         elif isinstance(template_obj, str):
+            # Check if this is a simple variable reference like "{{ image }}"
+            # If so and it's a special type (PIL Image, etc.), return it directly
             var_name = self.is_single_variable_template(template_obj)
-            context_dict = context.to_dict()
+            if var_name is not None:
+                value = context.get(var_name)
+                if value is not None:
+                    # Preserve PIL Images and other non-string objects
+                    if isinstance(value, Image.Image):
+                        return value
+                    # For complex types that shouldn't be stringified
+                    if not isinstance(value, (str, int, float, bool)):
+                        return value
 
-            if var_name is not None and var_name in context_dict:
-                return context_dict[var_name]
-
-            return Template(template_obj).render(context_dict)
+            # Normal Jinja2 template rendering
+            template = Template(template_obj)
+            return template.render(**context.to_dict())
 
         else:
+            # Non-string, non-dict, non-list: return as-is
             return template_obj

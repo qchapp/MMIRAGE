@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=mmirage-example
+#SBATCH --job-name=mmirage-vision-test
 #SBATCH --chdir=$MMIRAGE_PATH/src/mmirage
 #SBATCH --output=/users/$USER/reports/R-%x.%A_%a.out
 #SBATCH --error=/users/$USER/reports/R-%x.%A_%a.err
@@ -12,10 +12,10 @@
 #SBATCH --array=0-3
 
 # --- outputs & config ---
-export ROOT=$SCRATCH/mmirage_example
+export ROOT=$SCRATCH/mmirage_vision_test
 export SHARDS_ROOT="$ROOT/shards"
 export MERGED_DIR="$ROOT/merged"
-export CFG=$MMIRAGE_PATH/configs/config_mock.yaml
+export CFG=$MMIRAGE_PATH/configs/config_mock_vision.yaml
 
 # HF cache/home
 export HF_HOME=$SCRATCH/hf

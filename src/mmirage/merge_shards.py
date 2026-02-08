@@ -10,12 +10,14 @@ from mmirage.core.loader.base import DatasetLike
 
 
 def _count_rows(ds: DatasetLike) -> int:
+    """Count total rows in a dataset or dataset dict."""
     if isinstance(ds, DatasetDict):
         return sum(len(split) for split in ds.values())
     return len(ds)
 
 
 def _merge_datasetdict(shard_dsets: List[DatasetDict]) -> DatasetDict:
+    """Merge multiple DatasetDicts by concatenating each split."""
     split_names = sorted({split for ds in shard_dsets for split in ds.keys()})
     merged: Dict[str, Dataset] = {}
     for split in split_names:
@@ -29,16 +31,22 @@ def _merge_datasetdict(shard_dsets: List[DatasetDict]) -> DatasetDict:
 
 
 def _merge_shards(shard_dsets: List[DatasetLike]) -> DatasetLike:
+    """Merge shard datasets into a single dataset."""
     if not shard_dsets:
         raise RuntimeError("No shard datasets to merge.")
     if all(isinstance(ds, DatasetDict) for ds in shard_dsets):
-        return _merge_datasetdict([ds for ds in shard_dsets if isinstance(ds, DatasetDict)])
+        return _merge_datasetdict(
+            [ds for ds in shard_dsets if isinstance(ds, DatasetDict)]
+        )
     if any(isinstance(ds, DatasetDict) for ds in shard_dsets):
         raise RuntimeError("Cannot merge mix of Dataset and DatasetDict shards.")
-    return concatenate_datasets([ds for ds in shard_dsets if isinstance(ds, Dataset)])
+    return concatenate_datasets(
+        [ds for ds in shard_dsets if isinstance(ds, Dataset)]
+    )
 
 
 def _list_shard_dirs(dataset_dir: str) -> List[str]:
+    """List shard directories in a dataset directory."""
     shard_dirs: List[str] = []
     for name in os.listdir(dataset_dir):
         if not name.startswith("shard_"):
@@ -57,6 +65,7 @@ def _list_shard_dirs(dataset_dir: str) -> List[str]:
 
 
 def _dataset_dirs(input_dir: str) -> List[str]:
+    """Find dataset directories containing shard folders."""
     candidates: List[str] = []
     for name in os.listdir(input_dir):
         path = os.path.join(input_dir, name)

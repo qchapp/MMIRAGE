@@ -3,7 +3,7 @@
 This module provides the core processing infrastructure:
 - Base classes for processors and variables
 - MMIRAGEMapper for orchestrating transformations
-- LLM processor implementation for generative tasks
+- LLM processor implementation for generative tasks (including multimodal)
 
 Processors are responsible for generating new output variables from
 existing variables, enabling flexible data transformations.
