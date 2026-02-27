@@ -8,8 +8,23 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Dict, List, Literal, Optional, Sequence
 
-from jmespath import search
+import jmespath
 from PIL import Image
+
+# Cache compiled JMESPath expressions to avoid recompilation across samples.
+_JMESPATH_CACHE: Dict[str, jmespath.parser.ParsedResult] = dict()
+
+
+def _get_compiled_query(key: str):
+    """Get (and cache) a compiled JMESPath expression for "key".
+
+    This avoids recompiling the same expression for each sample.
+    """
+    expr: Optional[jmespath.parser.ParsedResult] = _JMESPATH_CACHE.get(key)
+    if expr is None:
+        expr = jmespath.compile(key)
+        _JMESPATH_CACHE[key] = expr
+    return expr
 
 
 @dataclass
@@ -236,7 +251,8 @@ class VariableEnvironment:
         image_vars: set = set()
 
         for input_var in input_vars:
-            value = search(input_var.key, sample)
+            compiled_query = _get_compiled_query(input_var.key)
+            value = compiled_query.search(sample)
             if value is None:
                 raise ValueError(
                     f"Input variable '{input_var.name}' with key '{input_var.key}' not found in the sample."
