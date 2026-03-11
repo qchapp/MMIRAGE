@@ -49,6 +49,11 @@ class SGLangLLMConfig(BaseProcessorConfig):
     default_sampling_params: Dict[str, Any] = field(default_factory=dict)
     chat_template: str = ""  # Empty means use tokenizer's default
 
+    provider: str = "sglang"  # options: "sglang", "anthropic", "openai". Used for routing to the correct LLM provider
+    api_model_name: str = "gpt-4o" # model name to use when provider is API-based (e.g., OpenAI, Anthropic)
+    api_key: str = "" # API key for API-based providers
+    out
+
 
 @dataclass
 class LLMOutputVar(OutputVar):

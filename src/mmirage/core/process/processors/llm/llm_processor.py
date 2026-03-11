@@ -13,6 +13,7 @@ from transformers import AutoTokenizer
 
 from mmirage.core.process.base import BaseProcessor, ProcessorRegistry
 from mmirage.core.process.processors.llm.config import LLMOutputVar, SGLangLLMConfig
+from mmirage.core.process.processors.llm.openai_batch_client import OpenAIBatchClient
 from mmirage.core.process.variables import VariableEnvironment
 
 try:
@@ -57,7 +58,18 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             engine_args: Configuration for SGLang server and sampling parameters.
             **kwargs: Additional arguments passed to base class.
         """
+
+
+
+
         super().__init__(engine_args, **kwargs)
+
+        if self.engine_args.provider == "openai":
+            self.llm = OpenAIBatchClient(self.engine_args.api_model_name, self.engine_args.api_key)
+        elif self.engine_args.provider == "anthropic":
+            pass
+        
+        # Default to SGLang Engine 
         self.llm = sgl.Engine(**asdict(engine_args.server_args))
         self.tokenizer = AutoTokenizer.from_pretrained(
             engine_args.server_args.model_path,
@@ -130,7 +142,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         return IMAGE_TOKENS.get(self.chat_template, "<image>")
 
     @override
-    def batch_process_sample(
+    def batch_process_sample( 
         self, batch: List[VariableEnvironment], output_var: LLMOutputVar
     ) -> List[VariableEnvironment]:
         """Process a batch of variable environments to generate LLM outputs.
@@ -147,6 +159,18 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             RuntimeError: If output batch size doesn't match input batch size.
         """
         nb_samples = len(batch)
+        results: dict[int, VariableEnvironment] = {}
+
+        # ---- For API-based providers ----
+        if self.provider in ["openai", "anthropic"]:
+
+            prompts = self.llm.build_prompt(output_var.prompt, batch)
+            requests_payloads = [self.llm.build_request(text=prompts[i], request_id=i) for i in range(nb_samples)]
+            responses = self.llm.submit_and_wait(requests_payloads)
+
+
+
+        # ---- For SGLang Engine provider ----
 
         # Prepare sampling params
         sampling_params_output = self.sampling_params.copy()
@@ -169,8 +193,6 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                 multimodal_indices.append(i)
             else:
                 text_only_indices.append(i)
-
-        results: dict[int, VariableEnvironment] = {}
 
         # Text-only batch
         if text_only_indices:
