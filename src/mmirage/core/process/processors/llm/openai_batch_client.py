@@ -7,7 +7,9 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from mmirage.core.process.processors.llm.api_batch_client import APIBatchClient
-from mmirage.core.process.processors.llm.api_utils import get_media_type, load_data
+from mmirage.core.process.processors.llm.api_utils import get_media_type, load_data, encode_image_to_base64
+from mmirage.core.process.processors.llm.config import LLMOutputVar
+from mmirage.core.process.variables import VariableEnvironment
 
 
 
@@ -32,6 +34,7 @@ class OpenAIBatchClient(APIBatchClient):
             )
         self.client = OpenAI(api_key=self.api_key)
         self.output_dir = output_dir
+        self.batches_dir = output_dir / "batches" #TODO to implement in process_dataset and submit_batches
 
 
     # ---------------------------------------------------------------------
@@ -111,24 +114,16 @@ class OpenAIBatchClient(APIBatchClient):
 
 
     def process_dataset(self,
-        *,
-        nb_samples: Optional[int] = None,
+        batch: List[Tuple[str, Tuple[Tuple[str, str], ...]]],
     ) -> None:
         """
-        Build batch JSONL files for OpenAI Batch API.
-
-        Writes one or more files: part_1.jsonl, part_2.jsonl, ...
+        Build batch JSONL files for OpenAI Batch API. Writes one or more files: part_1.jsonl, part_2.jsonl, ...
         Splits by MAX_PART_SIZE_BYTES.
+
+        Args:
+            batch: List of (prompt_text, ((encoded_image1, media_type1), (encoded_image2, media_type2), ...))
         """
         self.output_dir.mkdir(parents=True, exist_ok=True)
-
-        examples, _ = load_data(nb_samples=nb_samples)
-        if not examples:
-            raise RuntimeError("No examples loaded; aborting batch creation.")
-
-        mode = "ALL" if nb_samples is None else f"{nb_samples}"
-        print(f"[INFO] NB_SAMPLES={mode} | Output={self.output_dir}")
-        print(f"[INFO] Building batches for {len(examples)} samples")
 
         part_idx = 1
         bytes_in_part = 0
@@ -137,18 +132,16 @@ class OpenAIBatchClient(APIBatchClient):
         part_file = part_path.open("w", encoding="utf-8")
 
         for i, (text, encoded_images) in tqdm(
-            enumerate(examples, start=1),
-            total=len(examples),
+            enumerate(batch, start=1),
+            total=len(batch),
             desc="Building batch requests",
         ):
-            if not encoded_images:
-                continue
 
-            # Enforce one image per request
-            image_b64 = encoded_images[0]
-            media_type = get_media_type(Path(encoded_images[0]))
+            # Enforce one image per request TODO : allow more than one image
+            image_b64 = encoded_images[0][0]
+            media_type = encoded_images[0][1]
             req = self.build_request(
-                prompt=text,
+                prompt=text, 
                 image_b64=image_b64,
                 media_type=media_type,
                 request_id=i,
@@ -222,7 +215,7 @@ class OpenAIBatchClient(APIBatchClient):
 
             print(f"[SUBMITTED] {part.name} → batch_id={batch.id}")
         
-        print("All batches submitted.")
+        print("All batches submitted.") 
 
 
 
@@ -265,12 +258,12 @@ class OpenAIBatchClient(APIBatchClient):
         return [json.loads(line) for line in text.splitlines() if line.strip()]
 
 
-    def await_and_collect_batch_outputs(self, batches_dir: Path, output_dir: Path) -> None:
+    def await_and_collect_batch_outputs(self) -> None:
         """Wait for batch completions and download outputs."""
-        batch_id_files = sorted(output_dir.glob("batch_id_*.txt"))
+        batch_id_files = sorted(self.output_dir.glob("batch_id_*.txt"))
 
         if not batch_id_files:
-            raise SystemExit(f"No batch ID files found in {output_dir}")
+            raise SystemExit(f"No batch ID files found in {self.output_dir}")
 
 
         all_records = []
@@ -293,7 +286,7 @@ class OpenAIBatchClient(APIBatchClient):
 
 
         # merged outputs
-        all_path = output_dir / "api_response_all.jsonl"
+        all_path = self.output_dir / "api_response_all.jsonl"
         with all_path.open("w", encoding="utf-8") as fout:
             for rec in all_records:
                 fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -301,20 +294,11 @@ class OpenAIBatchClient(APIBatchClient):
 
 
         # optional: also save the plain texts
-        texts_path = output_dir / "messages_all.txt"
+        texts_path = self.output_dir / "messages_all.txt"
         with texts_path.open("w", encoding="utf-8") as ftxt:
             for msg in self.__extract_messages(all_records):
                 ftxt.write(msg + "\n\n")
         print(f"[texts]  {texts_path}")
-
-
-
-
-
-
-
-
-
 
 
 
@@ -324,7 +308,7 @@ class OpenAIBatchClient(APIBatchClient):
             batch = self.__wait_for_output(batch_id)
 
             # Download output file
-            output_path = output_dir / f"output_{batch_id}.jsonl"
+            output_path = self.output_dir / f"output_{batch_id}.jsonl"
             with output_path.open("wb") as fh:
                 self.client.files.download(batch.output_file_id, fh)
 

@@ -31,7 +31,7 @@ def get_media_type(path: Path) -> str:
     
 
 
-def load_data_raw(manifest_path: Path) -> List[dict]:
+def load_data_raw(manifest_path: Path) -> List[dict]: #TODO not useful, remove
     """
     Load the raw JSONL manifest as a list of dicts.
     """
@@ -69,9 +69,10 @@ def resolve_image_path(image_root: Path, value: str) -> Path:
 
 
 def load_data(
+        manifest_path: Path,
         nb_samples: Optional[int] = None,
         max_images_per_sample: int = 1,
-    ) -> Tuple[List[Tuple[str, Tuple[str, ...]]], List[str]]:
+    ) -> Tuple[List[Tuple[str, Tuple[str, ...]]], List[str]]: #TODO Look if it is useful, if not remove
         """
         Load dataset examples and encode images.
 
@@ -79,7 +80,7 @@ def load_data(
         examples: List of (text, (img_b64, ...))
         paths:    List of absolute image paths used
         """
-        raw_records = load_data_raw()
+        raw_records = load_data_raw(manifest_path)
         records = raw_records[:nb_samples] if nb_samples else raw_records
 
         examples: List[Tuple[str, Tuple[str, ...]]] = []

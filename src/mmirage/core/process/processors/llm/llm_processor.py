@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 import json
 import logging
+from pathlib import Path
 from typing import Any, List, Tuple
 
 import jinja2
@@ -15,6 +16,8 @@ from mmirage.core.process.base import BaseProcessor, ProcessorRegistry
 from mmirage.core.process.processors.llm.config import LLMOutputVar, SGLangLLMConfig
 from mmirage.core.process.processors.llm.openai_batch_client import OpenAIBatchClient
 from mmirage.core.process.variables import VariableEnvironment
+from mmirage.core.process.processors.llm.api_utils import encode_image_to_base64, get_media_type
+
 
 try:
     from typing import override  # Python 3.12+
@@ -163,12 +166,21 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
 
         # ---- For API-based providers ----
         if self.provider in ["openai", "anthropic"]:
+            # dataset_examples = List of (prompt_text, ((encoded_image1, media_type1), (encoded_image2, media_type2), ...)) 
+            # prompt_text is generated with jinja rendering and images are encoded to base64 with their media types
+            batch_prompts: List[Tuple[str, Tuple[Tuple[str, str], ...]]] = []
+            for var_env in batch:
+                jinja_template = jinja2.Template(output_var.prompt)
+                base_prompt = jinja_template.render(**var_env.to_dict())
 
-            prompts = self.llm.build_prompt(output_var.prompt, batch)
-            requests_payloads = [self.llm.build_request(text=prompts[i], request_id=i) for i in range(nb_samples)]
-            responses = self.llm.submit_and_wait(requests_payloads)
-
-
+                image_paths = var_env.get_images()
+                encoded_images = tuple((encode_image_to_base64(p), get_media_type(Path(p))) for p in image_paths) if image_paths else ()
+                batch_prompts.append((base_prompt, encoded_images))
+            
+            self.llm.process_dataset(batch_prompts)
+            
+            self.llm.submit_batches(self.llm.output_dir, nb_samples=nb_samples)
+            self.llm.await_and_collect_batch_outputs(self.llm.output_dir)
 
         # ---- For SGLang Engine provider ----
 

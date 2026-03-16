@@ -52,7 +52,6 @@ class SGLangLLMConfig(BaseProcessorConfig):
     provider: str = "sglang"  # options: "sglang", "anthropic", "openai". Used for routing to the correct LLM provider
     api_model_name: str = "gpt-4o" # model name to use when provider is API-based (e.g., OpenAI, Anthropic)
     api_key: str = "" # API key for API-based providers
-    out
 
 
 @dataclass

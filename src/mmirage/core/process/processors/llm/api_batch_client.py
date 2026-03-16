@@ -64,6 +64,7 @@ class APIBatchClient(ABC):
         Writes one or more files: part_1.jsonl, part_2.jsonl, ...
         Splits by MAX_PART_SIZE_BYTES.
         """
+        pass
 
     
 
