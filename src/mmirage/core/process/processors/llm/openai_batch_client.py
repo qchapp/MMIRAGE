@@ -7,7 +7,6 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from mmirage.core.process.processors.llm.api_batch_client import APIBatchClient
-from mmirage.core.process.processors.llm.api_utils import get_media_type, load_data, encode_image_to_base64
 from mmirage.core.process.processors.llm.config import LLMOutputVar
 from mmirage.core.process.variables import VariableEnvironment
 
