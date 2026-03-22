@@ -1,6 +1,6 @@
 
 
-from typing import List, Optional, Dict, Any, Type
+from typing import List, Optional, Dict, Any, Tuple, Type
 from pydantic import BaseModel
 from pathlib import Path
 
@@ -15,70 +15,30 @@ class APIBatchClient(ABC):
         self.api_key = api_key
         self.provider = provider
 
-    @abstractmethod
-    def build_request(
-        self,
-        *,
-        prompt: str,
-        image_b64: str = None,
-        media_type: str = None,
-        request_id: int,
-        system_prompt: str = None,
-        output_schema: Optional[Type[BaseModel]] = None,
-    ) -> dict:
-        """
-        Build a single API request object based on the provider.
-
-        Args:
-            text: The input text to send to the LLM.
-            image_b64: Optional base64-encoded image string for multimodal models.
-            request_id: Unique identifier for this request.
-
-        Returns:
-            A dict representing the API request payload.
-        """
-        pass
-
 
     @abstractmethod
-    def submit_batches(self, output_dir: Path) -> None:
+    def submit_batches(self) -> None:
         """
         Submit batches of requests to the LLM API and save responses.
-
-        Args:
-            batches_dir: Directory containing batch request files.
-            output_dir: Directory to save API responses.
         """
         pass
-        
-        
-
+      
     @abstractmethod
     def process_dataset(self,
-        *,
-        nb_samples: Optional[int] = None,
+        batch: List[Tuple[str, Tuple[Tuple[str, str], ...]]],
     ) -> None:
         """
-        Build batch JSONL files
-
-        Writes one or more files: part_1.jsonl, part_2.jsonl, ...
+        Build batch JSONL files for OpenAI Batch API. Writes one or more files: part_1.jsonl, part_2.jsonl, ...
         Splits by MAX_PART_SIZE_BYTES.
-        """
-        pass
-
-    
-
-    @abstractmethod
-    def await_and_collect_batch_outputs(self, batches_dir: Path, output_dir: Path) -> None:
-        """
-        Wait for API responses and collect outputs into VariableEnvironments.
 
         Args:
-            batches_dir: Directory containing batch request files.
-            output_dir: Directory where API responses are saved.
-        """        
+            batch: List of (prompt_text, ((encoded_image1, media_type1), (encoded_image2, media_type2), ...))
+        """
         pass
 
-
-
-
+    @abstractmethod
+    def await_and_collect_batch_outputs(self) -> None:
+        """
+        Wait for API responses and collect outputs into VariableEnvironments.
+        """        
+        pass

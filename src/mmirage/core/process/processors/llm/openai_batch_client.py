@@ -24,7 +24,12 @@ MAX_PART_SIZE_BYTES = int(0.05 * 1024 ** 3)
 
 
 class OpenAIBatchClient(APIBatchClient):
-    def __init__(self, model_name: str, api_key: str, output_dir: Path):
+    def __init__(
+            self,
+            model_name: str, 
+            api_key: str, 
+            output_dir: Path,
+            ):
         super().__init__(model_name=model_name, api_key=api_key, provider="openai")
 
         if not self.api_key: 
@@ -106,7 +111,7 @@ class OpenAIBatchClient(APIBatchClient):
 
 
     # ---------------------------------------------------------------------
-    # Batch construction TODO
+    # Batch construction
     # ---------------------------------------------------------------------
 
 
@@ -137,8 +142,10 @@ class OpenAIBatchClient(APIBatchClient):
         ):
 
             # Enforce one image per request TODO : allow more than one image
-            image_b64 = encoded_images[0][0]
-            media_type = encoded_images[0][1]
+            image_b64 = media_type = None
+            if encoded_images:
+                image_b64 = encoded_images[0][0]
+                media_type = encoded_images[0][1]
             req = self.build_request(
                 prompt=text, 
                 image_b64=image_b64,
