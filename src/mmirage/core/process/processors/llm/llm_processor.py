@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import asdict
 import json
 import logging
-from pathlib import Path
 from typing import Any, List, Tuple
 
 import jinja2
@@ -14,10 +13,7 @@ from transformers import AutoTokenizer
 
 from mmirage.core.process.base import BaseProcessor, ProcessorRegistry
 from mmirage.core.process.processors.llm.config import LLMOutputVar, SGLangLLMConfig
-from mmirage.core.process.processors.llm.openai_batch_client import OpenAIBatchClient
 from mmirage.core.process.variables import VariableEnvironment
-from mmirage.core.process.processors.llm.api_utils import encode_image_to_base64, get_media_type
-
 
 try:
     from typing import override  # Python 3.12+
@@ -61,18 +57,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             engine_args: Configuration for SGLang server and sampling parameters.
             **kwargs: Additional arguments passed to base class.
         """
-
-
-
-
         super().__init__(engine_args, **kwargs)
-
-        if self.engine_args.provider == "openai":
-            self.llm = OpenAIBatchClient(self.engine_args.api_model_name, self.engine_args.api_key)
-        elif self.engine_args.provider == "anthropic":
-            pass
-        
-        # Default to SGLang Engine 
         self.llm = sgl.Engine(**asdict(engine_args.server_args))
         self.tokenizer = AutoTokenizer.from_pretrained(
             engine_args.server_args.model_path,
@@ -145,7 +130,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         return IMAGE_TOKENS.get(self.chat_template, "<image>")
 
     @override
-    def batch_process_sample( 
+    def batch_process_sample(
         self, batch: List[VariableEnvironment], output_var: LLMOutputVar
     ) -> List[VariableEnvironment]:
         """Process a batch of variable environments to generate LLM outputs.
@@ -162,27 +147,6 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             RuntimeError: If output batch size doesn't match input batch size.
         """
         nb_samples = len(batch)
-        results: dict[int, VariableEnvironment] = {}
-
-        # ---- For API-based providers ----
-        if self.provider in ["openai", "anthropic"]:
-            # dataset_examples = List of (prompt_text, ((encoded_image1, media_type1), (encoded_image2, media_type2), ...)) 
-            # prompt_text is generated with jinja rendering and images are encoded to base64 with their media types
-            batch_prompts: List[Tuple[str, Tuple[Tuple[str, str], ...]]] = []
-            for var_env in batch:
-                jinja_template = jinja2.Template(output_var.prompt)
-                base_prompt = jinja_template.render(**var_env.to_dict())
-
-                image_paths = var_env.get_images()
-                encoded_images = tuple((encode_image_to_base64(p), get_media_type(Path(p))) for p in image_paths) if image_paths else ()
-                batch_prompts.append((base_prompt, encoded_images))
-            
-            self.llm.process_dataset(batch_prompts)
-            
-            self.llm.submit_batches(self.llm.output_dir, nb_samples=nb_samples)
-            self.llm.await_and_collect_batch_outputs(self.llm.output_dir)
-
-        # ---- For SGLang Engine provider ----
 
         # Prepare sampling params
         sampling_params_output = self.sampling_params.copy()
@@ -205,6 +169,8 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                 multimodal_indices.append(i)
             else:
                 text_only_indices.append(i)
+
+        results: dict[int, VariableEnvironment] = {}
 
         # Text-only batch
         if text_only_indices:

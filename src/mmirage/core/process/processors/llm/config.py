@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 
 import logging
+import os
 from typing import Dict, Optional, Sequence, Type, Any, List
 from pydantic import BaseModel, create_model
 
@@ -13,6 +14,39 @@ from jinja2 import Environment, meta
 
 logger = logging.getLogger(__name__)
 env = Environment()
+
+
+def _parse_tp_size_from_env() -> int:
+    """Parse tensor parallelism size from SLURM_GPUS_ON_NODE environment variable.
+    
+    Defensively parses the environment variable, handling invalid values:
+    - Returns 1 if the variable is None or empty
+    - Strips whitespace before parsing
+    - Returns 1 for non-integer values
+    - Returns 1 for values <= 0
+    
+    Returns:
+        Tensor parallelism size (>= 1), defaults to 1 on any parsing error.
+    """
+    env_value = os.environ.get("SLURM_GPUS_ON_NODE")
+    if not env_value:
+        return 1
+    
+    try:
+        tp_size = int(env_value.strip())
+        # Ensure tp_size is positive (must be >= 1)
+        if tp_size <= 0:
+            logger.warning(
+                f"Invalid SLURM_GPUS_ON_NODE value '{env_value}' (must be > 0), defaulting tp_size to 1"
+            )
+            return 1
+        return tp_size
+    except ValueError:
+        # ValueError: invalid integer format
+        logger.warning(
+            f"Invalid SLURM_GPUS_ON_NODE value '{env_value}', defaulting tp_size to 1"
+        )
+        return 1
 
 
 @dataclass
@@ -27,7 +61,7 @@ class SGLangServerArgs:
     """
 
     model_path: str = "none"
-    tp_size: int = 1
+    tp_size: int = field(default_factory=_parse_tp_size_from_env)
     trust_remote_code: bool = True
     disable_custom_all_reduce: bool = False
 
@@ -48,10 +82,6 @@ class SGLangLLMConfig(BaseProcessorConfig):
     server_args: SGLangServerArgs = field(default_factory=SGLangServerArgs)
     default_sampling_params: Dict[str, Any] = field(default_factory=dict)
     chat_template: str = ""  # Empty means use tokenizer's default
-
-    provider: str = "sglang"  # options: "sglang", "anthropic", "openai". Used for routing to the correct LLM provider
-    api_model_name: str = "gpt-4o" # model name to use when provider is API-based (e.g., OpenAI, Anthropic)
-    api_key: str = "" # API key for API-based providers
 
 
 @dataclass
