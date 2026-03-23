@@ -1,0 +1,130 @@
+import pytest
+
+from mmirage.config.batch_provider import BatchProviderConfig
+from mmirage.core.process.batch.adapter import BatchSubmissionAdapter, BatchSubmissionResult
+from mmirage.core.process.batch.registry import BatchAdapterFactory, BatchAdapterRegistry
+
+
+class CompleteTestAdapter(BatchSubmissionAdapter):
+    required_credentials = tuple()
+
+    @property
+    def adapter_name(self) -> str:
+        return "complete-test-adapter"
+
+    @property
+    def adapter_version(self) -> str:
+        return "1.0.0"
+
+    def build_request(self, custom_id, payload, config):
+        return {"custom_id": custom_id, "payload": dict(payload), "provider": config.provider}
+
+    def estimate_request_bytes(self, request):
+        # Deterministic approximation for tests.
+        return len(str(request).encode("utf-8"))
+
+    def submit_chunk(self, chunk_id, requests, config):
+        return {
+            "batch_id": f"{config.provider}-{chunk_id}",
+            "status": "submitted",
+            "requests": len(requests),
+        }
+
+    def parse_submission_result(self, raw_result, request_count):
+        return BatchSubmissionResult(
+            provider_batch_id=str(raw_result["batch_id"]),
+            status=str(raw_result["status"]),
+            submitted_request_count=request_count,
+            raw_response=raw_result,
+        )
+
+
+class CredentialedTestAdapter(CompleteTestAdapter):
+    required_credentials = ("api_key",)
+
+
+class IncompleteTestAdapter(BatchSubmissionAdapter):
+    @property
+    def adapter_name(self) -> str:
+        return "incomplete"
+
+    @property
+    def adapter_version(self) -> str:
+        return "0.0.0"
+
+    def build_request(self, custom_id, payload, config):
+        return {}
+
+    def estimate_request_bytes(self, request):
+        return 0
+
+    def submit_chunk(self, chunk_id, requests, config):
+        return {}
+
+
+@pytest.fixture(autouse=True)
+def clear_batch_adapter_registry():
+    BatchAdapterRegistry.clear()
+    yield
+    BatchAdapterRegistry.clear()
+
+
+def test_adapter_interface_is_abstract():
+    with pytest.raises(TypeError):
+        BatchSubmissionAdapter()
+
+
+def test_incomplete_adapter_fails_interface_compliance():
+    with pytest.raises(TypeError):
+        IncompleteTestAdapter()
+
+
+def test_complete_adapter_is_interface_compliant():
+    adapter = CompleteTestAdapter()
+    config = BatchProviderConfig(provider="unit")
+
+    request = adapter.build_request(custom_id="req-1", payload={"x": 1}, config=config)
+    assert request["custom_id"] == "req-1"
+
+    estimated_bytes = adapter.estimate_request_bytes(request)
+    assert estimated_bytes > 0
+
+    raw_result = adapter.submit_chunk(chunk_id="chunk-1", requests=[request], config=config)
+    parsed = adapter.parse_submission_result(raw_result=raw_result, request_count=1)
+
+    assert parsed.provider_batch_id == "unit-chunk-1"
+    assert parsed.status == "submitted"
+    assert parsed.submitted_request_count == 1
+
+
+def test_factory_resolves_registered_provider():
+    BatchAdapterRegistry.register("unit", CompleteTestAdapter)
+    config = BatchProviderConfig(provider="unit")
+
+    adapter = BatchAdapterFactory.from_config(config)
+
+    assert isinstance(adapter, CompleteTestAdapter)
+
+
+def test_factory_raises_for_unknown_provider():
+    config = BatchProviderConfig(provider="not-registered")
+
+    with pytest.raises(ValueError, match="Unknown batch provider"):
+        BatchAdapterFactory.from_config(config)
+
+
+def test_factory_raises_for_missing_required_credentials():
+    BatchAdapterRegistry.register("unit", CredentialedTestAdapter)
+    config = BatchProviderConfig(provider="unit", credentials={})
+
+    with pytest.raises(ValueError, match="Missing credentials"):
+        BatchAdapterFactory.from_config(config)
+
+
+def test_factory_creates_adapter_when_credentials_are_present():
+    BatchAdapterRegistry.register("unit", CredentialedTestAdapter)
+    config = BatchProviderConfig(provider="unit", credentials={"api_key": "secret"})
+
+    adapter = BatchAdapterFactory.from_config(config)
+
+    assert isinstance(adapter, CredentialedTestAdapter)
