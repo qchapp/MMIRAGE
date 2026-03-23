@@ -14,6 +14,18 @@ class BatchAdapterRegistry:
     """
 
     _registry: Dict[str, Type[BatchSubmissionAdapter]] = dict()
+    _bootstrapped: bool = False
+
+    @classmethod
+    def _bootstrap_builtin_adapters(cls) -> None:
+        if cls._bootstrapped:
+            return
+
+        # Local import avoids import cycles while ensuring built-ins are available.
+        from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+        cls.register("openai", OpenAIBatchAdapter)
+        cls._bootstrapped = True
 
     @classmethod
     def register(cls, provider: str, adapter_cls: Type[BatchSubmissionAdapter]) -> None:
@@ -30,10 +42,12 @@ class BatchAdapterRegistry:
         Intended for tests and isolated bootstrapping logic.
         """
         cls._registry.clear()
+        cls._bootstrapped = False
 
     @classmethod
     def resolve(cls, provider: str) -> Type[BatchSubmissionAdapter]:
         """Resolve a provider key to a registered adapter class."""
+        cls._bootstrap_builtin_adapters()
         provider_key = provider.strip().lower()
         if provider_key not in cls._registry:
             raise ValueError(
