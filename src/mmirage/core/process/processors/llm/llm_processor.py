@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import json
 import logging
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
 import sglang as sgl
 from transformers import AutoTokenizer
 
 from mmirage.core.process.base import BaseProcessor, ProcessorRegistry
+from mmirage.core.process.batch.orchestrator import BatchSubmissionOrchestrator
+from mmirage.core.process.batch.registry import BatchAdapterFactory
 from mmirage.core.process.processors.llm.config import LLMOutputVar, SGLangLLMConfig
 from mmirage.core.process.variables import VariableEnvironment
+from mmirage.config.openai_batch import OpenAIBatchConfig
 
 try:
     from typing import override  # Python 3.12+
@@ -65,6 +68,65 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         )
         self.sampling_params = engine_args.default_sampling_params
         self.chat_template = engine_args.chat_template
+        self._batch_adapter = None
+        self._batch_provider_config = None
+        self._text_orchestrator: Optional[BatchSubmissionOrchestrator] = None
+        self._multimodal_orchestrator: Optional[BatchSubmissionOrchestrator] = None
+        self._batch_request_counter = 0
+        self._setup_batch_runtime()
+
+    def _setup_batch_runtime(self) -> None:
+        provider_cfg_raw = dict(getattr(self.config, "batch_provider", {}) or {})
+        if not provider_cfg_raw:
+            return
+
+        if not provider_cfg_raw.get("enabled", False):
+            return
+
+        provider = str(provider_cfg_raw.get("provider", "openai")).strip().lower()
+        if provider != "openai":
+            raise ValueError(
+                f"Only provider='openai' is currently supported, got '{provider}'."
+            )
+
+        openai_cfg = OpenAIBatchConfig(**provider_cfg_raw)
+        self._batch_provider_config = openai_cfg
+        self._batch_adapter = BatchAdapterFactory.from_config(openai_cfg)
+
+        self._text_orchestrator = BatchSubmissionOrchestrator(
+            adapter=self._batch_adapter,
+            config=replace(
+                openai_cfg,
+                metadata_output_path=self._with_metadata_suffix(
+                    openai_cfg.metadata_output_path, "text"
+                ),
+            ),
+        )
+        self._multimodal_orchestrator = BatchSubmissionOrchestrator(
+            adapter=self._batch_adapter,
+            config=replace(
+                openai_cfg,
+                metadata_output_path=self._with_metadata_suffix(
+                    openai_cfg.metadata_output_path, "multimodal"
+                ),
+            ),
+        )
+
+    @staticmethod
+    def _with_metadata_suffix(path: str, suffix: str) -> str:
+        if not path:
+            return ""
+        if path.endswith(".jsonl"):
+            return path[:-6] + f".{suffix}.jsonl"
+        return f"{path}.{suffix}.jsonl"
+
+    @property
+    def batch_mode_enabled(self) -> bool:
+        return self._text_orchestrator is not None and self._multimodal_orchestrator is not None
+
+    def _next_custom_id(self, output_name: str, global_index: int, modality: str) -> str:
+        self._batch_request_counter += 1
+        return f"{output_name}:{modality}:{self._batch_request_counter}:{global_index}"
 
     def build_prompt(
         self, prompt_template: str, vars_samples: List[VariableEnvironment]
@@ -147,6 +209,9 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             RuntimeError: If output batch size doesn't match input batch size.
         """
         nb_samples = len(batch)
+
+        if self.batch_mode_enabled:
+            return self._batch_process_sample(batch=batch, output_var=output_var)
 
         # Prepare sampling params
         sampling_params_output = self.sampling_params.copy()
@@ -270,6 +335,132 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                     results[global_i] = batch[global_i].with_variable(output_var.name, empty_val)
 
         return [results[i] for i in range(nb_samples)]
+
+    def _batch_process_sample(
+        self,
+        batch: List[VariableEnvironment],
+        output_var: LLMOutputVar,
+    ) -> List[VariableEnvironment]:
+        assert self._batch_provider_config is not None
+        assert self._batch_adapter is not None
+        assert self._text_orchestrator is not None
+        assert self._multimodal_orchestrator is not None
+
+        nb_samples = len(batch)
+        text_only_indices: List[int] = []
+        multimodal_indices: List[int] = []
+        for i in range(nb_samples):
+            if batch[i].has_images():
+                multimodal_indices.append(i)
+            else:
+                text_only_indices.append(i)
+
+        if text_only_indices:
+            text_only_envs = [batch[i] for i in text_only_indices]
+            prompts = self.build_prompt(output_var.prompt, text_only_envs)
+            requests: List[Dict[str, Any]] = []
+            source_indices: List[int] = []
+            for local_i, global_i in enumerate(text_only_indices):
+                payload = {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": prompts[local_i],
+                        }
+                    ]
+                }
+                custom_id = self._next_custom_id(output_var.name, global_i, "text")
+                request = self._batch_adapter.build_request(
+                    custom_id=custom_id,
+                    payload=payload,
+                    config=self._batch_provider_config,
+                )
+                requests.append(dict(request))
+                source_indices.append(global_i)
+
+            self._text_orchestrator.add_requests(
+                requests=requests,
+                source_indices=source_indices,
+                model_params_snapshot={
+                    "output_name": output_var.name,
+                    "output_type": output_var.output_type,
+                    "modality": "text",
+                },
+            )
+
+        if multimodal_indices:
+            requests = []
+            source_indices = []
+            for global_i in multimodal_indices:
+                base_prompt, image_data = self.build_multimodal_prompt(output_var.prompt, batch[global_i])
+                content: List[Dict[str, Any]] = [{"type": "text", "text": base_prompt}]
+
+                if image_data is not None:
+                    if isinstance(image_data, list):
+                        images = image_data
+                    else:
+                        images = [image_data]
+                    for image_ref in images:
+                        content.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": str(image_ref)},
+                            }
+                        )
+
+                payload = {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": content,
+                        }
+                    ]
+                }
+                custom_id = self._next_custom_id(output_var.name, global_i, "multimodal")
+                request = self._batch_adapter.build_request(
+                    custom_id=custom_id,
+                    payload=payload,
+                    config=self._batch_provider_config,
+                )
+                requests.append(dict(request))
+                source_indices.append(global_i)
+
+            self._multimodal_orchestrator.add_requests(
+                requests=requests,
+                source_indices=source_indices,
+                model_params_snapshot={
+                    "output_name": output_var.name,
+                    "output_type": output_var.output_type,
+                    "modality": "multimodal",
+                },
+            )
+
+        placeholders: List[VariableEnvironment] = []
+        for i in range(nb_samples):
+            placeholder = f"__BATCH_SUBMITTED__:{output_var.name}:{i}"
+            placeholders.append(batch[i].with_variable(output_var.name, placeholder))
+
+        return placeholders
+
+    def finalize(self) -> None:
+        if not self.batch_mode_enabled:
+            return
+
+        assert self._text_orchestrator is not None
+        assert self._multimodal_orchestrator is not None
+
+        self._text_orchestrator.finalize(
+            model_params_snapshot={
+                "modality": "text",
+                "phase": "finalize",
+            }
+        )
+        self._multimodal_orchestrator.finalize(
+            model_params_snapshot={
+                "modality": "multimodal",
+                "phase": "finalize",
+            }
+        )
 
     def shutdown(self) -> None:
         """Shutdown the LLM engine."""

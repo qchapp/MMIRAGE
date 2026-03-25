@@ -142,6 +142,8 @@ def main():
             fn_kwargs={"mapper": mapper, "renderer": renderer, "image_base_path": ds_config.image_base_path},
             remove_columns=remove_columns,
         )
+        # Drain stateful batch accumulators once this dataset map iteration finishes.
+        mapper.finalize_processors()
         ds_processed_all.append(ds_processed)
 
     for ds_config, ds_processed in zip(datasets_config, ds_processed_all):

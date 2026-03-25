@@ -5,7 +5,7 @@ submission provider (OpenAI, Anthropic, etc.).
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 
 @dataclass
@@ -48,6 +48,9 @@ class BatchProviderConfig:
             chunk. If None, no request-count cap is enforced.
         metadata_output_path: Path where submission metadata artifacts are saved.
         retry_policy: Retry policy used by the shared batch layer.
+        oversized_request_policy: Handling policy when a single request exceeds
+            ``max_chunk_bytes``. ``isolate`` creates a dedicated oversized
+            chunk, while ``reject`` fails fast.
         extras: Provider-specific knobs that do not belong in the shared fields.
         credentials: Provider credentials required to submit chunks.
     """
@@ -58,6 +61,7 @@ class BatchProviderConfig:
     max_requests_per_chunk: Optional[int] = None
     metadata_output_path: str = ""
     retry_policy: BatchRetryPolicy = field(default_factory=BatchRetryPolicy)
+    oversized_request_policy: Literal["isolate", "reject"] = "isolate"
     extras: Dict[str, Any] = field(default_factory=dict)
     credentials: Dict[str, str] = field(default_factory=dict)
 
@@ -70,3 +74,5 @@ class BatchProviderConfig:
             raise ValueError("max_chunk_bytes must be >= 1")
         if self.max_requests_per_chunk is not None and self.max_requests_per_chunk < 1:
             raise ValueError("max_requests_per_chunk must be >= 1 when provided")
+        if self.oversized_request_policy not in {"isolate", "reject"}:
+            raise ValueError("oversized_request_policy must be either 'isolate' or 'reject'")

@@ -77,11 +77,13 @@ class SGLangLLMConfig(BaseProcessorConfig):
         server_args: SGLang server arguments including model path and TP size.
         default_sampling_params: Default sampling parameters for generation.
         chat_template: Chat template name for vision-language models (e.g., "qwen2-vl").
+        batch_provider: Optional provider batch settings for async submission.
     """
 
     server_args: SGLangServerArgs = field(default_factory=SGLangServerArgs)
     default_sampling_params: Dict[str, Any] = field(default_factory=dict)
     chat_template: str = ""  # Empty means use tokenizer's default
+    batch_provider: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
