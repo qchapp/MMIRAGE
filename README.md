@@ -32,6 +32,29 @@ For testing and scripts that make use of the library, it is advised to create a 
 
 ## Example usage
 
+### Running (single command)
+
+Run the pipeline via the Python CLI. Retry behavior is driven by your YAML config:
+
+- `execution_params.retry: true` → automatically retries failed shards until completion or `max_retries`
+- `execution_params.retry: false` → submits/runs once; you can later trigger retries via `check`
+
+```bash
+python -m mmirage.cli run --config configs/config_mock.yaml
+```
+
+To check status only:
+
+```bash
+python -m mmirage.cli check --config configs/config_mock.yaml
+```
+
+To check status and submit retries for failed shards:
+
+```bash
+python -m mmirage.cli check --config configs/config_mock.yaml --retry
+```
+
 ### Text-only: Reformatting dataset
 
 Suppose you have a dataset with samples of the following format
@@ -58,11 +81,12 @@ processors:
       max_new_tokens: 384
 
 loading_params:
+  state_dir: /path/to/state/dir
   datasets:
     - path: /path/to/dataset
       type: loadable
       output_dir: /path/to/output/shards
-  num_shards: "$SLURM_ARRAY_TASK_COUNT"
+  num_shards: 4
   shard_id: "$SLURM_ARRAY_TASK_ID"
   batch_size: 64
 
@@ -91,17 +115,25 @@ processing_params:
       - role: assistant
         content: "{{ formatted_answer }}"
     modalities: "{{ modalities }}"
+
+execution_params:
+  mode: local
+  retry: false
 ```
 
 Configuration explanation:
 
 - `processors`: List of processor configurations. Currently supports `llm` type for LLM-based generation.
 - `loading_params`: Parameters for loading and sharding datasets.
+  - `state_dir`: Optional shared directory for shard status/retry state. Defaults to `~/.cache/MMIRAGE/state_dir`.
   - `datasets`: List of dataset configurations with path, type, and output directory.
 - `processing_params`:
   - `inputs`: Variables extracted from the input dataset using JMESPath queries.
   - `outputs`: Variables created by processors. Prompts use Jinja2 templating (`{{ variable }}`).
   - `output_schema`: Defines the structure of output samples.
+- `execution_params`:
+  - `mode`: "local" to run shard processing in the current Python environment or "slurm" to run through SLURM by submitting an sbatch array job.
+  - `retry`: If true, MMIRAGE automatically retries failed shards until they succeed or `max_retries` is reached. If false, the pipeline runs/submits once, and retries can be triggered later via the check/retry CLI commands.
 
 ### Multimodal: Processing images with VLMs
 
@@ -121,11 +153,12 @@ processors:
       max_new_tokens: 768
 
 loading_params:
+  state_dir: path/to/state/dir
   datasets:
     - path: /path/to/image/dataset
       type: loadable
       output_dir: /path/to/output/shards
-  num_shards: "$SLURM_ARRAY_TASK_COUNT"
+  num_shards: 4
   shard_id: "$SLURM_ARRAY_TASK_ID"
   batch_size: 32
 
@@ -152,6 +185,10 @@ processing_params:
     image: "{{ medical_image }}"
     caption: "{{ enhanced_caption }}"
     original_caption: "{{ original_caption }}"
+
+execution_params:
+  mode: local
+  retry: false
 ```
 
 Key multimodal features:
