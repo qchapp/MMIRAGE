@@ -89,12 +89,12 @@ def collect_and_merge(
                 continue
             row_payload = _build_output_payload(result_row)
             indexed_rows[custom_id] = {
-                "source_index": mapping[custom_id],
+                "source_index": int(mapping.get(custom_id, 0)),
                 "custom_id": custom_id,
                 **row_payload,
             }
 
-    ordered_rows = sorted(indexed_rows.values(), key=lambda row: row["source_index"])
+    ordered_rows = sorted(indexed_rows.values(), key=lambda row: row.get("source_index", 0))
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
