@@ -107,14 +107,14 @@ def test_collect_and_merge_reconstructs_rows_deterministically(tmp_path, monkeyp
     )
 
     assert [r["source_index"] for r in rows] == [0, 1, 2]
-    assert [r["custom_id"] for r in rows] == ["c2", "c3", "c1"]
-    assert [r["conversations"][0]["content"] for r in rows] == ["q0", "q1", "q2"]
-    assert [r["conversations"][1]["content"] for r in rows] == ["a0", "a1", "a2"]
+    assert [r["custom_id"] for r in rows] == ["c1", "c2", "c3"]
+    assert [r["conversations"][0]["content"] for r in rows] == ["q2", "q0", "q1"]
+    assert [r["conversations"][1]["content"] for r in rows] == ["a2", "a0", "a1"]
     assert fake_adapter.calls == [("batch_1", "openai"), ("batch_2", "openai")]
 
     written = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
     assert [r["source_index"] for r in written] == [0, 1, 2]
-    assert [r["conversations"][0]["content"] for r in written] == ["q0", "q1", "q2"]
+    assert [r["conversations"][0]["content"] for r in written] == ["q2", "q0", "q1"]
 
 
 def test_collect_and_merge_raises_for_missing_provider_config(tmp_path):
@@ -142,3 +142,60 @@ def test_collect_and_merge_raises_for_missing_provider_config(tmp_path):
         assert False, "Expected ValueError"
     except ValueError as e:
         assert "No provider config" in str(e)
+
+
+def test_collect_and_merge_outputs_caption_for_plain_text_content(tmp_path, monkeypatch):
+    from mmirage.core.process.batch.collector import collect_and_merge
+
+    metadata_path = tmp_path / "receipts.jsonl"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "provider": "openai",
+                "provider_batch_id": "batch_plain",
+                "custom_id_to_source_index": {"img_1": 0},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "merged_plain.jsonl"
+
+    class FakeAdapter:
+        def retrieve_results(self, provider_batch_id, config):
+            return [
+                {
+                    "custom_id": "img_1",
+                    "response": {
+                        "body": {
+                            "choices": [
+                                {
+                                    "message": {
+                                        "content": "A black cat sitting on a sofa."
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                }
+            ]
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.collector.BatchAdapterFactory.from_config",
+        lambda config: FakeAdapter(),
+    )
+
+    rows = collect_and_merge(
+        metadata_output_path=str(metadata_path),
+        provider_configs={"openai": OpenAIBatchConfig(credentials={"api_key": "k"})},
+        output_path=str(output_path),
+    )
+
+    assert rows == [
+        {
+            "source_index": 0,
+            "custom_id": "img_1",
+            "caption": "A black cat sitting on a sofa.",
+        }
+    ]

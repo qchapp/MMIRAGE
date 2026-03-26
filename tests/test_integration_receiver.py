@@ -93,9 +93,9 @@ def test_integration_receiver_reads_receipt_and_writes_merged_output(tmp_path, m
     )
 
     assert [r["source_index"] for r in rows] == [0, 1, 2]
-    assert [r["custom_id"] for r in rows] == ["id_b", "id_a", "id_c"]
-    assert [r["conversations"][1]["content"] for r in rows] == ["zero", "one", "two"]
+    assert [r["custom_id"] for r in rows] == ["id_a", "id_b", "id_c"]
+    assert [r["conversations"][1]["content"] for r in rows] == ["one", "zero", "two"]
 
     written = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
-    assert [r["custom_id"] for r in written] == ["id_b", "id_a", "id_c"]
-    assert [r["conversations"][1]["content"] for r in written] == ["zero", "one", "two"]
+    assert [r["custom_id"] for r in written] == ["id_a", "id_b", "id_c"]
+    assert [r["conversations"][1]["content"] for r in written] == ["one", "zero", "two"]

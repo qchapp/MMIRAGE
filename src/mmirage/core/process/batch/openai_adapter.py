@@ -1,7 +1,10 @@
 """Concrete OpenAI implementation of batch submission contracts."""
 
+import base64
+import copy
 import io
 import json
+import mimetypes
 import os
 from typing import Any, Dict, List, Mapping, Sequence
 
@@ -32,9 +35,10 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         config: BatchProviderConfig,
     ) -> Mapping[str, Any]:
         openai_config = self._as_openai_config(config)
-        body = dict(payload)
+        body = copy.deepcopy(payload)
         expected_schema = body.pop("expected_schema", None)
         body.setdefault("model", openai_config.model)
+        self._convert_local_images_to_data_uris(body)
 
         if isinstance(expected_schema, list) and all(isinstance(k, str) for k in expected_schema):
             properties = {key: {"type": "string"} for key in expected_schema}
@@ -58,6 +62,52 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
             "url": openai_config.batch_endpoint,
             "body": body,
         }
+
+    @staticmethod
+    def _convert_local_images_to_data_uris(body: Mapping[str, Any]) -> None:
+        messages = body.get("messages")
+        if not isinstance(messages, list):
+            return
+
+        for message in messages:
+            if not isinstance(message, dict):
+                continue
+
+            content = message.get("content")
+            if not isinstance(content, list):
+                continue
+
+            for part in content:
+                if not isinstance(part, dict):
+                    continue
+                if part.get("type") != "image_url":
+                    continue
+
+                image_url = part.get("image_url")
+                if not isinstance(image_url, dict):
+                    continue
+
+                url = image_url.get("url")
+                if not isinstance(url, str):
+                    continue
+
+                # Keep remote/data URLs untouched.
+                if url.startswith("http://") or url.startswith("https://") or url.startswith("data:"):
+                    continue
+
+                if os.path.exists(url):
+                    image_url["url"] = OpenAIBatchAdapter._local_file_to_data_uri(url)
+
+    @staticmethod
+    def _local_file_to_data_uri(path: str) -> str:
+        mime_type, _ = mimetypes.guess_type(path)
+        if not mime_type:
+            mime_type = "image/jpeg"
+
+        with open(path, "rb") as f:
+            encoded = base64.b64encode(f.read()).decode("utf-8")
+
+        return f"data:{mime_type};base64,{encoded}"
 
     def estimate_request_bytes(self, request: Mapping[str, Any]) -> int:
         serialized = json.dumps(request, ensure_ascii=False, separators=(",", ":"))

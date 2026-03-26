@@ -80,31 +80,23 @@ def collect_and_merge(
             config=provider_configs[provider],
         )
 
-    indexed_rows: MutableMapping[int, Dict[str, Any]] = {}
+    indexed_rows: MutableMapping[str, Dict[str, Any]] = {}
     for pair, mapping in pair_to_mapping.items():
         results = pair_to_results.get(pair, [])
         for result_row in results:
             custom_id = str(result_row.get("custom_id", "")).strip()
             if not custom_id or custom_id not in mapping:
                 continue
-            source_index = mapping[custom_id]
-            parsed = _parse_structured_content(result_row)
-            indexed_rows[source_index] = {
-                "source_index": source_index,
+            row_payload = _build_output_payload(result_row)
+            indexed_rows[custom_id] = {
+                "source_index": 0,
                 "custom_id": custom_id,
-                "conversations": [
-                    {
-                        "role": "user",
-                        "content": str(parsed.get("question", "")),
-                    },
-                    {
-                        "role": "assistant",
-                        "content": str(parsed.get("answer", "")),
-                    },
-                ],
+                **row_payload,
             }
 
-    ordered_rows = [indexed_rows[idx] for idx in sorted(indexed_rows.keys())]
+    ordered_rows = list(indexed_rows.values())
+    for idx, row in enumerate(ordered_rows):
+        row["source_index"] = idx
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
@@ -114,8 +106,35 @@ def collect_and_merge(
     return ordered_rows
 
 
-def _parse_structured_content(result_row: Mapping[str, Any]) -> Dict[str, Any]:
-    # Preferred OpenAI envelope path for Structured Outputs.
+def _build_output_payload(result_row: Mapping[str, Any]) -> Dict[str, Any]:
+    raw_content = _extract_content_string(result_row)
+    if not raw_content:
+        return {"caption": ""}
+
+    try:
+        parsed = json.loads(raw_content)
+    except json.JSONDecodeError:
+        return {"caption": raw_content}
+
+    if isinstance(parsed, dict) and ("question" in parsed or "answer" in parsed):
+        return {
+            "conversations": [
+                {
+                    "role": "user",
+                    "content": str(parsed.get("question", "")),
+                },
+                {
+                    "role": "assistant",
+                    "content": str(parsed.get("answer", "")),
+                },
+            ]
+        }
+
+    return {"caption": raw_content}
+
+
+def _extract_content_string(result_row: Mapping[str, Any]) -> str:
+    # Preferred OpenAI envelope path for Structured Outputs / plain responses.
     response = result_row.get("response")
     if isinstance(response, Mapping):
         body = response.get("body")
@@ -128,24 +147,14 @@ def _parse_structured_content(result_row: Mapping[str, Any]) -> Dict[str, Any]:
                     if isinstance(message, Mapping):
                         content = message.get("content")
                         if isinstance(content, str):
-                            try:
-                                parsed = json.loads(content)
-                                if isinstance(parsed, dict):
-                                    return parsed
-                            except json.JSONDecodeError:
-                                return {}
+                            return content
 
     # Fallback for normalized adapter payloads carrying generated_text directly.
     generated_text = result_row.get("generated_text")
     if isinstance(generated_text, str):
-        try:
-            parsed = json.loads(generated_text)
-            if isinstance(parsed, dict):
-                return parsed
-        except json.JSONDecodeError:
-            return {}
+        return generated_text
 
-    return {}
+    return ""
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:

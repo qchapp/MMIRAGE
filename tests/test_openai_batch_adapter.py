@@ -1,4 +1,5 @@
 import json
+import base64
 
 import pytest
 
@@ -59,6 +60,36 @@ def test_openai_build_request_injects_structured_output_format():
             },
         },
     }
+
+
+def test_openai_build_request_converts_local_image_path_to_data_uri(tmp_path):
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+    image_bytes = b"\xff\xd8\xff\xe0testjpeg"
+    image_path = tmp_path / "sample.jpg"
+    image_path.write_bytes(image_bytes)
+
+    config = OpenAIBatchConfig(model="gpt-4o-mini")
+    adapter = OpenAIBatchAdapter()
+    payload = {
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "describe image"},
+                    {"type": "image_url", "image_url": {"url": str(image_path)}},
+                ],
+            }
+        ]
+    }
+
+    request = adapter.build_request(custom_id="vision-1", payload=payload, config=config)
+
+    url = request["body"]["messages"][0]["content"][1]["image_url"]["url"]
+    assert url.startswith("data:image/jpeg;base64,")
+
+    encoded = url.split(",", 1)[1]
+    assert base64.b64decode(encoded) == image_bytes
 
 
 def test_openai_estimate_request_bytes_matches_utf8_json_size():
