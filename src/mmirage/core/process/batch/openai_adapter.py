@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 from typing import Any, Dict, List, Mapping, Sequence
 
 from openai import OpenAI
@@ -32,7 +33,24 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
     ) -> Mapping[str, Any]:
         openai_config = self._as_openai_config(config)
         body = dict(payload)
+        expected_schema = body.pop("expected_schema", None)
         body.setdefault("model", openai_config.model)
+
+        if isinstance(expected_schema, list) and all(isinstance(k, str) for k in expected_schema):
+            properties = {key: {"type": "string"} for key in expected_schema}
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "structured_output",
+                    "strict": True,
+                    "schema": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": expected_schema,
+                        "additionalProperties": False,
+                    },
+                },
+            }
 
         return {
             "custom_id": custom_id,
@@ -123,18 +141,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
             raw = line.strip()
             if not raw:
                 continue
-
-            parsed = dict(json.loads(raw))
-            custom_id = str(parsed.get("custom_id", "")).strip()
-            if not custom_id:
-                continue
-
-            rows.append(
-                {
-                    "custom_id": custom_id,
-                    "generated_text": self._extract_generated_text(parsed),
-                }
-            )
+            rows.append(dict(json.loads(raw)))
 
         return rows
 
@@ -161,7 +168,16 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
 
     @staticmethod
     def _create_client(config: OpenAIBatchConfig) -> OpenAI:
-        client_kwargs = {"api_key": config.credentials.get("api_key", "")}
+        api_key = (config.credentials.get("api_key", "") or "").strip()
+        if not api_key:
+            api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+
+        if not api_key:
+            raise ValueError(
+                "OpenAI API key is missing. Provide credentials.api_key or set OPENAI_API_KEY."
+            )
+
+        client_kwargs = {"api_key": api_key}
         if config.base_url:
             client_kwargs["base_url"] = config.base_url
         return OpenAI(**client_kwargs)
@@ -187,49 +203,6 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
             return content
 
         raise ValueError("Unable to parse OpenAI files.content response payload.")
-
-    @staticmethod
-    def _extract_generated_text(row: Mapping[str, Any]) -> str:
-        response = row.get("response")
-        if not isinstance(response, Mapping):
-            return ""
-
-        body = response.get("body")
-        if not isinstance(body, Mapping):
-            return ""
-
-        # Backward-compatible fallback for simplified fixtures/providers.
-        body_text = body.get("text")
-        if isinstance(body_text, str):
-            return body_text
-
-        choices = body.get("choices")
-        if not isinstance(choices, list) or not choices:
-            return ""
-
-        first_choice = choices[0]
-        if not isinstance(first_choice, Mapping):
-            return ""
-
-        message = first_choice.get("message")
-        if not isinstance(message, Mapping):
-            return ""
-
-        content = message.get("content")
-        if isinstance(content, str):
-            return content
-
-        # Some OpenAI-compatible responses return segmented content parts.
-        if isinstance(content, list):
-            parts: List[str] = []
-            for item in content:
-                if not isinstance(item, Mapping):
-                    continue
-                if item.get("type") == "text" and isinstance(item.get("text"), str):
-                    parts.append(item["text"])
-            return "".join(parts)
-
-        return ""
 
     @staticmethod
     def _read_attr(obj: Any, key: str) -> Any:

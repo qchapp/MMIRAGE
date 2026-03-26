@@ -31,6 +31,36 @@ def test_openai_build_request_matches_expected_structure():
     }
 
 
+def test_openai_build_request_injects_structured_output_format():
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+    config = OpenAIBatchConfig(model="gpt-4.1-mini")
+    adapter = OpenAIBatchAdapter()
+    payload = {
+        "messages": [{"role": "user", "content": "hello"}],
+        "expected_schema": ["question", "answer"],
+    }
+
+    request = adapter.build_request(custom_id="row-002", payload=payload, config=config)
+
+    assert request["body"]["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "structured_output",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string"},
+                    "answer": {"type": "string"},
+                },
+                "required": ["question", "answer"],
+                "additionalProperties": False,
+            },
+        },
+    }
+
+
 def test_openai_estimate_request_bytes_matches_utf8_json_size():
     from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
@@ -197,6 +227,51 @@ def test_openai_check_batch_status_uses_mocked_openai_client(monkeypatch):
     assert result.submitted_request_count == 0
 
 
+def test_openai_check_batch_status_falls_back_to_env_api_key(monkeypatch):
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+    captured = {}
+
+    class FakeBatches:
+        def retrieve(self, provider_batch_id):
+            class _RetrieveResp:
+                id = provider_batch_id
+                status = "completed"
+
+            return _RetrieveResp()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            captured["client_kwargs"] = kwargs
+            self.batches = FakeBatches()
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
+        FakeClient,
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "env-test-key")
+
+    config = OpenAIBatchConfig(credentials={})
+    adapter = OpenAIBatchAdapter()
+
+    result = adapter.check_batch_status(provider_batch_id="batch_env", config=config)
+
+    assert captured["client_kwargs"]["api_key"] == "env-test-key"
+    assert result.provider_batch_id == "batch_env"
+
+
+def test_openai_check_batch_status_raises_when_no_api_key(monkeypatch):
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    config = OpenAIBatchConfig(credentials={})
+    adapter = OpenAIBatchAdapter()
+
+    with pytest.raises(ValueError, match="OpenAI API key is missing"):
+        adapter.check_batch_status(provider_batch_id="batch_missing", config=config)
+
+
 def test_openai_retrieve_results_downloads_and_parses_jsonl(monkeypatch):
     from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
@@ -246,8 +321,8 @@ def test_openai_retrieve_results_downloads_and_parses_jsonl(monkeypatch):
     assert len(rows) == 2
     assert rows[0]["custom_id"] == "c1"
     assert rows[1]["custom_id"] == "c2"
-    assert rows[0]["generated_text"] == "A"
-    assert rows[1]["generated_text"] == "B"
+    assert rows[0]["response"]["body"]["text"] == "A"
+    assert rows[1]["response"]["body"]["text"] == "B"
 
 
 def test_openai_retrieve_results_raises_if_batch_not_completed(monkeypatch):

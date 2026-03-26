@@ -377,6 +377,8 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                         }
                     ]
                 }
+                if output_var.output_type == "JSON" and output_var.output_schema:
+                    payload["expected_schema"] = list(output_var.output_schema)
                 custom_id = self._next_custom_id(output_var.name, global_i, "text")
                 request = self._batch_adapter.build_request(
                     custom_id=custom_id,
@@ -424,6 +426,8 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                         }
                     ]
                 }
+                if output_var.output_type == "JSON" and output_var.output_schema:
+                    payload["expected_schema"] = list(output_var.output_schema)
                 custom_id = self._next_custom_id(output_var.name, global_i, "multimodal")
                 request = self._batch_adapter.build_request(
                     custom_id=custom_id,

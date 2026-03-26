@@ -139,3 +139,14 @@ def test_factory_creates_adapter_when_credentials_are_present():
     adapter = BatchAdapterFactory.from_config(config)
 
     assert isinstance(adapter, CredentialedTestAdapter)
+
+
+def test_factory_resolves_missing_credentials_from_environment(monkeypatch):
+    BatchAdapterRegistry.register("unit", CredentialedTestAdapter)
+    monkeypatch.setenv("UNIT_API_KEY", "from-env")
+    config = BatchProviderConfig(provider="unit", credentials={})
+
+    adapter = BatchAdapterFactory.from_config(config)
+
+    assert isinstance(adapter, CredentialedTestAdapter)
+    assert config.credentials["api_key"] == "from-env"
