@@ -151,3 +151,134 @@ def test_factory_resolves_openai_adapter_from_registry():
     adapter = BatchAdapterFactory.from_config(config)
 
     assert isinstance(adapter, OpenAIBatchAdapter)
+
+
+def test_openai_check_batch_status_uses_mocked_openai_client(monkeypatch):
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+    captured = {}
+
+    class FakeBatches:
+        def retrieve(self, provider_batch_id):
+            captured["retrieved_id"] = provider_batch_id
+
+            class _RetrieveResp:
+                id = provider_batch_id
+                status = "completed"
+
+            return _RetrieveResp()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            captured["client_kwargs"] = kwargs
+            self.batches = FakeBatches()
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
+        FakeClient,
+    )
+
+    config = OpenAIBatchConfig(
+        credentials={"api_key": "test-key"},
+        base_url="https://example.test/v1",
+    )
+    adapter = OpenAIBatchAdapter()
+
+    result = adapter.check_batch_status(provider_batch_id="batch_456", config=config)
+
+    assert captured["client_kwargs"] == {
+        "api_key": "test-key",
+        "base_url": "https://example.test/v1",
+    }
+    assert captured["retrieved_id"] == "batch_456"
+    assert isinstance(result, BatchSubmissionResult)
+    assert result.provider_batch_id == "batch_456"
+    assert result.status == "completed"
+    assert result.submitted_request_count == 0
+
+
+def test_openai_retrieve_results_downloads_and_parses_jsonl(monkeypatch):
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+    captured = {}
+
+    class FakeBatches:
+        def retrieve(self, provider_batch_id):
+            captured["retrieved_id"] = provider_batch_id
+
+            class _RetrieveResp:
+                id = provider_batch_id
+                status = "completed"
+                output_file_id = "file_output_1"
+
+            return _RetrieveResp()
+
+    class FakeFiles:
+        def content(self, output_file_id):
+            captured["output_file_id"] = output_file_id
+
+            class _ContentResp:
+                text = (
+                    '{"custom_id":"c1","response":{"body":{"text":"A"}}}\n'
+                    '{"custom_id":"c2","response":{"body":{"text":"B"}}}\n'
+                )
+
+            return _ContentResp()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            captured["client_kwargs"] = kwargs
+            self.batches = FakeBatches()
+            self.files = FakeFiles()
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
+        FakeClient,
+    )
+
+    config = OpenAIBatchConfig(credentials={"api_key": "test-key"})
+    adapter = OpenAIBatchAdapter()
+
+    rows = adapter.retrieve_results(provider_batch_id="batch_abc", config=config)
+
+    assert captured["retrieved_id"] == "batch_abc"
+    assert captured["output_file_id"] == "file_output_1"
+    assert len(rows) == 2
+    assert rows[0]["custom_id"] == "c1"
+    assert rows[1]["custom_id"] == "c2"
+    assert rows[0]["generated_text"] == "A"
+    assert rows[1]["generated_text"] == "B"
+
+
+def test_openai_retrieve_results_raises_if_batch_not_completed(monkeypatch):
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+    class FakeBatches:
+        def retrieve(self, provider_batch_id):
+            class _RetrieveResp:
+                id = provider_batch_id
+                status = "in_progress"
+                output_file_id = None
+
+            return _RetrieveResp()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.batches = FakeBatches()
+
+            class _Files:
+                def content(self, output_file_id):
+                    raise AssertionError("content() should not be called when batch is not completed")
+
+            self.files = _Files()
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
+        FakeClient,
+    )
+
+    config = OpenAIBatchConfig(credentials={"api_key": "test-key"})
+    adapter = OpenAIBatchAdapter()
+
+    with pytest.raises(ValueError, match="not completed"):
+        adapter.retrieve_results(provider_batch_id="batch_abc", config=config)

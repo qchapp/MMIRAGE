@@ -38,6 +38,17 @@ class CompleteTestAdapter(BatchSubmissionAdapter):
             raw_response=raw_result,
         )
 
+    def check_batch_status(self, provider_batch_id, config):
+        return BatchSubmissionResult(
+            provider_batch_id=provider_batch_id,
+            status="submitted",
+            submitted_request_count=0,
+            raw_response={"id": provider_batch_id, "status": "submitted"},
+        )
+
+    def retrieve_results(self, provider_batch_id, config):
+        return []
+
 
 class CredentialedTestAdapter(CompleteTestAdapter):
     required_credentials = ("api_key",)

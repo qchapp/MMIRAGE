@@ -61,7 +61,15 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             **kwargs: Additional arguments passed to base class.
         """
         super().__init__(engine_args, **kwargs)
-        self.llm = sgl.Engine(**asdict(engine_args.server_args))
+        provider_cfg_raw = dict(getattr(engine_args, "batch_provider", {}) or {})
+        batch_mode_requested = bool(provider_cfg_raw.get("enabled", False))
+
+        # In provider-batch mode we only build payloads/metadata and should not
+        # initialize GPU-backed SGLang runtime.
+        self.llm = None
+        if not batch_mode_requested:
+            self.llm = sgl.Engine(**asdict(engine_args.server_args))
+
         self.tokenizer = AutoTokenizer.from_pretrained(
             engine_args.server_args.model_path,
             trust_remote_code=getattr(engine_args.server_args, "trust_remote_code", False),
@@ -464,6 +472,9 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
 
     def shutdown(self) -> None:
         """Shutdown the LLM engine."""
+        if self.llm is None:
+            return
+
         try:
             self.llm.shutdown()
         except Exception as e:

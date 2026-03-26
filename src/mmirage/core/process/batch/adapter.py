@@ -131,3 +131,41 @@ class BatchSubmissionAdapter(abc.ABC):
             orchestration and metadata persistence.
         """
         raise NotImplementedError()
+
+    @abc.abstractmethod
+    def check_batch_status(
+        self,
+        provider_batch_id: str,
+        config: BatchProviderConfig,
+    ) -> BatchSubmissionResult:
+        """Retrieve and normalize the latest status for a provider batch job.
+
+        Args:
+            provider_batch_id: Provider-side batch/job identifier to query.
+            config: Provider configuration containing credentials and endpoint
+                overrides.
+
+        Returns:
+            A normalized ``BatchSubmissionResult`` where ``status`` reflects the
+            latest provider-reported lifecycle state for the batch.
+        """
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def retrieve_results(
+        self,
+        provider_batch_id: str,
+        config: BatchProviderConfig,
+    ) -> Sequence[Dict[str, Any]]:
+        """Download and parse completed batch results from the provider.
+
+        Args:
+            provider_batch_id: Provider-side batch/job identifier.
+            config: Provider configuration containing credentials and endpoint
+                overrides.
+
+        Returns:
+            Sequence of parsed result rows (provider JSONL records normalized to
+            dictionaries) preserving provider output order.
+        """
+        raise NotImplementedError()

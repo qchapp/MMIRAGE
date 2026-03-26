@@ -2,7 +2,7 @@
 
 import io
 import json
-from typing import Any, Mapping, Sequence
+from typing import Any, Dict, List, Mapping, Sequence
 
 from openai import OpenAI
 
@@ -53,10 +53,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
     ) -> Mapping[str, Any]:
         openai_config = self._as_openai_config(config)
 
-        client_kwargs = {"api_key": openai_config.credentials.get("api_key", "")}
-        if openai_config.base_url:
-            client_kwargs["base_url"] = openai_config.base_url
-        client = OpenAI(**client_kwargs)
+        client = self._create_client(openai_config)
 
         jsonl_lines = [
             json.dumps(req, ensure_ascii=False, separators=(",", ":")) for req in requests
@@ -86,6 +83,61 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
             "chunk_id": chunk_id,
         }
 
+    def check_batch_status(
+        self,
+        provider_batch_id: str,
+        config: BatchProviderConfig,
+    ) -> BatchSubmissionResult:
+        openai_config = self._as_openai_config(config)
+        client = self._create_client(openai_config)
+
+        retrieved = client.batches.retrieve(provider_batch_id)
+        raw_result = {
+            "id": self._read_attr(retrieved, "id"),
+            "status": self._read_attr(retrieved, "status"),
+        }
+        return self.parse_submission_result(raw_result=raw_result, request_count=0)
+
+    def retrieve_results(
+        self,
+        provider_batch_id: str,
+        config: BatchProviderConfig,
+    ) -> Sequence[Dict[str, Any]]:
+        openai_config = self._as_openai_config(config)
+        client = self._create_client(openai_config)
+
+        retrieved = client.batches.retrieve(provider_batch_id)
+        status = str(self._read_attr(retrieved, "status") or "unknown")
+        output_file_id = self._read_attr(retrieved, "output_file_id")
+
+        if status != "completed" or not output_file_id:
+            raise ValueError(
+                f"Batch '{provider_batch_id}' is not completed or has no output file (status={status})."
+            )
+
+        content_response = client.files.content(output_file_id)
+        jsonl_text = self._extract_content_text(content_response)
+
+        rows: List[Dict[str, Any]] = []
+        for line in jsonl_text.splitlines():
+            raw = line.strip()
+            if not raw:
+                continue
+
+            parsed = dict(json.loads(raw))
+            custom_id = str(parsed.get("custom_id", "")).strip()
+            if not custom_id:
+                continue
+
+            rows.append(
+                {
+                    "custom_id": custom_id,
+                    "generated_text": self._extract_generated_text(parsed),
+                }
+            )
+
+        return rows
+
     def parse_submission_result(
         self,
         raw_result: Mapping[str, Any],
@@ -106,6 +158,78 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         if isinstance(config, OpenAIBatchConfig):
             return config
         raise TypeError("OpenAIBatchAdapter requires OpenAIBatchConfig")
+
+    @staticmethod
+    def _create_client(config: OpenAIBatchConfig) -> OpenAI:
+        client_kwargs = {"api_key": config.credentials.get("api_key", "")}
+        if config.base_url:
+            client_kwargs["base_url"] = config.base_url
+        return OpenAI(**client_kwargs)
+
+    @staticmethod
+    def _extract_content_text(content_response: Any) -> str:
+        text = getattr(content_response, "text", None)
+        if isinstance(text, str):
+            return text
+
+        read = getattr(content_response, "read", None)
+        if callable(read):
+            data = read()
+            if isinstance(data, bytes):
+                return data.decode("utf-8")
+            if isinstance(data, str):
+                return data
+
+        content = getattr(content_response, "content", None)
+        if isinstance(content, bytes):
+            return content.decode("utf-8")
+        if isinstance(content, str):
+            return content
+
+        raise ValueError("Unable to parse OpenAI files.content response payload.")
+
+    @staticmethod
+    def _extract_generated_text(row: Mapping[str, Any]) -> str:
+        response = row.get("response")
+        if not isinstance(response, Mapping):
+            return ""
+
+        body = response.get("body")
+        if not isinstance(body, Mapping):
+            return ""
+
+        # Backward-compatible fallback for simplified fixtures/providers.
+        body_text = body.get("text")
+        if isinstance(body_text, str):
+            return body_text
+
+        choices = body.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return ""
+
+        first_choice = choices[0]
+        if not isinstance(first_choice, Mapping):
+            return ""
+
+        message = first_choice.get("message")
+        if not isinstance(message, Mapping):
+            return ""
+
+        content = message.get("content")
+        if isinstance(content, str):
+            return content
+
+        # Some OpenAI-compatible responses return segmented content parts.
+        if isinstance(content, list):
+            parts: List[str] = []
+            for item in content:
+                if not isinstance(item, Mapping):
+                    continue
+                if item.get("type") == "text" and isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+            return "".join(parts)
+
+        return ""
 
     @staticmethod
     def _read_attr(obj: Any, key: str) -> Any:

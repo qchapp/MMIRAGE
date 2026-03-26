@@ -35,6 +35,17 @@ class SizeAwareTestAdapter(BatchSubmissionAdapter):
             raw_response=raw_result,
         )
 
+    def check_batch_status(self, provider_batch_id, config):
+        return BatchSubmissionResult(
+            provider_batch_id=provider_batch_id,
+            status="submitted",
+            submitted_request_count=0,
+            raw_response={"id": provider_batch_id, "status": "submitted"},
+        )
+
+    def retrieve_results(self, provider_batch_id, config):
+        return []
+
 
 def _sizes_from_chunks(chunks):
     return [[request["size_bytes"] for request in chunk.requests] for chunk in chunks]
