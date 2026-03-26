@@ -138,8 +138,9 @@ def test_integration_batch_pipeline_with_stateful_accumulator(monkeypatch, tmp_p
     assert all(isinstance(v, str) and v.startswith("__BATCH_SUBMITTED__:answer:") for v in answers)
 
     # 3) Metadata receipts are written and include both full_chunk and finalize flush reasons.
-    metadata_text_path = tmp_path / "batch_receipts.text.jsonl"
-    assert metadata_text_path.exists()
+    metadata_text_matches = sorted(tmp_path.glob("batch_receipts.text.*.jsonl"))
+    assert len(metadata_text_matches) == 1
+    metadata_text_path = metadata_text_matches[0]
 
     records = [
         json.loads(line)

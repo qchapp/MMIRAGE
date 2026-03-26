@@ -6,6 +6,7 @@ from dataclasses import asdict, replace
 import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple
+import uuid
 
 import jinja2
 import sglang as sgl
@@ -100,13 +101,14 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         openai_cfg = OpenAIBatchConfig(**provider_cfg_raw)
         self._batch_provider_config = openai_cfg
         self._batch_adapter = BatchAdapterFactory.from_config(openai_cfg)
+        run_id = uuid.uuid4().hex[:6]
 
         self._text_orchestrator = BatchSubmissionOrchestrator(
             adapter=self._batch_adapter,
             config=replace(
                 openai_cfg,
                 metadata_output_path=self._with_metadata_suffix(
-                    openai_cfg.metadata_output_path, "text"
+                    openai_cfg.metadata_output_path, "text", run_id
                 ),
             ),
         )
@@ -115,18 +117,18 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             config=replace(
                 openai_cfg,
                 metadata_output_path=self._with_metadata_suffix(
-                    openai_cfg.metadata_output_path, "multimodal"
+                    openai_cfg.metadata_output_path, "multimodal", run_id
                 ),
             ),
         )
 
     @staticmethod
-    def _with_metadata_suffix(path: str, suffix: str) -> str:
+    def _with_metadata_suffix(path: str, suffix: str, run_id: str) -> str:
         if not path:
             return ""
         if path.endswith(".jsonl"):
-            return path[:-6] + f".{suffix}.jsonl"
-        return f"{path}.{suffix}.jsonl"
+            return path[:-6] + f".{suffix}.{run_id}.jsonl"
+        return f"{path}.{suffix}.{run_id}.jsonl"
 
     @property
     def batch_mode_enabled(self) -> bool:
