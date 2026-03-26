@@ -12,6 +12,7 @@ from datasets import Dataset, DatasetDict
 
 from mmirage.core.loader.base import BaseDataLoaderConfig, DatasetLike
 from mmirage.core.process.mapper import MMIRAGEMapper
+from mmirage.core.process.processors.llm.llm_processor import LLMProcessor  # noqa: F401
 
 from mmirage.config.utils import load_mmirage_config
 from mmirage.core.writer.renderer import TemplateRenderer
