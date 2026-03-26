@@ -357,6 +357,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         nb_samples = len(batch)
         text_only_indices: List[int] = []
         multimodal_indices: List[int] = []
+        index_to_custom_id: Dict[int, str] = {}
         for i in range(nb_samples):
             if batch[i].has_images():
                 multimodal_indices.append(i)
@@ -380,6 +381,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                 if output_var.output_type == "JSON" and output_var.output_schema:
                     payload["expected_schema"] = list(output_var.output_schema)
                 custom_id = self._next_custom_id(output_var.name, "text")
+                index_to_custom_id[global_i] = custom_id
                 request = self._batch_adapter.build_request(
                     custom_id=custom_id,
                     payload=payload,
@@ -429,6 +431,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                 if output_var.output_type == "JSON" and output_var.output_schema:
                     payload["expected_schema"] = list(output_var.output_schema)
                 custom_id = self._next_custom_id(output_var.name, "multimodal")
+                index_to_custom_id[global_i] = custom_id
                 request = self._batch_adapter.build_request(
                     custom_id=custom_id,
                     payload=payload,
@@ -449,7 +452,8 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
 
         placeholders: List[VariableEnvironment] = []
         for i in range(nb_samples):
-            placeholder = f"__BATCH_SUBMITTED__:{output_var.name}:{i}"
+            unique_id = index_to_custom_id.get(i, f"unknown:{i}")
+            placeholder = f"__BATCH_SUBMITTED__:{unique_id}"
             placeholders.append(batch[i].with_variable(output_var.name, placeholder))
 
         return placeholders
