@@ -132,9 +132,9 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
     def batch_mode_enabled(self) -> bool:
         return self._text_orchestrator is not None and self._multimodal_orchestrator is not None
 
-    def _next_custom_id(self, output_name: str, global_index: int, modality: str) -> str:
+    def _next_custom_id(self, output_name: str, modality: str) -> str:
         self._batch_request_counter += 1
-        return f"{output_name}:{modality}:{self._batch_request_counter}:{global_index}"
+        return f"{output_name}:{modality}:{self._batch_request_counter}"
 
     def build_prompt(
         self, prompt_template: str, vars_samples: List[VariableEnvironment]
@@ -379,14 +379,14 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                 }
                 if output_var.output_type == "JSON" and output_var.output_schema:
                     payload["expected_schema"] = list(output_var.output_schema)
-                custom_id = self._next_custom_id(output_var.name, global_i, "text")
+                custom_id = self._next_custom_id(output_var.name, "text")
                 request = self._batch_adapter.build_request(
                     custom_id=custom_id,
                     payload=payload,
                     config=self._batch_provider_config,
                 )
                 requests.append(dict(request))
-                source_indices.append(global_i)
+                source_indices.append(self._batch_request_counter)
 
             self._text_orchestrator.add_requests(
                 requests=requests,
@@ -428,14 +428,14 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                 }
                 if output_var.output_type == "JSON" and output_var.output_schema:
                     payload["expected_schema"] = list(output_var.output_schema)
-                custom_id = self._next_custom_id(output_var.name, global_i, "multimodal")
+                custom_id = self._next_custom_id(output_var.name, "multimodal")
                 request = self._batch_adapter.build_request(
                     custom_id=custom_id,
                     payload=payload,
                     config=self._batch_provider_config,
                 )
                 requests.append(dict(request))
-                source_indices.append(global_i)
+                source_indices.append(self._batch_request_counter)
 
             self._multimodal_orchestrator.add_requests(
                 requests=requests,
