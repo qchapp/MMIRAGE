@@ -62,19 +62,26 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             **kwargs: Additional arguments passed to base class.
         """
         super().__init__(engine_args, **kwargs)
-        provider_cfg_raw = dict(getattr(engine_args, "batch_provider", {}) or {})
-        batch_mode_requested = bool(provider_cfg_raw.get("enabled", True))
+
+        batch_provider_attrs = getattr(engine_args, "batch_provider", None)
+        if batch_provider_attrs is None:
+            is_provider_batch_enabled = False
+        else:
+            provider_cfg_raw = dict(batch_provider_attrs)
+            is_provider_batch_enabled = bool(provider_cfg_raw.get("enabled", True))
 
         # In provider-batch mode we only build payloads/metadata and should not
         # initialize GPU-backed SGLang runtime.
         self.llm = None
-        if not batch_mode_requested:
+        self.tokenizer = None
+        if not is_provider_batch_enabled:
             self.llm = sgl.Engine(**asdict(engine_args.server_args))
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                engine_args.server_args.model_path,
+                trust_remote_code=getattr(engine_args.server_args, "trust_remote_code", False),
+            )
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            engine_args.server_args.model_path,
-            trust_remote_code=getattr(engine_args.server_args, "trust_remote_code", False),
-        )
+
         self.sampling_params = engine_args.default_sampling_params
         self.chat_template = engine_args.chat_template
         self._batch_adapter = None
