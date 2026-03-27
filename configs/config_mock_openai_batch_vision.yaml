@@ -13,7 +13,7 @@ processors:
       enabled: true
       provider: openai
       model: gpt-4o-mini
-      metadata_output_path: tests/output/batch_metadata_vision.jsonl
+      metadata_output_path: tests/output/batch_metadata.jsonl
       credentials:
         api_key: ""
 
