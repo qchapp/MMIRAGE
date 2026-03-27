@@ -34,25 +34,25 @@ For testing and scripts that make use of the library, it is advised to create a 
 
 ### Running (single command)
 
-Run the pipeline via the Python CLI. Retry behavior is driven by your YAML config:
+Run the pipeline via the CLI. Retry behavior is driven by your YAML config:
 
 - `execution_params.retry: true` → automatically retries failed shards until completion or `max_retries`
 - `execution_params.retry: false` → submits/runs once; you can later trigger retries via `check`
 
 ```bash
-python -m mmirage.cli run --config configs/config_mock.yaml
+mmirage run --config configs/config_mock.yaml
 ```
 
 To check status only:
 
 ```bash
-python -m mmirage.cli check --config configs/config_mock.yaml
+mmirage check --config configs/config_mock.yaml
 ```
 
 To check status and submit retries for failed shards:
 
 ```bash
-python -m mmirage.cli check --config configs/config_mock.yaml --retry
+mmirage check --config configs/config_mock.yaml --retry
 ```
 
 ### Text-only: Reformatting dataset
