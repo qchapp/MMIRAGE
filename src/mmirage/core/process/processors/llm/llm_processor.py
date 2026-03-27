@@ -367,16 +367,16 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                 text_only_indices.append(i)
 
         if text_only_indices:
-            text_only_envs = [batch[i] for i in text_only_indices]
-            prompts = self.build_prompt(output_var.prompt, text_only_envs)
+            jinja_template = jinja2.Template(output_var.prompt)
             requests: List[Dict[str, Any]] = []
             source_indices: List[int] = []
             for local_i, global_i in enumerate(text_only_indices):
+                base_prompt = jinja_template.render(**batch[global_i].to_dict())
                 payload = {
                     "messages": [
                         {
                             "role": "user",
-                            "content": prompts[local_i],
+                            "content": base_prompt,
                         }
                     ]
                 }

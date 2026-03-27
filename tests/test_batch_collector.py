@@ -107,14 +107,14 @@ def test_collect_and_merge_reconstructs_rows_deterministically(tmp_path, monkeyp
     )
 
     assert [r["source_index"] for r in rows] == [0, 1, 2]
-    assert [r["custom_id"] for r in rows] == ["c1", "c2", "c3"]
-    assert [r["conversations"][0]["content"] for r in rows] == ["q2", "q0", "q1"]
-    assert [r["conversations"][1]["content"] for r in rows] == ["a2", "a0", "a1"]
+    assert [r["custom_id"] for r in rows] == ["c2", "c3", "c1"]
+    assert [r["conversations"][0]["content"] for r in rows] == ["q0", "q1", "q2"]
+    assert [r["conversations"][1]["content"] for r in rows] == ["a0", "a1", "a2"]
     assert fake_adapter.calls == [("batch_1", "openai"), ("batch_2", "openai")]
 
     written = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
     assert [r["source_index"] for r in written] == [0, 1, 2]
-    assert [r["conversations"][0]["content"] for r in written] == ["q2", "q0", "q1"]
+    assert [r["conversations"][0]["content"] for r in written] == ["q0", "q1", "q2"]
 
 
 def test_collect_and_merge_raises_for_missing_provider_config(tmp_path):
