@@ -63,7 +63,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         """
         super().__init__(engine_args, **kwargs)
         provider_cfg_raw = dict(getattr(engine_args, "batch_provider", {}) or {})
-        batch_mode_requested = bool(provider_cfg_raw.get("enabled", False))
+        batch_mode_requested = bool(provider_cfg_raw.get("enabled", True))
 
         # In provider-batch mode we only build payloads/metadata and should not
         # initialize GPU-backed SGLang runtime.
@@ -82,6 +82,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         self._text_orchestrator: Optional[BatchSubmissionOrchestrator] = None
         self._multimodal_orchestrator: Optional[BatchSubmissionOrchestrator] = None
         self._batch_request_counter = 0
+        self._global_row_offset = 0
         self._setup_batch_runtime()
 
     def _setup_batch_runtime(self) -> None:
@@ -89,7 +90,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         if not provider_cfg_raw:
             return
 
-        if not provider_cfg_raw.get("enabled", False):
+        if not provider_cfg_raw.get("enabled", True):
             return
 
         provider = str(provider_cfg_raw.get("provider", "openai")).strip().lower()
@@ -390,7 +391,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                     config=self._batch_provider_config,
                 )
                 requests.append(dict(request))
-                source_indices.append(self._batch_request_counter)
+                source_indices.append(self._global_row_offset + global_i)
 
             self._text_orchestrator.add_requests(
                 requests=requests,
@@ -440,7 +441,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                     config=self._batch_provider_config,
                 )
                 requests.append(dict(request))
-                source_indices.append(self._batch_request_counter)
+                source_indices.append(self._global_row_offset + global_i)
 
             self._multimodal_orchestrator.add_requests(
                 requests=requests,
@@ -457,6 +458,8 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             unique_id = index_to_custom_id.get(i, f"unknown:{i}")
             placeholder = f"__BATCH_SUBMITTED__:{unique_id}"
             placeholders.append(batch[i].with_variable(output_var.name, placeholder))
+
+        self._global_row_offset += nb_samples
 
         return placeholders
 

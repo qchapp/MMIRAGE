@@ -13,19 +13,26 @@ from mmirage.config.openai_batch import OpenAIBatchConfig
 from mmirage.core.process.batch.registry import BatchAdapterFactory
 
 
-def _read_metadata_records(metadata_output_path: str) -> List[Dict[str, Any]]:
+def _normalize_metadata_paths(metadata_paths: str | Sequence[str]) -> List[str]:
+    if isinstance(metadata_paths, str):
+        return [metadata_paths]
+    return [str(path) for path in metadata_paths]
+
+
+def _read_metadata_records(metadata_output_paths: str | Sequence[str]) -> List[Dict[str, Any]]:
     records: List[Dict[str, Any]] = []
-    with open(metadata_output_path, "r", encoding="utf-8") as f:
-        for line in f:
-            raw = line.strip()
-            if not raw:
-                continue
-            try:
-                parsed = json.loads(raw)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(parsed, dict):
-                records.append(parsed)
+    for metadata_output_path in _normalize_metadata_paths(metadata_output_paths):
+        with open(metadata_output_path, "r", encoding="utf-8") as f:
+            for line in f:
+                raw = line.strip()
+                if not raw:
+                    continue
+                try:
+                    parsed = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(parsed, dict):
+                    records.append(parsed)
     return records
 
 
@@ -56,7 +63,7 @@ def _aggregate_batch_mappings(
 
 
 def collect_and_merge(
-    metadata_output_path: str,
+    metadata_output_path: str | Sequence[str],
     provider_configs: Mapping[str, BatchProviderConfig],
     output_path: str,
 ) -> List[Dict[str, Any]]:
@@ -161,8 +168,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--metadata-path",
+        nargs="+",
         required=True,
-        help="Path to metadata JSONL receipt file.",
+        help="Path(s) to metadata JSONL receipt file(s). Supports multiple files.",
     )
     parser.add_argument(
         "--output-path",

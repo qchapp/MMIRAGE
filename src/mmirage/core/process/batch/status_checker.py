@@ -14,7 +14,30 @@ from mmirage.core.process.batch.adapter import BatchSubmissionResult
 from mmirage.core.process.batch.registry import BatchAdapterFactory
 
 
-def extract_unique_provider_batches(metadata_output_path: str) -> List[Tuple[str, str]]:
+def _normalize_metadata_paths(metadata_paths: str | Sequence[str]) -> List[str]:
+    if isinstance(metadata_paths, str):
+        return [metadata_paths]
+    return [str(path) for path in metadata_paths]
+
+
+def _read_metadata_records(metadata_output_paths: str | Sequence[str]) -> List[Dict[str, str]]:
+    records: List[Dict[str, str]] = []
+    for metadata_output_path in _normalize_metadata_paths(metadata_output_paths):
+        with open(metadata_output_path, "r", encoding="utf-8") as f:
+            for line in f:
+                raw = line.strip()
+                if not raw:
+                    continue
+                try:
+                    record = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(record, dict):
+                    records.append(record)
+    return records
+
+
+def extract_unique_provider_batches(metadata_output_path: str | Sequence[str]) -> List[Tuple[str, str]]:
     """Parse metadata JSONL and return unique ``(provider, provider_batch_id)`` pairs.
 
     Malformed lines and records missing required keys are skipped safely.
@@ -22,34 +45,24 @@ def extract_unique_provider_batches(metadata_output_path: str) -> List[Tuple[str
     unique_pairs: List[Tuple[str, str]] = []
     seen = set()
 
-    with open(metadata_output_path, "r", encoding="utf-8") as f:
-        for line in f:
-            raw = line.strip()
-            if not raw:
-                continue
+    for record in _read_metadata_records(metadata_output_path):
+        provider = str(record.get("provider", "")).strip().lower()
+        provider_batch_id = str(record.get("provider_batch_id", "")).strip()
 
-            try:
-                record = json.loads(raw)
-            except json.JSONDecodeError:
-                continue
+        if not provider or not provider_batch_id:
+            continue
 
-            provider = str(record.get("provider", "")).strip().lower()
-            provider_batch_id = str(record.get("provider_batch_id", "")).strip()
-
-            if not provider or not provider_batch_id:
-                continue
-
-            pair = (provider, provider_batch_id)
-            if pair in seen:
-                continue
-            seen.add(pair)
-            unique_pairs.append(pair)
+        pair = (provider, provider_batch_id)
+        if pair in seen:
+            continue
+        seen.add(pair)
+        unique_pairs.append(pair)
 
     return unique_pairs
 
 
 def run_status_checker(
-    metadata_output_path: str,
+    metadata_output_path: str | Sequence[str],
     provider_configs: Mapping[str, BatchProviderConfig],
     output: TextIO = sys.stdout,
 ) -> List[BatchSubmissionResult]:
@@ -84,7 +97,7 @@ def run_status_checker(
 
 
 def _build_provider_configs_from_metadata(
-    metadata_output_path: str,
+    metadata_output_path: str | Sequence[str],
 ) -> Dict[str, BatchProviderConfig]:
     provider_names = {provider for provider, _ in extract_unique_provider_batches(metadata_output_path)}
     configs: Dict[str, BatchProviderConfig] = {}
@@ -104,8 +117,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Check provider batch statuses from metadata receipts.")
     parser.add_argument(
         "--metadata-path",
+        nargs="+",
         required=True,
-        help="Path to metadata JSONL receipt file.",
+        help="Path(s) to metadata JSONL receipt file(s). Supports multiple files.",
     )
     return parser
 
