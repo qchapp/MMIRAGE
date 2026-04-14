@@ -1,4 +1,4 @@
-"""Utility functions for shard processing.
+"""Utility functions for shard and merge processing.
 
 This module contains helper functions for dataset sharding, state management,
 and file operations used in the MMIRAGE shard processing pipeline.
@@ -95,6 +95,19 @@ class ShardStatus:
         }
 
 
+@dataclass
+class MergeReport:
+    """Summary of a merge operation for one dataset directory."""
+
+    dataset_name: str
+    input_dir: str
+    output_dir: str
+    used_shards: int
+    merged_rows: int
+    skipped_invalid_dirs: int
+    skipped_zero_rows: int
+
+
 def _count_rows(ds: DatasetLike) -> int:
     """Count total rows in a dataset or dataset dict."""
     if isinstance(ds, DatasetDict):
@@ -138,6 +151,35 @@ def _save_dataset_atomic(ds_processed: DatasetLike, out_dir: str):
         shutil.rmtree(out_dir)
 
     os.replace(tmp_dir, out_dir)
+
+
+def _validate_safe_output_dir(dataset_dir: str, output_dir: str) -> None:
+    """Reject output paths that could delete input data.
+
+    We forbid output directories that are the same as, or ancestors of,
+    the input dataset directory. This prevents accidental deletion when
+    clearing pre-existing output_dir before writing merged data.
+    """
+    dataset_real = os.path.realpath(os.path.abspath(dataset_dir))
+    output_real = os.path.realpath(os.path.abspath(output_dir))
+
+    if output_real == dataset_real:
+        raise RuntimeError(
+            "Unsafe merge output path: output_dir equals dataset_dir "
+            f"(dataset_dir={dataset_real}, output_dir={output_real})."
+        )
+
+    try:
+        common = os.path.commonpath([dataset_real, output_real])
+    except ValueError:
+        # Different drives (Windows) -> no ancestor relationship possible
+        return
+
+    if common == output_real:
+        raise RuntimeError(
+            "Unsafe merge output path: output_dir contains dataset_dir "
+            f"(dataset_dir={dataset_real}, output_dir={output_real})."
+        )
 
 
 def _dataset_out_dir(shard_idx: int, ds_config: BaseDataLoaderConfig) -> str:
@@ -262,3 +304,50 @@ def _mark_failure(state_dir: str, error_msg: str):
     _write_status(state_dir, prev)
     _clear_markers(state_dir)
     _touch_marker(state_dir, ".FAILED")
+
+
+def _list_shard_dirs(dataset_dir: str) -> List[str]:
+    """List shard directories in a dataset directory."""
+    shard_dirs: List[str] = []
+    for name in os.listdir(dataset_dir):
+        if not name.startswith("shard_"):
+            continue
+        # Only accept canonical shard directories of the form "shard_<int>"
+        # and explicitly skip atomic-save temp dirs like
+        # "shard_0.tmp.<host>.<pid>.<uuid>".
+        if ".tmp" in name:
+            continue
+        suffix = name[len("shard_") :]
+        if not suffix.isdigit():
+            continue
+        path = os.path.join(dataset_dir, name)
+        if os.path.isdir(path):
+            shard_dirs.append(path)
+
+    def _shard_key(path: str) -> int:
+        base = os.path.basename(path)
+        suffix = base.removeprefix("shard_")
+        return int(suffix) if suffix.isdigit() else 0
+
+    shard_dirs.sort(key=_shard_key)
+    return shard_dirs
+
+
+def _dataset_dirs(input_dir: str) -> List[str]:
+    """Find dataset directories containing shard folders."""
+    candidates: List[str] = []
+    for name in os.listdir(input_dir):
+        path = os.path.join(input_dir, name)
+        if not os.path.isdir(path):
+            continue
+        if _list_shard_dirs(path):
+            candidates.append(path)
+    return sorted(candidates)
+
+def _validate_input_dir(path: str, arg_name: str) -> None:
+    """Ensure a user-provided input path exists and is a directory."""
+    normalized = os.path.abspath(os.path.expandvars(os.path.expanduser(path)))
+    if not os.path.isdir(normalized):
+        raise RuntimeError(
+            f"{arg_name} does not exist or is not a directory: {normalized}"
+        )
