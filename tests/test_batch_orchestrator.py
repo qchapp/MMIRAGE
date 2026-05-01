@@ -1,7 +1,14 @@
+from dataclasses import dataclass
 import json
+
+import pytest
 
 from mmirage.config.batch_provider import BatchProviderConfig
 from mmirage.core.process.batch.adapter import BatchSubmissionAdapter, BatchSubmissionResult
+from mmirage.core.process.batch.provider_resolution import BatchProviderConfigRegistry
+from mmirage.core.process.batch.registry import BatchAdapterRegistry
+from mmirage.core.process.base import ProcessorRegistry
+from mmirage.core.process.processors.llm.config import SGLangLLMConfig, SGLangServerArgs
 
 
 class RecordingAdapter(BatchSubmissionAdapter):
@@ -49,6 +56,15 @@ class RecordingAdapter(BatchSubmissionAdapter):
 
     def retrieve_results(self, provider_batch_id, config):
         return []
+
+
+@pytest.fixture(autouse=True)
+def clear_batch_registries():
+    BatchProviderConfigRegistry.clear()
+    BatchAdapterRegistry.clear()
+    yield
+    BatchProviderConfigRegistry.clear()
+    BatchAdapterRegistry.clear()
 
 
 def test_orchestrator_buffers_across_iterations_and_avoids_tiny_midstream_flush(tmp_path):
@@ -121,3 +137,76 @@ def test_orchestrator_writes_provider_neutral_metadata_with_flush_reason(tmp_pat
     assert second["flush_reason"] == "finalize"
     assert second["custom_id_to_source_index"] == {"x2": 1}
     assert second["provider_batch_id"].startswith("batch-chunk-")
+
+
+@dataclass
+class UnitBatchConfig(BatchProviderConfig):
+    provider: str = "unit"
+    unit_setting: str = "default"
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not self.unit_setting.strip():
+            raise ValueError("unit_setting must be a non-empty string")
+
+
+def test_llm_processor_initializes_with_custom_provider(tmp_path):
+    BatchProviderConfigRegistry.register("unit", UnitBatchConfig)
+    BatchAdapterRegistry.register("unit", RecordingAdapter)
+
+    config = SGLangLLMConfig(
+        type="llm",
+        server_args=SGLangServerArgs(model_path="dummy-model"),
+        batch_provider={
+            "provider": "unit",
+            "unit_setting": "custom",
+            "metadata_output_path": str(tmp_path / "metadata.jsonl"),
+        },
+    )
+
+    processor_cls = ProcessorRegistry.get_processor("llm")
+    processor = processor_cls(config)
+
+    assert processor.batch_mode_enabled is True
+    assert isinstance(processor._batch_provider_config, UnitBatchConfig)
+    assert processor._batch_provider_config.provider == "unit"
+    assert processor._batch_provider_config.unit_setting == "custom"
+    assert isinstance(processor._batch_adapter, RecordingAdapter)
+
+
+def test_llm_processor_skips_batch_setup_when_disabled(monkeypatch):
+    class FakeEngine:
+        def __init__(self, **_kwargs):
+            return None
+
+        def generate(self, **_kwargs):
+            raise AssertionError("Synchronous generation should not run in this test")
+
+        def shutdown(self):
+            return None
+
+    class FakeTokenizer:
+        def apply_chat_template(self, *args, **kwargs):
+            return ""
+
+    monkeypatch.setattr(
+        "mmirage.core.process.processors.llm.llm_processor.sgl.Engine",
+        FakeEngine,
+    )
+    monkeypatch.setattr(
+        "mmirage.core.process.processors.llm.llm_processor.AutoTokenizer.from_pretrained",
+        lambda *args, **kwargs: FakeTokenizer(),
+    )
+
+    config = SGLangLLMConfig(
+        type="llm",
+        server_args=SGLangServerArgs(model_path="dummy-model"),
+        batch_provider={"enabled": False},
+    )
+
+    processor_cls = ProcessorRegistry.get_processor("llm")
+    processor = processor_cls(config)
+
+    assert processor.batch_mode_enabled is False
+    assert processor._batch_adapter is None
+    assert processor._batch_provider_config is None

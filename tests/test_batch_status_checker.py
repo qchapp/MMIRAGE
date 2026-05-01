@@ -1,11 +1,15 @@
 from io import StringIO
+from types import SimpleNamespace
 
 from mmirage.config.openai_batch import OpenAIBatchConfig
 from mmirage.core.process.batch.adapter import BatchSubmissionResult
 
 
 def test_extract_unique_provider_batches_handles_malformed_and_duplicates(tmp_path):
-    from mmirage.core.process.batch.status_checker import extract_unique_provider_batches
+    from mmirage.core.process.batch.status_checker import (
+        _read_metadata_records,
+        extract_unique_provider_batches,
+    )
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -22,13 +26,13 @@ def test_extract_unique_provider_batches_handles_malformed_and_duplicates(tmp_pa
         encoding="utf-8",
     )
 
-    pairs = extract_unique_provider_batches(str(metadata_path))
+    pairs = extract_unique_provider_batches(_read_metadata_records(str(metadata_path)))
 
     assert pairs == [("openai", "batch_1"), ("openai", "batch_2")]
 
 
 def test_run_status_checker_prints_summary_with_factory_dispatch(tmp_path, monkeypatch):
-    from mmirage.core.process.batch.status_checker import run_status_checker
+    from mmirage.core.process.batch.status_checker import _read_metadata_records, run_status_checker
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -67,9 +71,10 @@ def test_run_status_checker_prints_summary_with_factory_dispatch(tmp_path, monke
     config_map = {
         "openai": OpenAIBatchConfig(credentials={"api_key": "k"}),
     }
+    records = _read_metadata_records(str(metadata_path))
 
     results = run_status_checker(
-        metadata_output_path=str(metadata_path),
+        metadata_records=records,
         provider_configs=config_map,
         output=output,
     )
@@ -86,3 +91,110 @@ def test_run_status_checker_prints_summary_with_factory_dispatch(tmp_path, monke
     printed = output.getvalue()
     assert "Batch batch_1 (openai): completed" in printed
     assert "Batch batch_2 (openai): in_progress" in printed
+
+
+def test_status_checker_main_uses_config_and_runs(tmp_path, monkeypatch):
+    from mmirage.core.process.batch import status_checker
+
+    metadata_path = tmp_path / "receipts.jsonl"
+    metadata_path.write_text(
+        '{"provider":"openai","provider_batch_id":"batch_1"}\n',
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "dummy.yaml"
+    config_path.write_text("processors: []\n", encoding="utf-8")
+
+    cfg = SimpleNamespace(processors=[SimpleNamespace(batch_provider={"provider": "openai"})])
+    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+
+    called = {}
+
+    def _fake_run_status_checker(metadata_records, provider_configs, output=None):
+        called["metadata_records"] = metadata_records
+        called["provider_configs"] = provider_configs
+        return []
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.status_checker.run_status_checker",
+        _fake_run_status_checker,
+    )
+
+    rc = status_checker.main(
+        [
+            "--metadata-path",
+            str(metadata_path),
+            "--config",
+            str(config_path),
+        ]
+    )
+
+    assert rc == 0
+    assert len(called["metadata_records"]) == 1
+    assert called["metadata_records"][0]["provider"] == "openai"
+    assert "openai" in called["provider_configs"]
+
+
+def test_status_checker_main_returns_error_when_metadata_provider_missing_in_config(
+    tmp_path, monkeypatch, capsys
+):
+    from mmirage.core.process.batch import status_checker
+
+    metadata_path = tmp_path / "receipts.jsonl"
+    metadata_path.write_text(
+        '{"provider":"mistral","provider_batch_id":"batch_m1"}\n',
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "dummy.yaml"
+    config_path.write_text("processors: []\n", encoding="utf-8")
+
+    # Config intentionally only defines openai, not mistral.
+    cfg = SimpleNamespace(processors=[SimpleNamespace(batch_provider={"provider": "openai"})])
+    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+
+    rc = status_checker.main(
+        [
+            "--metadata-path",
+            str(metadata_path),
+            "--config",
+            str(config_path),
+        ]
+    )
+
+    assert rc == 1
+    stderr = capsys.readouterr().err
+    assert "Status checker failed:" in stderr
+    assert "missing from YAML batch_provider config" in stderr
+
+
+def test_status_checker_main_returns_error_when_credentials_missing(
+    tmp_path, monkeypatch, capsys
+):
+    from mmirage.core.process.batch import status_checker
+
+    metadata_path = tmp_path / "receipts.jsonl"
+    metadata_path.write_text(
+        '{"provider":"openai","provider_batch_id":"batch_1"}\n',
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "dummy.yaml"
+    config_path.write_text("processors: []\n", encoding="utf-8")
+
+    cfg = SimpleNamespace(
+        processors=[SimpleNamespace(batch_provider={"provider": "openai", "credentials": {}})]
+    )
+    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    rc = status_checker.main(
+        [
+            "--metadata-path",
+            str(metadata_path),
+            "--config",
+            str(config_path),
+        ]
+    )
+
+    assert rc == 1
+    stderr = capsys.readouterr().err
+    assert "Status checker failed:" in stderr
+    assert "Missing credentials for provider 'openai'" in stderr

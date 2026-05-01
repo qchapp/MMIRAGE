@@ -1,16 +1,19 @@
-"""Receiver-side utility for polling provider batch statuses from metadata receipts."""
+"""Receiver-side helper to check provider batch status from metadata receipts.
+
+Designed for CLI use against JSONL receipt files. Skips malformed lines and
+missing keys to keep status checks resilient to partial metadata corruption.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
-from typing import Dict, List, Mapping, Sequence, TextIO, Tuple
+from typing import Any, Dict, List, Mapping, Sequence, TextIO, Tuple
 
 from mmirage.config.batch_provider import BatchProviderConfig
-from mmirage.config.openai_batch import OpenAIBatchConfig
 from mmirage.core.process.batch.adapter import BatchSubmissionResult
+from mmirage.core.process.batch.provider_resolution import resolve_provider_configs
 from mmirage.core.process.batch.registry import BatchAdapterFactory
 
 
@@ -21,6 +24,11 @@ def _normalize_metadata_paths(metadata_paths: str | Sequence[str]) -> List[str]:
 
 
 def _read_metadata_records(metadata_output_paths: str | Sequence[str]) -> List[Dict[str, str]]:
+    """Load JSONL metadata records from one or more files.
+
+    Lines that are empty or invalid JSON are ignored to allow best-effort
+    status checks when receipt files are partially corrupted.
+    """
     records: List[Dict[str, str]] = []
     for metadata_output_path in _normalize_metadata_paths(metadata_output_paths):
         with open(metadata_output_path, "r", encoding="utf-8") as f:
@@ -37,15 +45,16 @@ def _read_metadata_records(metadata_output_paths: str | Sequence[str]) -> List[D
     return records
 
 
-def extract_unique_provider_batches(metadata_output_path: str | Sequence[str]) -> List[Tuple[str, str]]:
-    """Parse metadata JSONL and return unique ``(provider, provider_batch_id)`` pairs.
+def extract_unique_provider_batches(metadata_records: Sequence[Mapping[str, Any]]) -> List[Tuple[str, str]]:
+    """Return unique ``(provider, provider_batch_id)`` pairs.
 
-    Malformed lines and records missing required keys are skipped safely.
+    Normalizes provider names to lowercase and ignores records that do not
+    provide both keys, preventing accidental calls with incomplete metadata.
     """
     unique_pairs: List[Tuple[str, str]] = []
     seen = set()
 
-    for record in _read_metadata_records(metadata_output_path):
+    for record in metadata_records:
         provider = str(record.get("provider", "")).strip().lower()
         provider_batch_id = str(record.get("provider_batch_id", "")).strip()
 
@@ -62,15 +71,20 @@ def extract_unique_provider_batches(metadata_output_path: str | Sequence[str]) -
 
 
 def run_status_checker(
-    metadata_output_path: str | Sequence[str],
+    metadata_records: Sequence[Mapping[str, Any]],
     provider_configs: Mapping[str, BatchProviderConfig],
     output: TextIO = sys.stdout,
 ) -> List[BatchSubmissionResult]:
-    """Check and print statuses for batches referenced in a metadata receipt file."""
+    """Check batch status for each referenced provider batch.
+
+    Prints a per-batch line and a per-provider summary. Providers missing
+    from ``provider_configs`` are skipped rather than failing the run so
+    partial configurations still yield useful status output.
+    """
     results: List[BatchSubmissionResult] = []
     counter: Dict[str, Dict[str, int]] = {}
 
-    for provider, provider_batch_id in extract_unique_provider_batches(metadata_output_path):
+    for provider, provider_batch_id in extract_unique_provider_batches(metadata_records):
         if provider not in provider_configs:
             print(f"Skipping batch {provider_batch_id}: no config for provider '{provider}'.", file=output)
             provider_counts = counter.setdefault(provider, {})
@@ -96,24 +110,8 @@ def run_status_checker(
     return results
 
 
-def _build_provider_configs_from_metadata(
-    metadata_output_path: str | Sequence[str],
-) -> Dict[str, BatchProviderConfig]:
-    provider_names = {provider for provider, _ in extract_unique_provider_batches(metadata_output_path)}
-    configs: Dict[str, BatchProviderConfig] = {}
-
-    if "openai" in provider_names:
-        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-        if not api_key:
-            raise ValueError(
-                "OPENAI_API_KEY is required to check statuses for provider 'openai'."
-            )
-        configs["openai"] = OpenAIBatchConfig(credentials={"api_key": api_key})
-
-    return configs
-
-
 def _build_arg_parser() -> argparse.ArgumentParser:
+    """Build the CLI parser for the status-check entry point."""
     parser = argparse.ArgumentParser(description="Check provider batch statuses from metadata receipts.")
     parser.add_argument(
         "--metadata-path",
@@ -121,23 +119,37 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         required=True,
         help="Path(s) to metadata JSONL receipt file(s). Supports multiple files.",
     )
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to the YAML configuration file",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point that returns a process-style status code.
+
+    Returns 0 on success or no batches found, and 1 on configuration or
+    provider resolution failures.
+    """
     args = _build_arg_parser().parse_args(argv)
-    pairs = extract_unique_provider_batches(args.metadata_path)
+    from mmirage.config.utils import load_mmirage_config
+
+    records = _read_metadata_records(args.metadata_path)
+    pairs = extract_unique_provider_batches(records)
     if not pairs:
         print(f"No provider batch IDs found in metadata file: {args.metadata_path}")
         return 0
 
     try:
-        provider_configs = _build_provider_configs_from_metadata(args.metadata_path)
+        cfg = load_mmirage_config(args.config)
+        provider_configs = resolve_provider_configs(records, cfg)
         if not provider_configs:
             print("No supported provider configurations could be built from metadata.")
             return 1
         run_status_checker(
-            metadata_output_path=args.metadata_path,
+            metadata_records=records,
             provider_configs=provider_configs,
         )
     except Exception as exc:

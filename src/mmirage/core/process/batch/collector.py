@@ -1,4 +1,9 @@
-"""Receiver-side utility for collecting provider results and merging by source row index."""
+"""Collect provider batch receipts and merge completed rows by source index.
+
+The receiver consumes one or more metadata receipt files, resolves the provider
+configuration for each recorded batch, fetches the provider results, and writes a
+single JSONL file ordered by the original source row index.
+"""
 
 from __future__ import annotations
 
@@ -9,17 +14,28 @@ import sys
 from typing import Any, Dict, List, Mapping, MutableMapping, Sequence, Tuple
 
 from mmirage.config.batch_provider import BatchProviderConfig
-from mmirage.config.openai_batch import OpenAIBatchConfig
+from mmirage.core.process.batch.provider_resolution import resolve_provider_configs
 from mmirage.core.process.batch.registry import BatchAdapterFactory
 
 
 def _normalize_metadata_paths(metadata_paths: str | Sequence[str]) -> List[str]:
+    """Return metadata paths as a concrete list.
+
+    Accepts either a single string or a sequence so the CLI and internal callers
+    can share the same entry point without special-casing file counts.
+    """
     if isinstance(metadata_paths, str):
         return [metadata_paths]
     return [str(path) for path in metadata_paths]
 
 
 def _read_metadata_records(metadata_output_paths: str | Sequence[str]) -> List[Dict[str, Any]]:
+    """Load valid JSON objects from one or more receipt files.
+
+    Malformed lines are skipped so partially written or noisy receipt files do
+    not stop collection. Only JSON objects are retained because downstream
+    resolution depends on keyed metadata.
+    """
     records: List[Dict[str, Any]] = []
     for metadata_output_path in _normalize_metadata_paths(metadata_output_paths):
         with open(metadata_output_path, "r", encoding="utf-8") as f:
@@ -39,6 +55,11 @@ def _read_metadata_records(metadata_output_paths: str | Sequence[str]) -> List[D
 def _aggregate_batch_mappings(
     records: Sequence[Mapping[str, Any]],
 ) -> Dict[Tuple[str, str], Dict[str, int]]:
+    """Group source-index mappings by provider and provider batch ID.
+
+    Later receipts for the same provider batch overwrite earlier entries for the
+    same custom ID, which keeps the latest parsed mapping authoritative.
+    """
     aggregated: Dict[Tuple[str, str], Dict[str, int]] = {}
 
     for record in records:
@@ -63,12 +84,24 @@ def _aggregate_batch_mappings(
 
 
 def collect_and_merge(
-    metadata_output_path: str | Sequence[str],
+    records: Sequence[Mapping[str, Any]],
     provider_configs: Mapping[str, BatchProviderConfig],
     output_path: str,
 ) -> List[Dict[str, Any]]:
-    """Collect completed results and reconstruct rows in source index order."""
-    records = _read_metadata_records(metadata_output_path)
+    """Fetch provider outputs and write merged rows in source index order.
+
+    Args:
+        records: Parsed receipt metadata containing provider batch references.
+        provider_configs: Provider-specific configuration keyed by normalized
+            provider name.
+        output_path: Destination JSONL path for the merged output.
+
+    Returns:
+        The ordered rows that were written to disk.
+
+    Raises:
+        ValueError: If a receipt references a provider that cannot be resolved.
+    """
     pair_to_mapping = _aggregate_batch_mappings(records)
 
     adapters: Dict[str, Any] = {}
@@ -112,6 +145,12 @@ def collect_and_merge(
 
 
 def _build_output_payload(result_row: Mapping[str, Any]) -> Dict[str, Any]:
+    """Convert provider content into the receiver's output schema.
+
+    The collector preserves raw text for opaque generations, but maps structured
+    question/answer JSON into a conversation format expected by downstream
+    consumers.
+    """
     raw_content = _extract_content_string(result_row)
     if not raw_content:
         return {"caption": ""}
@@ -139,27 +178,12 @@ def _build_output_payload(result_row: Mapping[str, Any]) -> Dict[str, Any]:
 
 
 def _extract_content_string(result_row: Mapping[str, Any]) -> str:
-    # Preferred OpenAI envelope path for Structured Outputs / plain responses.
-    response = result_row.get("response")
-    if isinstance(response, Mapping):
-        body = response.get("body")
-        if isinstance(body, Mapping):
-            choices = body.get("choices")
-            if isinstance(choices, list) and choices:
-                first_choice = choices[0]
-                if isinstance(first_choice, Mapping):
-                    message = first_choice.get("message")
-                    if isinstance(message, Mapping):
-                        content = message.get("content")
-                        if isinstance(content, str):
-                            return content
+    """Return the generated text payload as a string.
 
-    # Fallback for normalized adapter payloads carrying generated_text directly.
-    generated_text = result_row.get("generated_text")
-    if isinstance(generated_text, str):
-        return generated_text
-
-    return ""
+    The collector treats missing content as empty output rather than a hard
+    failure so incomplete provider responses do not block the merge.
+    """
+    return str(result_row.get("generated_text", ""))
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -177,21 +201,29 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         required=True,
         help="Path to write merged JSONL output.",
     )
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to the YAML configuration file",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the collector CLI.
+
+    Reads receipt metadata, resolves provider configs from the supplied MMIRAGE
+    configuration, and writes the merged JSONL output path passed on the command
+    line.
+    """
     args = _build_arg_parser().parse_args(argv)
+    from mmirage.config.utils import load_mmirage_config
 
-    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY is required for collector execution.")
+    records = _read_metadata_records(args.metadata_path)
+    cfg = load_mmirage_config(args.config)
+    provider_configs = resolve_provider_configs(records, cfg)
 
-    provider_configs: Dict[str, BatchProviderConfig] = {
-        "openai": OpenAIBatchConfig(credentials={"api_key": api_key})
-    }
-
-    rows = collect_and_merge(args.metadata_path, provider_configs, args.output_path)
+    rows = collect_and_merge(records, provider_configs, args.output_path)
     print(f"Merged {len(rows)} rows and saved to {args.output_path}")
     return 0
 

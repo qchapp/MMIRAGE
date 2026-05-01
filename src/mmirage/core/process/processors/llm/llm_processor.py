@@ -14,10 +14,10 @@ from transformers import AutoTokenizer
 
 from mmirage.core.process.base import BaseProcessor, ProcessorRegistry
 from mmirage.core.process.batch.orchestrator import BatchSubmissionOrchestrator
+from mmirage.core.process.batch.provider_resolution import resolve_single_provider_config
 from mmirage.core.process.batch.registry import BatchAdapterFactory
 from mmirage.core.process.processors.llm.config import LLMOutputVar, SGLangLLMConfig
 from mmirage.core.process.variables import VariableEnvironment
-from mmirage.config.openai_batch import OpenAIBatchConfig
 
 try:
     from typing import override  # Python 3.12+
@@ -100,32 +100,26 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         if not provider_cfg_raw.get("enabled", True):
             return
 
-        provider = str(provider_cfg_raw.get("provider", "openai")).strip().lower()
-        if provider != "openai":
-            raise ValueError(
-                f"Only provider='openai' is currently supported, got '{provider}'."
-            )
-
-        openai_cfg = OpenAIBatchConfig(**provider_cfg_raw)
-        self._batch_provider_config = openai_cfg
-        self._batch_adapter = BatchAdapterFactory.from_config(openai_cfg)
+        provider_cfg = resolve_single_provider_config(provider_cfg_raw)
+        self._batch_provider_config = provider_cfg
+        self._batch_adapter = BatchAdapterFactory.from_config(provider_cfg)
         run_id = uuid.uuid4().hex[:6]
 
         self._text_orchestrator = BatchSubmissionOrchestrator(
             adapter=self._batch_adapter,
             config=replace(
-                openai_cfg,
+                provider_cfg,
                 metadata_output_path=self._with_metadata_suffix(
-                    openai_cfg.metadata_output_path, "text", run_id
+                    provider_cfg.metadata_output_path, "text", run_id
                 ),
             ),
         )
         self._multimodal_orchestrator = BatchSubmissionOrchestrator(
             adapter=self._batch_adapter,
             config=replace(
-                openai_cfg,
+                provider_cfg,
                 metadata_output_path=self._with_metadata_suffix(
-                    openai_cfg.metadata_output_path, "multimodal", run_id
+                    provider_cfg.metadata_output_path, "multimodal", run_id
                 ),
             ),
         )
@@ -378,7 +372,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             jinja_template = jinja2.Template(output_var.prompt)
             requests: List[Dict[str, Any]] = []
             source_indices: List[int] = []
-            for local_i, global_i in enumerate(text_only_indices):
+            for global_i in text_only_indices:
                 base_prompt = jinja_template.render(**batch[global_i].to_dict())
                 payload = {
                     "messages": [

@@ -1,7 +1,14 @@
+from dataclasses import dataclass
+
 import pytest
 
 from mmirage.config.batch_provider import BatchProviderConfig
+from mmirage.config.openai_batch import OpenAIBatchConfig
 from mmirage.core.process.batch.adapter import BatchSubmissionAdapter, BatchSubmissionResult
+from mmirage.core.process.batch.provider_resolution import (
+    BatchProviderConfigRegistry,
+    resolve_single_provider_config,
+)
 from mmirage.core.process.batch.registry import BatchAdapterFactory, BatchAdapterRegistry
 
 
@@ -80,6 +87,13 @@ def clear_batch_adapter_registry():
     BatchAdapterRegistry.clear()
 
 
+@pytest.fixture(autouse=True)
+def clear_batch_provider_registry():
+    BatchProviderConfigRegistry.clear()
+    yield
+    BatchProviderConfigRegistry.clear()
+
+
 def test_adapter_interface_is_abstract():
     with pytest.raises(TypeError):
         BatchSubmissionAdapter()
@@ -150,3 +164,38 @@ def test_factory_resolves_missing_credentials_from_environment(monkeypatch):
 
     assert isinstance(adapter, CredentialedTestAdapter)
     assert config.credentials["api_key"] == "from-env"
+
+
+@dataclass
+class UnitBatchConfig(BatchProviderConfig):
+    provider: str = "unit"
+    unit_setting: str = "default"
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not self.unit_setting.strip():
+            raise ValueError("unit_setting must be a non-empty string")
+
+
+def test_resolve_single_provider_config_defaults_to_openai():
+    config = resolve_single_provider_config({})
+
+    assert isinstance(config, OpenAIBatchConfig)
+    assert config.provider == "openai"
+
+
+def test_resolve_single_provider_config_resolves_custom_provider():
+    BatchProviderConfigRegistry.register("unit", UnitBatchConfig)
+
+    config = resolve_single_provider_config(
+        {"provider": "unit", "unit_setting": "custom"}
+    )
+
+    assert isinstance(config, UnitBatchConfig)
+    assert config.provider == "unit"
+    assert config.unit_setting == "custom"
+
+
+def test_resolve_single_provider_config_raises_for_unknown_provider():
+    with pytest.raises(ValueError, match="Unknown batch provider"):
+        resolve_single_provider_config({"provider": "not-registered"})
