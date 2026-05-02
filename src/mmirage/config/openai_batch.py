@@ -22,12 +22,15 @@ class OpenAIBatchConfig(BatchProviderConfig):
     provider: str = "openai"
     model: str = "gpt-4.1-mini"
     batch_endpoint: str = "/v1/chat/completions"
-    completion_window: Literal["24h"] = "24h"
+    completion_window: str = "24h"
     base_url: Optional[str] = None
     metadata: Dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        allowed_windows = {"24h"}
+        if self.completion_window not in allowed_windows:
+            raise ValueError(f"completion_window must be one of {allowed_windows}")
 
         if not self.model.strip():
             raise ValueError("model must be a non-empty string")
