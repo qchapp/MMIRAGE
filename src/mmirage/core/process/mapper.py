@@ -107,6 +107,4 @@ class MMIRAGEMapper:
     def finalize_processors(self) -> None:
         """Finalize processors that expose a finalize lifecycle hook."""
         for processor in self.processors.values():
-            finalize = getattr(processor, "finalize", None)
-            if callable(finalize):
-                finalize()
+            processor.finalize()
