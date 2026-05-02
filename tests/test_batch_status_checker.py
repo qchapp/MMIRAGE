@@ -56,7 +56,6 @@ def test_run_status_checker_prints_summary_with_factory_dispatch(tmp_path, monke
             return BatchSubmissionResult(
                 provider_batch_id=provider_batch_id,
                 status=status,
-                submitted_request_count=0,
                 raw_response={"id": provider_batch_id, "status": status},
             )
 

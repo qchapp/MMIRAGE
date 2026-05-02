@@ -31,7 +31,6 @@ class SizeAwareTestAdapter(BatchSubmissionAdapter):
         return BatchSubmissionResult(
             provider_batch_id=str(raw_result["id"]),
             status=str(raw_result["status"]),
-            submitted_request_count=request_count,
             raw_response=raw_result,
         )
 
@@ -39,7 +38,6 @@ class SizeAwareTestAdapter(BatchSubmissionAdapter):
         return BatchSubmissionResult(
             provider_batch_id=provider_batch_id,
             status="submitted",
-            submitted_request_count=0,
             raw_response={"id": provider_batch_id, "status": "submitted"},
         )
 

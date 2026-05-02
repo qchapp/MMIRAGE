@@ -15,14 +15,6 @@ class RecordingAdapter(BatchSubmissionAdapter):
     def __init__(self) -> None:
         self.submissions = []
 
-    @property
-    def adapter_name(self) -> str:
-        return "recording-adapter"
-
-    @property
-    def adapter_version(self) -> str:
-        return "1.2.3"
-
     def build_request(self, custom_id, payload, config):
         return {"custom_id": custom_id, **dict(payload)}
 
@@ -42,7 +34,6 @@ class RecordingAdapter(BatchSubmissionAdapter):
         return BatchSubmissionResult(
             provider_batch_id=str(raw_result["id"]),
             status=str(raw_result["status"]),
-            submitted_request_count=request_count,
             raw_response=raw_result,
         )
 
@@ -50,7 +41,6 @@ class RecordingAdapter(BatchSubmissionAdapter):
         return BatchSubmissionResult(
             provider_batch_id=provider_batch_id,
             status="submitted",
-            submitted_request_count=0,
             raw_response={"id": provider_batch_id, "status": "submitted"},
         )
 
@@ -129,7 +119,6 @@ def test_orchestrator_writes_provider_neutral_metadata_with_flush_reason(tmp_pat
     second = json.loads(lines[1])
 
     assert first["provider"] == "unit"
-    assert first["adapter_version"] == "1.2.3"
     assert first["flush_reason"] == "full_chunk"
     assert first["custom_id_to_source_index"] == {"x1": 0}
     assert isinstance(first["request_hash"], str) and len(first["request_hash"]) == 64

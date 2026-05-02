@@ -18,13 +18,11 @@ class BatchSubmissionResult:
     Attributes:
         provider_batch_id: Provider-side identifier for the submitted job/batch.
         status: Provider submission status normalized to a short string.
-        submitted_request_count: Number of requests accepted in this submission.
         raw_response: Original provider response payload for traceability.
     """
 
     provider_batch_id: str
     status: str
-    submitted_request_count: int
     raw_response: Mapping[str, Any] = field(default_factory=dict)
 
 
@@ -37,31 +35,11 @@ class BatchSubmissionAdapter(abc.ABC):
 
     required_credentials: Tuple[str, ...] = tuple()
 
-    @property
-    @abc.abstractmethod
-    def adapter_name(self) -> str:
-        """Return a stable adapter identity string.
-
-        The identity should remain stable across code changes that preserve
-        behavior and should change only when semantics diverge.
-        """
-        raise NotImplementedError()
-
-    @property
-    @abc.abstractmethod
-    def adapter_version(self) -> str:
-        """Return the adapter implementation version.
-
-        This value is persisted in metadata artifacts to support auditing and
-        replay diagnostics across code revisions.
-        """
-        raise NotImplementedError()
-
     @abc.abstractmethod
     def build_request(
         self,
         custom_id: str,
-        payload: Mapping[str, Any],
+        payload: Dict[str, Any],
         config: BatchProviderConfig,
     ) -> Mapping[str, Any]:
         """Build a single provider-ready request object.

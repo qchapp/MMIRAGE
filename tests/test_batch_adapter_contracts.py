@@ -41,7 +41,6 @@ class CompleteTestAdapter(BatchSubmissionAdapter):
         return BatchSubmissionResult(
             provider_batch_id=str(raw_result["batch_id"]),
             status=str(raw_result["status"]),
-            submitted_request_count=request_count,
             raw_response=raw_result,
         )
 
@@ -49,7 +48,6 @@ class CompleteTestAdapter(BatchSubmissionAdapter):
         return BatchSubmissionResult(
             provider_batch_id=provider_batch_id,
             status="submitted",
-            submitted_request_count=0,
             raw_response={"id": provider_batch_id, "status": "submitted"},
         )
 
@@ -119,7 +117,6 @@ def test_complete_adapter_is_interface_compliant():
 
     assert parsed.provider_batch_id == "unit-chunk-1"
     assert parsed.status == "submitted"
-    assert parsed.submitted_request_count == 1
 
 
 def test_factory_resolves_registered_provider():

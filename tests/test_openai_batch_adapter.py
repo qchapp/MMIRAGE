@@ -199,7 +199,6 @@ def test_openai_parse_submission_result_normalizes_payload():
     assert isinstance(result, BatchSubmissionResult)
     assert result.provider_batch_id == "batch_123"
     assert result.status == "in_progress"
-    assert result.submitted_request_count == 4
     assert result.raw_response == raw
 
 
@@ -255,7 +254,6 @@ def test_openai_check_batch_status_uses_mocked_openai_client(monkeypatch):
     assert isinstance(result, BatchSubmissionResult)
     assert result.provider_batch_id == "batch_456"
     assert result.status == "completed"
-    assert result.submitted_request_count == 0
 
 
 def test_openai_check_batch_status_falls_back_to_env_api_key(monkeypatch):

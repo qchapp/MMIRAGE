@@ -20,18 +20,10 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
 
     required_credentials = ("api_key",)
 
-    @property
-    def adapter_name(self) -> str:
-        return "openai-batch-adapter"
-
-    @property
-    def adapter_version(self) -> str:
-        return "1.0.0"
-
     def build_request(
         self,
         custom_id: str,
-        payload: Mapping[str, Any],
+        payload: Dict[str, Any],
         config: BatchProviderConfig,
     ) -> Mapping[str, Any]:
         openai_config = self._as_openai_config(config)
@@ -206,7 +198,6 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         return BatchSubmissionResult(
             provider_batch_id=batch_id,
             status=status,
-            submitted_request_count=request_count,
             raw_response=dict(raw_result),
         )
 

@@ -167,7 +167,6 @@ class BatchSubmissionOrchestrator:
 
         metadata_record: Dict[str, Any] = {
             "provider": self.config.provider,
-            "adapter_version": self.adapter.adapter_version,
             "chunk_id": chunk_id,
             "provider_batch_id": parsed_result.provider_batch_id,
             "status": parsed_result.status,
