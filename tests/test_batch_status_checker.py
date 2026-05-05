@@ -204,7 +204,8 @@ def test_status_checker_main_uses_config_metadata_path_when_missing_cli_arg(
 ):
     from mmirage.core.process.batch import status_checker
 
-    metadata_path = tmp_path / "receipts.jsonl"
+    metadata_base = tmp_path / "batch_metadata.jsonl"
+    metadata_path = tmp_path / "batch_metadata.text.abc123.jsonl"
     metadata_path.write_text(
         '{"provider":"openai","provider_batch_id":"batch_1"}\n',
         encoding="utf-8",
@@ -217,7 +218,7 @@ def test_status_checker_main_uses_config_metadata_path_when_missing_cli_arg(
             SimpleNamespace(
                 batch_provider={
                     "provider": "openai",
-                    "metadata_output_path": str(metadata_path),
+                    "metadata_output_path": str(metadata_base),
                 }
             )
         ]
@@ -242,3 +243,32 @@ def test_status_checker_main_uses_config_metadata_path_when_missing_cli_arg(
     assert len(called["metadata_records"]) == 1
     assert called["metadata_records"][0]["provider"] == "openai"
     assert "openai" in called["provider_configs"]
+
+
+def test_status_checker_main_returns_error_when_config_metadata_paths_missing(
+    tmp_path, monkeypatch, capsys
+):
+    from mmirage.core.process.batch import status_checker
+
+    metadata_base = tmp_path / "batch_metadata.jsonl"
+    config_path = tmp_path / "dummy.yaml"
+    config_path.write_text("processors: []\n", encoding="utf-8")
+
+    cfg = SimpleNamespace(
+        processors=[
+            SimpleNamespace(
+                batch_provider={
+                    "provider": "openai",
+                    "metadata_output_path": str(metadata_base),
+                }
+            )
+        ]
+    )
+    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+
+    rc = status_checker.main(["--config", str(config_path)])
+
+    assert rc == 1
+    stderr = capsys.readouterr().err
+    assert "Status checker failed:" in stderr
+    assert "No metadata receipts matched config metadata_output_path patterns" in stderr

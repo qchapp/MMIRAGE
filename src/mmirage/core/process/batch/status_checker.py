@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Mapping, Sequence, TextIO, Tuple
 
 from mmirage.config.batch_provider import BatchProviderConfig
 from mmirage.core.process.batch.adapter import BatchSubmissionResult
+from mmirage.core.process.batch.metadata_paths import resolve_metadata_paths_from_config
 from mmirage.core.process.batch.provider_resolution import (
     build_all_provider_configs,
     resolve_provider_configs,
@@ -121,7 +122,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         nargs="+",
         help=(
             "Path(s) to metadata JSONL receipt file(s). Supports multiple files. "
-            "When omitted, uses metadata_output_path from the config batch_provider blocks."
+            "When omitted, uses metadata_output_path from the config batch_provider blocks "
+            "and resolves suffixed receipts like '<base>.text.<run>.jsonl'."
         ),
     )
     parser.add_argument(
@@ -153,6 +155,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if config.metadata_output_path
             ]
             metadata_paths = list(dict.fromkeys(metadata_paths))
+            if not metadata_paths:
+                print("No metadata paths provided and none found in config batch_provider blocks.")
+                return 1
+            metadata_paths = resolve_metadata_paths_from_config(metadata_paths)
 
         if not metadata_paths:
             print("No metadata paths provided and none found in config batch_provider blocks.")

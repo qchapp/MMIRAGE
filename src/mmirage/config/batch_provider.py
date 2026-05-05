@@ -46,7 +46,9 @@ class BatchProviderConfig:
             Defaults to 50 MB.
         max_requests_per_chunk: Optional hard cap on number of requests in a
             chunk. If None, no request-count cap is enforced.
-        metadata_output_path: Path where submission metadata artifacts are saved.
+        metadata_output_path: Base path where submission metadata receipts are saved.
+            Submission writes suffixed files like ``.text.<run>.jsonl`` and
+            ``.multimodal.<run>.jsonl`` from this base path.
         retry_policy: Retry policy used by the shared batch layer.
         oversized_request_policy: Handling policy when a single request exceeds
             ``max_chunk_bytes``. ``isolate`` creates a dedicated oversized

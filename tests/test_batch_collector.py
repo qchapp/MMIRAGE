@@ -224,7 +224,8 @@ def test_collector_main_uses_config_metadata_path_when_missing_cli_arg(
 ):
     from mmirage.core.process.batch import collector
 
-    metadata_path = tmp_path / "receipts.jsonl"
+    metadata_base = tmp_path / "batch_metadata.jsonl"
+    metadata_path = tmp_path / "batch_metadata.text.abc123.jsonl"
     metadata_path.write_text(
         json.dumps(
             {
@@ -245,7 +246,7 @@ def test_collector_main_uses_config_metadata_path_when_missing_cli_arg(
             SimpleNamespace(
                 batch_provider={
                     "provider": "openai",
-                    "metadata_output_path": str(metadata_path),
+                    "metadata_output_path": str(metadata_base),
                 }
             )
         ]
@@ -279,6 +280,39 @@ def test_collector_main_uses_config_metadata_path_when_missing_cli_arg(
     assert captured["records"][0]["provider"] == "openai"
     assert "openai" in captured["provider_configs"]
     assert captured["output_path"] == str(output_path)
+
+
+def test_collector_main_raises_when_config_metadata_paths_missing(tmp_path, monkeypatch):
+    from mmirage.core.process.batch import collector
+
+    metadata_base = tmp_path / "batch_metadata.jsonl"
+    output_path = tmp_path / "out.jsonl"
+    config_path = tmp_path / "dummy.yaml"
+    config_path.write_text("processors: []\n", encoding="utf-8")
+
+    cfg = SimpleNamespace(
+        processors=[
+            SimpleNamespace(
+                batch_provider={
+                    "provider": "openai",
+                    "metadata_output_path": str(metadata_base),
+                }
+            )
+        ]
+    )
+    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+
+    with pytest.raises(
+        ValueError, match="No metadata receipts matched config metadata_output_path patterns"
+    ):
+        collector.main(
+            [
+                "--output-path",
+                str(output_path),
+                "--config",
+                str(config_path),
+            ]
+        )
 
 
 def test_collector_main_raises_when_metadata_provider_missing_in_config(tmp_path, monkeypatch):
