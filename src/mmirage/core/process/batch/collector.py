@@ -14,7 +14,10 @@ import sys
 from typing import Any, Dict, List, Mapping, MutableMapping, Sequence, Tuple
 
 from mmirage.config.batch_provider import BatchProviderConfig
-from mmirage.core.process.batch.provider_resolution import resolve_provider_configs
+from mmirage.core.process.batch.provider_resolution import (
+    build_all_provider_configs,
+    resolve_provider_configs,
+)
 from mmirage.core.process.batch.registry import BatchAdapterFactory
 
 
@@ -193,8 +196,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--metadata-path",
         nargs="+",
-        required=True,
-        help="Path(s) to metadata JSONL receipt file(s). Supports multiple files.",
+        help=(
+            "Path(s) to metadata JSONL receipt file(s). Supports multiple files. "
+            "When omitted, uses metadata_output_path from the config batch_provider blocks."
+        ),
     )
     parser.add_argument(
         "--output-path",
@@ -219,8 +224,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     from mmirage.config.utils import load_mmirage_config
 
-    records = _read_metadata_records(args.metadata_path)
     cfg = load_mmirage_config(args.config)
+    if args.metadata_path:
+        metadata_paths = args.metadata_path
+    else:
+        all_provider_configs = build_all_provider_configs(cfg)
+        metadata_paths = [
+            config.metadata_output_path
+            for config in all_provider_configs.values()
+            if config.metadata_output_path
+        ]
+        metadata_paths = list(dict.fromkeys(metadata_paths))
+
+    if not metadata_paths:
+        raise ValueError("No metadata paths provided and none found in config batch_provider blocks.")
+
+    records = _read_metadata_records(metadata_paths)
     provider_configs = resolve_provider_configs(records, cfg)
 
     rows = collect_and_merge(records, provider_configs, args.output_path)

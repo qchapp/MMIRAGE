@@ -197,3 +197,48 @@ def test_status_checker_main_returns_error_when_credentials_missing(
     stderr = capsys.readouterr().err
     assert "Status checker failed:" in stderr
     assert "Missing credentials for provider 'openai'" in stderr
+
+
+def test_status_checker_main_uses_config_metadata_path_when_missing_cli_arg(
+    tmp_path, monkeypatch
+):
+    from mmirage.core.process.batch import status_checker
+
+    metadata_path = tmp_path / "receipts.jsonl"
+    metadata_path.write_text(
+        '{"provider":"openai","provider_batch_id":"batch_1"}\n',
+        encoding="utf-8",
+    )
+    config_path = tmp_path / "dummy.yaml"
+    config_path.write_text("processors: []\n", encoding="utf-8")
+
+    cfg = SimpleNamespace(
+        processors=[
+            SimpleNamespace(
+                batch_provider={
+                    "provider": "openai",
+                    "metadata_output_path": str(metadata_path),
+                }
+            )
+        ]
+    )
+    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+
+    called = {}
+
+    def _fake_run_status_checker(metadata_records, provider_configs, output=None):
+        called["metadata_records"] = metadata_records
+        called["provider_configs"] = provider_configs
+        return []
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.status_checker.run_status_checker",
+        _fake_run_status_checker,
+    )
+
+    rc = status_checker.main(["--config", str(config_path)])
+
+    assert rc == 0
+    assert len(called["metadata_records"]) == 1
+    assert called["metadata_records"][0]["provider"] == "openai"
+    assert "openai" in called["provider_configs"]

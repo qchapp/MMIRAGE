@@ -13,7 +13,10 @@ from typing import Any, Dict, List, Mapping, Sequence, TextIO, Tuple
 
 from mmirage.config.batch_provider import BatchProviderConfig
 from mmirage.core.process.batch.adapter import BatchSubmissionResult
-from mmirage.core.process.batch.provider_resolution import resolve_provider_configs
+from mmirage.core.process.batch.provider_resolution import (
+    build_all_provider_configs,
+    resolve_provider_configs,
+)
 from mmirage.core.process.batch.registry import BatchAdapterFactory
 
 
@@ -116,8 +119,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--metadata-path",
         nargs="+",
-        required=True,
-        help="Path(s) to metadata JSONL receipt file(s). Supports multiple files.",
+        help=(
+            "Path(s) to metadata JSONL receipt file(s). Supports multiple files. "
+            "When omitted, uses metadata_output_path from the config batch_provider blocks."
+        ),
     )
     parser.add_argument(
         "--config",
@@ -136,14 +141,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     from mmirage.config.utils import load_mmirage_config
 
-    records = _read_metadata_records(args.metadata_path)
-    pairs = extract_unique_provider_batches(records)
-    if not pairs:
-        print(f"No provider batch IDs found in metadata file: {args.metadata_path}")
-        return 0
-
     try:
         cfg = load_mmirage_config(args.config)
+        if args.metadata_path:
+            metadata_paths = args.metadata_path
+        else:
+            all_provider_configs = build_all_provider_configs(cfg)
+            metadata_paths = [
+                config.metadata_output_path
+                for config in all_provider_configs.values()
+                if config.metadata_output_path
+            ]
+            metadata_paths = list(dict.fromkeys(metadata_paths))
+
+        if not metadata_paths:
+            print("No metadata paths provided and none found in config batch_provider blocks.")
+            return 1
+
+        records = _read_metadata_records(metadata_paths)
+        pairs = extract_unique_provider_batches(records)
+        if not pairs:
+            print(f"No provider batch IDs found in metadata file(s): {metadata_paths}")
+            return 0
+
         provider_configs = resolve_provider_configs(records, cfg)
         if not provider_configs:
             print("No supported provider configurations could be built from metadata.")
