@@ -183,7 +183,12 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
             raw = line.strip()
             if not raw:
                 continue
-            rows.append(dict(json.loads(raw)))
+            row = dict(json.loads(raw))
+            if "generated_text" not in row:
+                generated_text = self._extract_generated_text(row)
+                if generated_text:
+                    row["generated_text"] = generated_text
+            rows.append(row)
 
         return rows
 
@@ -206,6 +211,35 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         if isinstance(config, OpenAIBatchConfig):
             return config
         raise TypeError("OpenAIBatchAdapter requires OpenAIBatchConfig")
+
+    @staticmethod
+    def _extract_generated_text(row: Mapping[str, Any]) -> str:
+        response = row.get("response")
+        if not isinstance(response, Mapping):
+            return ""
+
+        body = response.get("body")
+        if not isinstance(body, Mapping):
+            return ""
+
+        choices = body.get("choices")
+        if isinstance(choices, list) and choices:
+            first = choices[0]
+            if isinstance(first, Mapping):
+                message = first.get("message")
+                if isinstance(message, Mapping):
+                    content = message.get("content")
+                    if isinstance(content, str):
+                        return content
+                text = first.get("text")
+                if isinstance(text, str):
+                    return text
+
+        text = body.get("text")
+        if isinstance(text, str):
+            return text
+
+        return ""
 
     @staticmethod
     def _create_client(config: OpenAIBatchConfig) -> OpenAI:

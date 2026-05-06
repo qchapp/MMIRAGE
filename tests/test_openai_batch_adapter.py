@@ -352,6 +352,50 @@ def test_openai_retrieve_results_downloads_and_parses_jsonl(monkeypatch):
     assert rows[1]["custom_id"] == "c2"
     assert rows[0]["response"]["body"]["text"] == "A"
     assert rows[1]["response"]["body"]["text"] == "B"
+    assert rows[0]["generated_text"] == "A"
+    assert rows[1]["generated_text"] == "B"
+
+
+def test_openai_retrieve_results_prefers_message_content(monkeypatch):
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+    class FakeBatches:
+        def retrieve(self, provider_batch_id):
+            class _RetrieveResp:
+                id = provider_batch_id
+                status = "completed"
+                output_file_id = "file_output_choices"
+
+            return _RetrieveResp()
+
+    class FakeFiles:
+        def content(self, output_file_id):
+            class _ContentResp:
+                text = (
+                    '{"custom_id":"c1","response":{"body":{"choices":['
+                    '{"message":{"content":"{\\"question\\":\\"Q\\",\\"answer\\":\\"A\\"}"}}'
+                    ']}}}\n'
+                )
+
+            return _ContentResp()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.batches = FakeBatches()
+            self.files = FakeFiles()
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
+        FakeClient,
+    )
+
+    config = OpenAIBatchConfig(credentials={"api_key": "test-key"})
+    adapter = OpenAIBatchAdapter()
+
+    rows = adapter.retrieve_results(provider_batch_id="batch_choices", config=config)
+
+    assert rows[0]["custom_id"] == "c1"
+    assert rows[0]["generated_text"] == '{"question":"Q","answer":"A"}'
 
 
 def test_openai_retrieve_results_raises_if_batch_not_completed(monkeypatch):
