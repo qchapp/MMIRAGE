@@ -20,6 +20,9 @@ from mmirage.core.process.batch.provider_resolution import (
 )
 from mmirage.core.process.batch.registry import BatchAdapterFactory
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 def _normalize_metadata_paths(metadata_paths: str | Sequence[str]) -> List[str]:
     if isinstance(metadata_paths, str):
@@ -77,7 +80,6 @@ def extract_unique_provider_batches(metadata_records: Sequence[Mapping[str, Any]
 def run_status_checker(
     metadata_records: Sequence[Mapping[str, Any]],
     provider_configs: Mapping[str, BatchProviderConfig],
-    output: TextIO = sys.stdout,
 ) -> List[BatchSubmissionResult]:
     """Check batch status for each referenced provider batch.
 
@@ -90,26 +92,26 @@ def run_status_checker(
 
     for provider, provider_batch_id in extract_unique_provider_batches(metadata_records):
         if provider not in provider_configs:
-            print(f"Skipping batch {provider_batch_id}: no config for provider '{provider}'.", file=output)
+            logger.info(f"Skipping batch {provider_batch_id}: no config for provider '{provider}'.")
             provider_counts = counter.setdefault(provider, {})
             provider_counts["skipped"] = provider_counts.get("skipped", 0) + 1
-            continue
 
-        config = provider_configs[provider]
-        adapter = BatchAdapterFactory.from_config(config)
-        result = adapter.check_batch_status(provider_batch_id=provider_batch_id, config=config)
-        results.append(result)
+        else:
+            config = provider_configs[provider]
+            adapter = BatchAdapterFactory.from_config(config)
+            result = adapter.check_batch_status(provider_batch_id=provider_batch_id, config=config)
+            results.append(result)
 
-        print(f"Batch {provider_batch_id} ({provider}): {result.status}", file=output)
-        provider_counts = counter.setdefault(provider, {})
-        provider_counts[result.status] = provider_counts.get(result.status, 0) + 1
+            logger.info(f"Batch {provider_batch_id} ({provider}): {result.status}")
+            provider_counts = counter.setdefault(provider, {})
+            provider_counts[result.status] = provider_counts.get(result.status, 0) + 1
 
-    print("\n------------ Batch status summary ------------", file=output)
+    logger.info("------------ Batch status summary ------------")
     for provider, status_counts in counter.items():
-        print(f"Total batches for provider '{provider}':", file=output)
         total = sum(status_counts.values())
+        logger.info(f"Provider '{provider}' (Total: {total}):")
         for status, count in status_counts.items():
-            print(f"  {status}: {count}/{total}", file=output)
+            logger.info(f"  - {status}: {count}/{total}")
 
     return results
 
@@ -156,30 +158,30 @@ def main(argv: Sequence[str] | None = None) -> int:
             ]
             metadata_paths = list(dict.fromkeys(metadata_paths))
             if not metadata_paths:
-                print("No metadata paths provided and none found in config batch_provider blocks.")
+                logger.error("No metadata paths provided and none found in config batch_provider blocks.")
                 return 1
             metadata_paths = resolve_metadata_paths_from_config(metadata_paths)
 
         if not metadata_paths:
-            print("No metadata paths provided and none found in config batch_provider blocks.")
+            logger.error("No metadata paths provided and none found in config batch_provider blocks.")
             return 1
 
         records = _read_metadata_records(metadata_paths)
         pairs = extract_unique_provider_batches(records)
         if not pairs:
-            print(f"No provider batch IDs found in metadata file(s): {metadata_paths}")
+            logger.info(f"No provider batch IDs found in metadata file(s): {metadata_paths}")
             return 0
 
         provider_configs = resolve_provider_configs(records, cfg)
         if not provider_configs:
-            print("No supported provider configurations could be built from metadata.")
+            logger.error("No supported provider configurations could be built from metadata.")
             return 1
         run_status_checker(
             metadata_records=records,
             provider_configs=provider_configs,
         )
     except Exception as exc:
-        print(f"Status checker failed: {exc}", file=sys.stderr)
+        logger.exception("Status checker failed")
         return 1
 
     return 0

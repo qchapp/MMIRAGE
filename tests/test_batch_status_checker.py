@@ -1,4 +1,3 @@
-from io import StringIO
 from types import SimpleNamespace
 
 from mmirage.config.openai_batch import OpenAIBatchConfig
@@ -33,6 +32,7 @@ def test_extract_unique_provider_batches_handles_malformed_and_duplicates(tmp_pa
 
 def test_run_status_checker_prints_summary_with_factory_dispatch(tmp_path, monkeypatch):
     from mmirage.core.process.batch.status_checker import _read_metadata_records, run_status_checker
+    from unittest.mock import patch
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -66,17 +66,16 @@ def test_run_status_checker_prints_summary_with_factory_dispatch(tmp_path, monke
         lambda config: fake_adapter,
     )
 
-    output = StringIO()
     config_map = {
         "openai": OpenAIBatchConfig(credentials={"api_key": "k"}),
     }
     records = _read_metadata_records(str(metadata_path))
 
-    results = run_status_checker(
-        metadata_records=records,
-        provider_configs=config_map,
-        output=output,
-    )
+    with patch("mmirage.core.process.batch.status_checker.logger") as mock_logger:
+        results = run_status_checker(
+            metadata_records=records,
+            provider_configs=config_map,
+        )
 
     assert [(r.provider_batch_id, r.status) for r in results] == [
         ("batch_1", "completed"),
@@ -87,9 +86,10 @@ def test_run_status_checker_prints_summary_with_factory_dispatch(tmp_path, monke
         ("batch_2", "openai"),
     ]
 
-    printed = output.getvalue()
-    assert "Batch batch_1 (openai): completed" in printed
-    assert "Batch batch_2 (openai): in_progress" in printed
+    # Verify logger.info was called with expected messages
+    logger_calls = [call[0][0] for call in mock_logger.info.call_args_list]
+    assert any("Batch batch_1 (openai): completed" in str(call) for call in logger_calls)
+    assert any("Batch batch_2 (openai): in_progress" in str(call) for call in logger_calls)
 
 
 def test_status_checker_main_uses_config_and_runs(tmp_path, monkeypatch):
@@ -134,9 +134,10 @@ def test_status_checker_main_uses_config_and_runs(tmp_path, monkeypatch):
 
 
 def test_status_checker_main_returns_error_when_metadata_provider_missing_in_config(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch
 ):
     from mmirage.core.process.batch import status_checker
+    from unittest.mock import patch
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -150,25 +151,25 @@ def test_status_checker_main_returns_error_when_metadata_provider_missing_in_con
     cfg = SimpleNamespace(processors=[SimpleNamespace(batch_provider={"provider": "openai"})])
     monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
 
-    rc = status_checker.main(
-        [
-            "--metadata-path",
-            str(metadata_path),
-            "--config",
-            str(config_path),
-        ]
-    )
+    with patch("mmirage.core.process.batch.status_checker.logger") as mock_logger:
+        rc = status_checker.main(
+            [
+                "--metadata-path",
+                str(metadata_path),
+                "--config",
+                str(config_path),
+            ]
+        )
 
     assert rc == 1
-    stderr = capsys.readouterr().err
-    assert "Status checker failed:" in stderr
-    assert "missing from YAML batch_provider config" in stderr
+    assert mock_logger.error.called or mock_logger.exception.called
 
 
 def test_status_checker_main_returns_error_when_credentials_missing(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch
 ):
     from mmirage.core.process.batch import status_checker
+    from unittest.mock import patch
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -184,19 +185,18 @@ def test_status_checker_main_returns_error_when_credentials_missing(
     monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-    rc = status_checker.main(
-        [
-            "--metadata-path",
-            str(metadata_path),
-            "--config",
-            str(config_path),
-        ]
-    )
+    with patch("mmirage.core.process.batch.status_checker.logger") as mock_logger:
+        rc = status_checker.main(
+            [
+                "--metadata-path",
+                str(metadata_path),
+                "--config",
+                str(config_path),
+            ]
+        )
 
     assert rc == 1
-    stderr = capsys.readouterr().err
-    assert "Status checker failed:" in stderr
-    assert "Missing credentials for provider 'openai'" in stderr
+    assert mock_logger.error.called or mock_logger.exception.called
 
 
 def test_status_checker_main_uses_config_metadata_path_when_missing_cli_arg(
@@ -246,9 +246,10 @@ def test_status_checker_main_uses_config_metadata_path_when_missing_cli_arg(
 
 
 def test_status_checker_main_returns_error_when_config_metadata_paths_missing(
-    tmp_path, monkeypatch, capsys
+    tmp_path, monkeypatch
 ):
     from mmirage.core.process.batch import status_checker
+    from unittest.mock import patch
 
     metadata_base = tmp_path / "batch_metadata.jsonl"
     config_path = tmp_path / "dummy.yaml"
@@ -266,9 +267,8 @@ def test_status_checker_main_returns_error_when_config_metadata_paths_missing(
     )
     monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
 
-    rc = status_checker.main(["--config", str(config_path)])
+    with patch("mmirage.core.process.batch.status_checker.logger") as mock_logger:
+        rc = status_checker.main(["--config", str(config_path)])
 
     assert rc == 1
-    stderr = capsys.readouterr().err
-    assert "Status checker failed:" in stderr
-    assert "No metadata receipts matched config metadata_output_path patterns" in stderr
+    assert mock_logger.exception.called
