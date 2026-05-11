@@ -15,16 +15,20 @@ from typing import Any, Dict, List, Mapping, MutableMapping, Sequence, Tuple
 
 from mmirage.config.batch_provider import BatchProviderConfig
 from mmirage.core.process.batch.metadata_paths import resolve_metadata_paths_from_config
+from mmirage.core.process.batch.metadata_utils import (
+    BatchMetadataRecord,
+    _normalize_metadata_paths,
+    _read_metadata_records,
+)
 from mmirage.core.process.batch.provider_resolution import (
     build_all_provider_configs,
     resolve_provider_configs,
 )
 from mmirage.core.process.batch.registry import BatchAdapterFactory
-from mmirage.core.process.batch.metadata_utils import _normalize_metadata_paths, _read_metadata_records
 
 
 def _aggregate_batch_mappings(
-    records: Sequence[Mapping[str, Any]],
+    records: Sequence[BatchMetadataRecord],
 ) -> Dict[Tuple[str, str], Dict[str, int]]:
     """Group source-index mappings by provider and provider batch ID.
 
@@ -34,28 +38,21 @@ def _aggregate_batch_mappings(
     aggregated: Dict[Tuple[str, str], Dict[str, int]] = {}
 
     for record in records:
-        provider = str(record.get("provider", "")).strip().lower()
-        provider_batch_id = str(record.get("provider_batch_id", "")).strip()
-        mapping = record.get("custom_id_to_source_index", {})
-
-        if not provider or not provider_batch_id or not isinstance(mapping, dict):
-            continue
+        provider = record.provider
+        provider_batch_id = record.provider_batch_id
+        mapping = record.custom_id_to_source_index
 
         key = (provider, provider_batch_id)
-        if key not in aggregated:
-            aggregated[key] = {}
+        aggregated.setdefault(key, {})
 
         for custom_id, source_index in mapping.items():
-            try:
-                aggregated[key][str(custom_id)] = int(source_index)
-            except (TypeError, ValueError):
-                continue
+            aggregated[key][str(custom_id)] = source_index
 
     return aggregated
 
 
 def collect_and_merge(
-    records: Sequence[Mapping[str, Any]],
+    records: Sequence[BatchMetadataRecord],
     provider_configs: Mapping[str, BatchProviderConfig],
     output_path: str,
 ) -> List[Dict[str, Any]]:

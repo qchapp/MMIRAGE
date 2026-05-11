@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Sequence, Type
 
 from mmirage.config.batch_provider import BatchProviderConfig
+from mmirage.core.process.batch.metadata_utils import BatchMetadataRecord
 
 if TYPE_CHECKING:
     from mmirage.config.config import MMirageConfig
@@ -65,11 +66,11 @@ class BatchProviderConfigRegistry:
         )
 
 
-def _discover_required_providers(metadata_records: Sequence[Mapping[str, Any]]) -> List[str]:
+def _discover_required_providers(metadata_records: Sequence[BatchMetadataRecord]) -> List[str]:
     providers: List[str] = []
     seen = set()
     for record in metadata_records:
-        provider = str(record.get("provider", "")).strip().lower()
+        provider = record.provider
         if not provider or provider in seen:
             continue
         seen.add(provider)
@@ -162,7 +163,7 @@ def build_all_provider_configs(cfg: "MMirageConfig") -> Dict[str, BatchProviderC
 
 
 def resolve_provider_configs(
-    metadata_records: Sequence[Mapping[str, Any]],
+    metadata_records: Sequence[BatchMetadataRecord],
     cfg: "MMirageConfig",
 ) -> Dict[str, BatchProviderConfig]:
     """Resolve provider configs required by receiver metadata.

@@ -4,9 +4,39 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Mapping, Sequence
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class BatchMetadataRecord:
+    """Typed batch receipt row shared by collector and status checker."""
+
+    provider: str
+    provider_batch_id: str
+    custom_id_to_source_index: Dict[str, int] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any]) -> "BatchMetadataRecord":
+        provider = str(payload.get("provider", "")).strip().lower()
+        provider_batch_id = str(payload.get("provider_batch_id", "")).strip()
+
+        raw_mapping = payload.get("custom_id_to_source_index", {})
+        custom_id_to_source_index: Dict[str, int] = {}
+        if isinstance(raw_mapping, dict):
+            for custom_id, source_index in raw_mapping.items():
+                try:
+                    custom_id_to_source_index[str(custom_id)] = int(source_index)
+                except (TypeError, ValueError):
+                    continue
+
+        return cls(
+            provider=provider,
+            provider_batch_id=provider_batch_id,
+            custom_id_to_source_index=custom_id_to_source_index,
+        )
 
 
 def _normalize_metadata_paths(metadata_paths: str | Sequence[str]) -> List[str]:
@@ -16,14 +46,16 @@ def _normalize_metadata_paths(metadata_paths: str | Sequence[str]) -> List[str]:
     return list(metadata_paths)
 
 
-def _read_metadata_records(metadata_output_paths: str | Sequence[str]) -> List[Dict[str, Any]]:
+def _read_metadata_records(
+    metadata_output_paths: str | Sequence[str],
+) -> List[BatchMetadataRecord]:
     """Load valid JSON objects from one or more receipt files.
 
     Malformed lines are skipped with a warning so partially written or noisy
-    receipt files do not stop collection. Only JSON objects are retained
-    because downstream resolution depends on keyed metadata.
+    receipt files do not stop collection. Only JSON objects are retained and
+    converted into typed records with required provider identifiers.
     """
-    records: List[Dict[str, Any]] = []
+    records: List[BatchMetadataRecord] = []
     for metadata_output_path in _normalize_metadata_paths(metadata_output_paths):
         with open(metadata_output_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -39,6 +71,10 @@ def _read_metadata_records(metadata_output_paths: str | Sequence[str]) -> List[D
                         exc,
                     )
                     continue
-                #if isinstance(parsed, dict):
-                records.append(parsed)
+                # defensive check to ensure only dicts are included (useful against partial/corrupt metadata)
+                if isinstance(parsed, dict):
+                    record = BatchMetadataRecord.from_mapping(parsed)
+                    if not record.provider or not record.provider_batch_id:
+                        continue
+                    records.append(record)
     return records

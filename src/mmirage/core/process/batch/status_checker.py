@@ -14,7 +14,11 @@ from typing import Any, Dict, List, Mapping, Sequence, TextIO, Tuple
 from mmirage.config.batch_provider import BatchProviderConfig
 from mmirage.core.process.batch.adapter import BatchSubmissionResult
 from mmirage.core.process.batch.metadata_paths import resolve_metadata_paths_from_config
-from mmirage.core.process.batch.metadata_utils import _normalize_metadata_paths, _read_metadata_records
+from mmirage.core.process.batch.metadata_utils import (
+    BatchMetadataRecord,
+    _normalize_metadata_paths,
+    _read_metadata_records,
+)
 from mmirage.core.process.batch.provider_resolution import (
     build_all_provider_configs,
     resolve_provider_configs,
@@ -23,7 +27,9 @@ from mmirage.core.process.batch.registry import BatchAdapterFactory
 logger = logging.getLogger(__name__)
 
 
-def extract_unique_provider_batches(metadata_records: Sequence[Mapping[str, Any]]) -> List[Tuple[str, str]]:
+def extract_unique_provider_batches(
+    metadata_records: Sequence[BatchMetadataRecord],
+) -> List[Tuple[str, str]]:
     """Return unique ``(provider, provider_batch_id)`` pairs.
 
     Normalizes provider names to lowercase and ignores records that do not
@@ -33,11 +39,8 @@ def extract_unique_provider_batches(metadata_records: Sequence[Mapping[str, Any]
     seen = set()
 
     for record in metadata_records:
-        provider = str(record.get("provider", "")).strip().lower()
-        provider_batch_id = str(record.get("provider_batch_id", "")).strip()
-
-        if not provider or not provider_batch_id:
-            continue
+        provider = record.provider
+        provider_batch_id = record.provider_batch_id
 
         pair = (provider, provider_batch_id)
         if pair in seen:
@@ -49,7 +52,7 @@ def extract_unique_provider_batches(metadata_records: Sequence[Mapping[str, Any]
 
 
 def run_status_checker(
-    metadata_records: Sequence[Mapping[str, Any]],
+    metadata_records: Sequence[BatchMetadataRecord],
     provider_configs: Mapping[str, BatchProviderConfig],
 ) -> List[BatchSubmissionResult]:
     """Check batch status for each referenced provider batch.
@@ -63,7 +66,7 @@ def run_status_checker(
 
     for provider, provider_batch_id in extract_unique_provider_batches(metadata_records):
         if provider not in provider_configs:
-            logger.info(f"Skipping batch {provider_batch_id}: no config for provider '{provider}'.")
+            logger.warning(f"Skipping batch {provider_batch_id}: no config for provider '{provider}'.")
             provider_counts = counter.setdefault(provider, {})
             provider_counts["skipped"] = provider_counts.get("skipped", 0) + 1
 
@@ -77,12 +80,12 @@ def run_status_checker(
             provider_counts = counter.setdefault(provider, {})
             provider_counts[result.status] = provider_counts.get(result.status, 0) + 1
 
-    logger.info("------------ Batch status summary ------------")
+    print("\n------------ Batch status summary ------------")
     for provider, status_counts in counter.items():
         total = sum(status_counts.values())
-        logger.info(f"Provider '{provider}' (Total: {total}):")
+        print(f"Provider '{provider}' (Total: {total}):")
         for status, count in status_counts.items():
-            logger.info(f"  - {status}: {count}/{total}")
+            print(f"  - {status}: {count}/{total}")
 
     return results
 

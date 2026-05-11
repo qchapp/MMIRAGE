@@ -5,7 +5,7 @@ import pytest
 from mmirage.config.openai_batch import OpenAIBatchConfig
 
 
-def test_collect_and_merge_reconstructs_rows_deterministically(tmp_path, monkeypatch):
+def test_collect_and_merge_reconstructs_rows_deterministically(tmp_path, monkeypatch, caplog):
     from mmirage.core.process.batch.collector import _read_metadata_records, collect_and_merge
 
     metadata_path = tmp_path / "receipts.jsonl"
@@ -73,6 +73,7 @@ def test_collect_and_merge_reconstructs_rows_deterministically(tmp_path, monkeyp
 
     provider_configs = {"openai": OpenAIBatchConfig(credentials={"api_key": "k"})}
     records = _read_metadata_records(str(metadata_path))
+    assert "Skipping malformed metadata JSON line" in caplog.text
     rows = collect_and_merge(
         records=records,
         provider_configs=provider_configs,
@@ -214,7 +215,7 @@ def test_collector_main_uses_config_and_records(tmp_path, monkeypatch):
 
     assert rc == 0
     assert len(captured["records"]) == 1
-    assert captured["records"][0]["provider"] == "openai"
+    assert captured["records"][0].provider == "openai"
     assert "openai" in captured["provider_configs"]
     assert captured["output_path"] == str(output_path)
 
@@ -277,7 +278,7 @@ def test_collector_main_uses_config_metadata_path_when_missing_cli_arg(
 
     assert rc == 0
     assert len(captured["records"]) == 1
-    assert captured["records"][0]["provider"] == "openai"
+    assert captured["records"][0].provider == "openai"
     assert "openai" in captured["provider_configs"]
     assert captured["output_path"] == str(output_path)
 

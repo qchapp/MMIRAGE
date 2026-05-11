@@ -129,7 +129,7 @@ def test_status_checker_main_uses_config_and_runs(tmp_path, monkeypatch):
 
     assert rc == 0
     assert len(called["metadata_records"]) == 1
-    assert called["metadata_records"][0]["provider"] == "openai"
+    assert called["metadata_records"][0].provider == "openai"
     assert "openai" in called["provider_configs"]
 
 
@@ -241,7 +241,7 @@ def test_status_checker_main_uses_config_metadata_path_when_missing_cli_arg(
 
     assert rc == 0
     assert len(called["metadata_records"]) == 1
-    assert called["metadata_records"][0]["provider"] == "openai"
+    assert called["metadata_records"][0].provider == "openai"
     assert "openai" in called["provider_configs"]
 
 
