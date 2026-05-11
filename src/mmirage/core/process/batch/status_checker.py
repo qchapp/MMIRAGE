@@ -7,49 +7,20 @@ missing keys to keep status checks resilient to partial metadata corruption.
 from __future__ import annotations
 
 import argparse
-import json
+import logging
 import sys
 from typing import Any, Dict, List, Mapping, Sequence, TextIO, Tuple
 
 from mmirage.config.batch_provider import BatchProviderConfig
 from mmirage.core.process.batch.adapter import BatchSubmissionResult
 from mmirage.core.process.batch.metadata_paths import resolve_metadata_paths_from_config
+from mmirage.core.process.batch.metadata_utils import _normalize_metadata_paths, _read_metadata_records
 from mmirage.core.process.batch.provider_resolution import (
     build_all_provider_configs,
     resolve_provider_configs,
 )
 from mmirage.core.process.batch.registry import BatchAdapterFactory
-
-import logging
 logger = logging.getLogger(__name__)
-
-
-def _normalize_metadata_paths(metadata_paths: str | Sequence[str]) -> List[str]:
-    if isinstance(metadata_paths, str):
-        return [metadata_paths]
-    return [str(path) for path in metadata_paths]
-
-
-def _read_metadata_records(metadata_output_paths: str | Sequence[str]) -> List[Dict[str, str]]:
-    """Load JSONL metadata records from one or more files.
-
-    Lines that are empty or invalid JSON are ignored to allow best-effort
-    status checks when receipt files are partially corrupted.
-    """
-    records: List[Dict[str, str]] = []
-    for metadata_output_path in _normalize_metadata_paths(metadata_output_paths):
-        with open(metadata_output_path, "r", encoding="utf-8") as f:
-            for line in f:
-                raw = line.strip()
-                if not raw:
-                    continue
-                try:
-                    record = json.loads(raw)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(record, dict):
-                    records.append(record)
-    return records
 
 
 def extract_unique_provider_batches(metadata_records: Sequence[Mapping[str, Any]]) -> List[Tuple[str, str]]:
