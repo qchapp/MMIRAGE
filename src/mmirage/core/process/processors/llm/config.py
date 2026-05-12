@@ -7,6 +7,7 @@ import os
 from typing import Dict, Optional, Sequence, Type, Any, List
 from pydantic import BaseModel, create_model
 
+from mmirage.config.batch_provider import BatchProviderConfig
 from mmirage.core.process.variables import BaseVar, OutputVar
 
 from mmirage.core.process.base import BaseProcessorConfig
@@ -87,11 +88,13 @@ class SGLangLLMConfig(BaseProcessorConfig):
         server_args: SGLang server arguments including model path and TP size.
         default_sampling_params: Default sampling parameters for generation.
         chat_template: Chat template name for vision-language models (e.g., "qwen2-vl").
+        batch_provider: Optional provider batch settings for async submission.
     """
 
     server_args: SGLangServerArgs = field(default_factory=SGLangServerArgs)
     default_sampling_params: Dict[str, Any] = field(default_factory=dict)
     chat_template: str = ""  # Empty means use tokenizer's default
+    batch_provider: Optional[BatchProviderConfig] = None
 
 
 @dataclass

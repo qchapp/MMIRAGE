@@ -131,3 +131,8 @@ class MMIRAGEMapper:
             if hasattr(proc, "get_load_time"):
                 total += proc.get_load_time()
         return total
+
+    def finalize_processors(self) -> None:
+        """Finalize processors that expose a finalize lifecycle hook."""
+        for processor in self.processors.values():
+            processor.finalize()

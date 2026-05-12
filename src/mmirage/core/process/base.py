@@ -71,6 +71,10 @@ class BaseProcessor(abc.ABC, Generic[C]):
             NotImplementedError: If not implemented by subclass.
         """
         raise NotImplementedError()
+    
+    def finalize(self) -> None:
+        """Optional lifecycle hook; override when a processor buffers state."""
+        pass
 
     @abc.abstractmethod
     def get_token_counts(self) -> TokenCounts:

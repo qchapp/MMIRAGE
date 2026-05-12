@@ -15,6 +15,7 @@ from mmirage.core.loader.base import DatasetLike
 from mmirage.core.loader.utils import load_datasets_from_configs
 from mmirage.core.process.mapper import MMIRAGEMapper
 from mmirage.core.writer.renderer import TemplateRenderer
+
 from mmirage.shard_utils import (
     GpuUtilizationPoller,
     ShardStats,
@@ -177,6 +178,8 @@ def main():
                 },
                 remove_columns=remove_columns,
             )
+            # Drain stateful batch accumulators once this dataset map iteration finishes.
+            mapper.finalize_processors()
             ds_processed_all.append(ds_processed)
 
         for ds_idx, (ds_config, ds_processed) in enumerate(zip(datasets_config, ds_processed_all)):
