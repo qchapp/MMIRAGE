@@ -199,3 +199,42 @@ def test_llm_processor_skips_batch_setup_when_disabled(monkeypatch):
     assert processor.batch_mode_enabled is False
     assert processor._batch_adapter is None
     assert processor._batch_provider_config is None
+
+
+def test_llm_processor_uses_sync_runtime_when_batch_provider_omitted(monkeypatch):
+    class FakeEngine:
+        def __init__(self, **_kwargs):
+            return None
+
+        def generate(self, **_kwargs):
+            raise AssertionError("Synchronous generation should not run in this test")
+
+        def shutdown(self):
+            return None
+
+    class FakeTokenizer:
+        def apply_chat_template(self, *args, **kwargs):
+            return ""
+
+    monkeypatch.setattr(
+        "mmirage.core.process.processors.llm.llm_processor.sgl.Engine",
+        FakeEngine,
+    )
+    monkeypatch.setattr(
+        "mmirage.core.process.processors.llm.llm_processor.AutoTokenizer.from_pretrained",
+        lambda *args, **kwargs: FakeTokenizer(),
+    )
+
+    config = SGLangLLMConfig(
+        type="llm",
+        server_args=SGLangServerArgs(model_path="dummy-model"),
+    )
+
+    processor_cls = ProcessorRegistry.get_processor("llm")
+    processor = processor_cls(config)
+
+    assert processor.batch_mode_enabled is False
+    assert isinstance(processor.llm, FakeEngine)
+    assert isinstance(processor.tokenizer, FakeTokenizer)
+    assert processor._batch_adapter is None
+    assert processor._batch_provider_config is None

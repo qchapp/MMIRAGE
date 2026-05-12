@@ -62,14 +62,15 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         """
         super().__init__(engine_args, **kwargs)
 
-        batch_provider_cfg = getattr(engine_args, "batch_provider", None)
+        batch_provider_cfg = engine_args.batch_provider
         is_provider_batch_enabled = bool(batch_provider_cfg and batch_provider_cfg.enabled)
 
         # In provider-batch mode we only build payloads/metadata and should not
         # initialize GPU-backed SGLang runtime.
-        self.llm = None
-        self.tokenizer = None
-        if not is_provider_batch_enabled:
+        if is_provider_batch_enabled:
+            self.llm = None
+            self.tokenizer = None
+        else:
             self.llm = sgl.Engine(**asdict(engine_args.server_args))
             self.tokenizer = AutoTokenizer.from_pretrained(
                 engine_args.server_args.model_path,
@@ -88,7 +89,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         self._setup_batch_runtime()
 
     def _setup_batch_runtime(self) -> None:
-        provider_cfg = getattr(self.config, "batch_provider", None)
+        provider_cfg = self.config.batch_provider
         if provider_cfg is None:
             return
 
@@ -122,9 +123,8 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
     def _with_metadata_suffix(path: str, suffix: str, run_id: str) -> str:
         if not path:
             return ""
-        if path.endswith(".jsonl"):
-            return path[:-6] + f".{suffix}.{run_id}.jsonl"
-        return f"{path}.{suffix}.{run_id}.jsonl"
+        base_path = path.removesuffix(".jsonl")
+        return f"{base_path}.{suffix}.{run_id}.jsonl"
 
     @property
     def batch_mode_enabled(self) -> bool:
@@ -385,7 +385,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                     payload=payload,
                     config=self._batch_provider_config,
                 )
-                requests.append(dict(request))
+                requests.append(request)
                 source_indices.append(self._global_row_offset + global_i)
 
             self._text_orchestrator.add_requests(
@@ -428,6 +428,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                 }
                 if output_var.output_type == "JSON" and output_var.output_schema:
                     payload["expected_schema"] = list(output_var.output_schema)
+
                 custom_id = self._next_custom_id(output_var.name, "multimodal")
                 index_to_custom_id[global_i] = custom_id
                 request = self._batch_adapter.build_request(

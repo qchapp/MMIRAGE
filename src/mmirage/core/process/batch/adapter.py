@@ -6,7 +6,7 @@ request formats and normalize submission responses into a shared result shape.
 
 import abc
 from dataclasses import dataclass, field
-from typing import Any, Dict, Mapping, Sequence, Tuple
+from typing import Any, Dict, Sequence, Tuple
 
 from mmirage.config.batch_provider import BatchProviderConfig
 
@@ -23,7 +23,7 @@ class BatchSubmissionResult:
 
     provider_batch_id: str
     status: str
-    raw_response: Mapping[str, Any] = field(default_factory=dict)
+    raw_response: Dict[str, Any] = field(default_factory=dict)
 
 
 class BatchSubmissionAdapter(abc.ABC):
@@ -41,7 +41,7 @@ class BatchSubmissionAdapter(abc.ABC):
         custom_id: str,
         payload: Dict[str, Any],
         config: BatchProviderConfig,
-    ) -> Mapping[str, Any]:
+    ) -> Dict[str, Any]:
         """Build a single provider-ready request object.
 
         Args:
@@ -58,7 +58,7 @@ class BatchSubmissionAdapter(abc.ABC):
         raise NotImplementedError()
 
     @abc.abstractmethod
-    def estimate_request_bytes(self, request: Mapping[str, Any]) -> int:
+    def estimate_request_bytes(self, request: Dict[str, Any]) -> int:
         """Estimate serialized UTF-8 bytes for a request payload.
 
         The estimate must match or safely upper-bound the size produced by the
@@ -77,9 +77,9 @@ class BatchSubmissionAdapter(abc.ABC):
     def submit_chunk(
         self,
         chunk_id: str,
-        requests: Sequence[Mapping[str, Any]],
+        requests: Sequence[Dict[str, Any]],
         config: BatchProviderConfig,
-    ) -> Mapping[str, Any]:
+    ) -> Dict[str, Any]:
         """Submit one pre-chunked request group to the provider.
 
         Args:
@@ -95,7 +95,7 @@ class BatchSubmissionAdapter(abc.ABC):
     @abc.abstractmethod
     def parse_submission_result(
         self,
-        raw_result: Mapping[str, Any],
+        raw_result: Dict[str, Any],
     ) -> BatchSubmissionResult:
         """Normalize provider submission output into a shared result model.
 

@@ -28,7 +28,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         custom_id: str,
         payload: Dict[str, Any],
         config: BatchProviderConfig,
-    ) -> Mapping[str, Any]:
+    ) -> Dict[str, Any]:
         openai_config = self._check_openai_config(config)
         body = copy.deepcopy(payload)
         expected_schema = body.get("expected_schema")
@@ -97,14 +97,14 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
 
         return f"data:{mime_type};base64,{encoded}"
 
-    def estimate_request_bytes(self, request: Mapping[str, Any]) -> int:
+    def estimate_request_bytes(self, request: Dict[str, Any]) -> int:
         serialized = json.dumps(request, ensure_ascii=False, separators=(",", ":"))
         return len(serialized.encode("utf-8"))
 
     def submit_chunk(
         self,
         chunk_id: str,
-        requests: Sequence[Mapping[str, Any]],
+        requests: Sequence[Dict[str, Any]],
         config: BatchProviderConfig,
     ) -> Dict[str, Any]:
         openai_config = self._check_openai_config(config)
@@ -191,7 +191,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
 
     def parse_submission_result(
         self,
-        raw_result: Mapping[str, Any],
+        raw_result: Dict[str, Any],
     ) -> BatchSubmissionResult:
         # Prefer attribute access for OpenAI SDK objects, fall back to mapping access.
         def _attr_or_get(obj: Any, attr: str, default: Any = None) -> Any:
@@ -226,7 +226,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         raise TypeError("OpenAIBatchAdapter requires OpenAIBatchConfig")
 
     @staticmethod
-    def _extract_generated_text(row: Mapping[str, Any]) -> str:
+    def _extract_generated_text(row: Dict[str, Any]) -> str:
         # prefer chat `message.content`, then `choices[0].text`,
         # then `body.text`. Return empty string if none match.
         try:
