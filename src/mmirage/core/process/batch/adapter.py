@@ -96,13 +96,11 @@ class BatchSubmissionAdapter(abc.ABC):
     def parse_submission_result(
         self,
         raw_result: Mapping[str, Any],
-        request_count: int,
     ) -> BatchSubmissionResult:
         """Normalize provider submission output into a shared result model.
 
         Args:
             raw_result: Raw payload returned by ``submit_chunk``.
-            request_count: Number of requests submitted in the chunk.
 
         Returns:
             A normalized ``BatchSubmissionResult`` for provider-neutral

@@ -156,7 +156,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
             "id": self._read_attr(retrieved, "id"),
             "status": self._read_attr(retrieved, "status"),
         }
-        return self.parse_submission_result(raw_result=raw_result, request_count=0)
+        return self.parse_submission_result(raw_result=raw_result)
 
     def retrieve_results(
         self,
@@ -201,7 +201,6 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
     def parse_submission_result(
         self,
         raw_result: Mapping[str, Any],
-        request_count: int,
     ) -> BatchSubmissionResult:
         batch_id = str(raw_result.get("id") or raw_result.get("batch_id") or "")
         status = str(raw_result.get("status") or "unknown")

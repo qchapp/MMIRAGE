@@ -194,7 +194,7 @@ def test_openai_parse_submission_result_normalizes_payload():
         "input_file_id": "file_123",
     }
 
-    result = adapter.parse_submission_result(raw_result=raw, request_count=4)
+    result = adapter.parse_submission_result(raw_result=raw)
 
     assert isinstance(result, BatchSubmissionResult)
     assert result.provider_batch_id == "batch_123"

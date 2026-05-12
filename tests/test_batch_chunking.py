@@ -27,7 +27,7 @@ class SizeAwareTestAdapter(BatchSubmissionAdapter):
     def submit_chunk(self, chunk_id, requests, config):
         return {"id": chunk_id, "status": "submitted"}
 
-    def parse_submission_result(self, raw_result, request_count):
+    def parse_submission_result(self, raw_result):
         return BatchSubmissionResult(
             provider_batch_id=str(raw_result["id"]),
             status=str(raw_result["status"]),

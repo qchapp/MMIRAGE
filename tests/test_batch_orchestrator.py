@@ -30,7 +30,7 @@ class RecordingAdapter(BatchSubmissionAdapter):
         )
         return {"id": f"batch-{chunk_id}", "status": "submitted"}
 
-    def parse_submission_result(self, raw_result, request_count):
+    def parse_submission_result(self, raw_result):
         return BatchSubmissionResult(
             provider_batch_id=str(raw_result["id"]),
             status=str(raw_result["status"]),

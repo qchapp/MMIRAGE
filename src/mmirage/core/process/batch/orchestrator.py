@@ -17,7 +17,7 @@ from mmirage.core.process.batch.chunking import BatchRequestChunker, RequestChun
 @dataclass
 class _PendingRequest:
     request: Mapping[str, Any]
-    source_index: int
+    source_index: int # original row index of the data sample within the input dataset
 
 
 class BatchSubmissionOrchestrator:
@@ -48,8 +48,8 @@ class BatchSubmissionOrchestrator:
             self._pending.append(_PendingRequest(request=request, source_index=source_index))
 
         return self._emit_ready_chunks(
-            finalize=False,
             model_params_snapshot=model_params_snapshot,
+            finalize=False,
         )
 
     def finalize(
@@ -58,14 +58,15 @@ class BatchSubmissionOrchestrator:
     ) -> List[BatchSubmissionResult]:
         """Flush all remaining requests at end-of-dataset lifecycle."""
         return self._emit_ready_chunks(
-            finalize=True,
             model_params_snapshot=model_params_snapshot,
+            finalize=True,
+            
         )
 
     def _emit_ready_chunks(
         self,
-        finalize: bool,
         model_params_snapshot: Optional[Mapping[str, Any]],
+        finalize: bool = False,
     ) -> List[BatchSubmissionResult]:
         if not self._pending:
             return []
@@ -99,7 +100,6 @@ class BatchSubmissionOrchestrator:
             )
             parsed_result = self.adapter.parse_submission_result(
                 raw_result=raw_result,
-                request_count=len(chunk_entries),
             )
             submission_results.append(parsed_result)
 

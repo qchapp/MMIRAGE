@@ -37,7 +37,7 @@ class CompleteTestAdapter(BatchSubmissionAdapter):
             "requests": len(requests),
         }
 
-    def parse_submission_result(self, raw_result, request_count):
+    def parse_submission_result(self, raw_result):
         return BatchSubmissionResult(
             provider_batch_id=str(raw_result["batch_id"]),
             status=str(raw_result["status"]),
@@ -113,7 +113,7 @@ def test_complete_adapter_is_interface_compliant():
     assert estimated_bytes > 0
 
     raw_result = adapter.submit_chunk(chunk_id="chunk-1", requests=[request], config=config)
-    parsed = adapter.parse_submission_result(raw_result=raw_result, request_count=1)
+    parsed = adapter.parse_submission_result(raw_result=raw_result)
 
     assert parsed.provider_batch_id == "unit-chunk-1"
     assert parsed.status == "submitted"
