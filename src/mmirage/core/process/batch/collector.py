@@ -129,6 +129,13 @@ def _build_output_payload(result_row: Mapping[str, Any], custom_id: str = "") ->
     question/answer JSON into a conversation format expected by downstream
     consumers.
     """
+    error_message = str(result_row.get("error_message", "")).strip()
+    if error_message:
+        return {
+            "status": str(result_row.get("status", "error") or "error"),
+            "error_message": error_message,
+        }
+
     raw_content = _extract_content_string(result_row)
     if not raw_content:
         return {"caption": ""}
@@ -136,10 +143,12 @@ def _build_output_payload(result_row: Mapping[str, Any], custom_id: str = "") ->
     try:
         parsed = json.loads(raw_content)
     except json.JSONDecodeError:
-        logger.warning(
-            f"Failed to parse JSON for result row (custom_id={custom_id}). "
-            f"Treating as raw text. Content: {raw_content[:100]}"
-        )
+        stripped_content = raw_content.lstrip()
+        if stripped_content.startswith(("{", "[")):
+            logger.warning(
+                f"Failed to parse JSON for result row (custom_id={custom_id}). "
+                f"Treating as raw text. Content: {raw_content[:100]}"
+            )
         return {"caption": raw_content}
 
     if isinstance(parsed, dict) and ("question" in parsed or "answer" in parsed):

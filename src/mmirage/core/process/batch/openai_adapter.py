@@ -31,7 +31,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
     ) -> Dict[str, Any]:
         openai_config = self._check_openai_config(config)
         body = copy.deepcopy(payload)
-        expected_schema = body.get("expected_schema")
+        expected_schema = body.pop("expected_schema", None) # expected_schema needs to be popped from body before submission, as it was in the normalized request but is not an OpenAI API parameter.
         if expected_schema is not None and (
             not isinstance(expected_schema, list)
             or not all(isinstance(key, str) for key in expected_schema)
@@ -165,14 +165,21 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         retrieved = client.batches.retrieve(provider_batch_id)
         status = getattr(retrieved, "status", None) or "unknown"
         output_file_id = getattr(retrieved, "output_file_id", None)
+        error_file_id = getattr(retrieved, "error_file_id", None)
 
-        if status != "completed" or not output_file_id:
+        if status != "completed":
             raise ValueError(
                 f"Batch '{provider_batch_id}' is not completed yet (status={status}). "
                 "Please retry after the provider marks it completed and produces an output file."
             ) from None
 
-        content_response = client.files.content(output_file_id)
+        content_file_id = output_file_id or error_file_id
+        if not content_file_id:
+            raise ValueError(
+                f"Batch '{provider_batch_id}' completed, but neither output_file_id nor error_file_id was returned."
+            ) from None
+
+        content_response = client.files.content(content_file_id)
         jsonl_text = self._extract_content_text(content_response)
 
         rows: List[Dict[str, Any]] = []
@@ -181,6 +188,10 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
             if not raw:
                 continue
             row = dict(json.loads(raw))
+            error_message = self._extract_error_message(row)
+            if error_message:
+                row.setdefault("status", "error")
+                row["error_message"] = error_message
             if "generated_text" not in row:
                 generated_text = self._extract_generated_text(row)
                 if generated_text:
@@ -247,6 +258,19 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
             body_text = row["response"]["body"]["text"]
             if isinstance(body_text, str):
                 return body_text
+        except (KeyError, TypeError):
+            pass
+
+        return ""
+
+    @staticmethod
+    def _extract_error_message(row: Dict[str, Any]) -> str:
+        try:
+            error = row["response"]["body"]["error"]
+            if isinstance(error, dict):
+                message = error.get("message")
+                if isinstance(message, str):
+                    return message
         except (KeyError, TypeError):
             pass
 

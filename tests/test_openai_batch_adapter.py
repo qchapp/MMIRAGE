@@ -44,6 +44,8 @@ def test_openai_build_request_injects_structured_output_format():
 
     request = adapter.build_request(custom_id="row-002", payload=payload, config=config)
 
+    assert "expected_schema" not in request["body"]
+
     assert request["body"]["response_format"] == {
         "type": "json_schema",
         "json_schema": {
@@ -398,6 +400,68 @@ def test_openai_retrieve_results_prefers_message_content(monkeypatch):
     assert rows[0]["generated_text"] == '{"question":"Q","answer":"A"}'
 
 
+def test_openai_retrieve_results_normalizes_error_rows(monkeypatch):
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+    class FakeBatches:
+        def retrieve(self, provider_batch_id):
+            class _RetrieveResp:
+                id = provider_batch_id
+                status = "completed"
+                output_file_id = "file_output_error"
+
+            return _RetrieveResp()
+
+    class FakeFiles:
+        def content(self, output_file_id):
+            class _ContentResp:
+                text = (
+                    '{"id":"batch_req_1","custom_id":"formatted_answer:text:50",'
+                    '"response":{"status_code":400,"request_id":"req_1",'
+                    '"body":{"error":{"message":"Unrecognized request argument supplied: expected_schema",'
+                    '"type":"invalid_request_error","param":null,"code":null}}},"error":null}\n'
+                )
+
+            return _ContentResp()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.batches = FakeBatches()
+            self.files = FakeFiles()
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
+        FakeClient,
+    )
+
+    config = OpenAIBatchConfig(credentials={"api_key": "test-key"})
+    adapter = OpenAIBatchAdapter()
+
+    rows = adapter.retrieve_results(provider_batch_id="batch_error", config=config)
+
+    assert rows == [
+        {
+            "id": "batch_req_1",
+            "custom_id": "formatted_answer:text:50",
+            "response": {
+                "status_code": 400,
+                "request_id": "req_1",
+                "body": {
+                    "error": {
+                        "message": "Unrecognized request argument supplied: expected_schema",
+                        "type": "invalid_request_error",
+                        "param": None,
+                        "code": None,
+                    }
+                },
+            },
+            "error": None,
+            "status": "error",
+            "error_message": "Unrecognized request argument supplied: expected_schema",
+        }
+    ]
+
+
 def test_openai_retrieve_results_raises_if_batch_not_completed(monkeypatch):
     from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
@@ -430,3 +494,57 @@ def test_openai_retrieve_results_raises_if_batch_not_completed(monkeypatch):
 
     with pytest.raises(ValueError, match="not completed"):
         adapter.retrieve_results(provider_batch_id="batch_abc", config=config)
+
+
+def test_openai_retrieve_results_uses_error_file_when_output_missing(monkeypatch):
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+    class FakeBatches:
+        def retrieve(self, provider_batch_id):
+            class _RetrieveResp:
+                id = provider_batch_id
+                status = "completed"
+                output_file_id = None
+                error_file_id = "file_error_1"
+
+            return _RetrieveResp()
+
+    captured = {}
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.batches = FakeBatches()
+
+            class _Files:
+                def content(self, output_file_id):
+                    captured["output_file_id"] = output_file_id
+
+                    class _ContentResp:
+                        text = (
+                            '{"custom_id":"c1","response":{"body":{"error":{' 
+                            '"message":"Unrecognized request argument supplied: expected_schema"}}}}\n'
+                        )
+
+                    return _ContentResp()
+
+            self.files = _Files()
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
+        FakeClient,
+    )
+
+    config = OpenAIBatchConfig(credentials={"api_key": "test-key"})
+    adapter = OpenAIBatchAdapter()
+
+    rows = adapter.retrieve_results(provider_batch_id="batch_abc", config=config)
+
+    assert captured["output_file_id"] == "file_error_1"
+    assert rows == [
+        {
+            "custom_id": "c1",
+            "response": {"body": {"error": {"message": "Unrecognized request argument supplied: expected_schema"}}},
+            "status": "error",
+            "error_message": "Unrecognized request argument supplied: expected_schema",
+        }
+    ]

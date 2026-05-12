@@ -670,3 +670,37 @@ def test_build_output_payload_logs_malformed_json(caplog):
     assert "Failed to parse JSON for result row" in caplog.text
     assert "custom_id=row_123" in caplog.text
     assert "Treating as raw text" in caplog.text
+
+
+def test_build_output_payload_keeps_plain_text_silent(caplog):
+    from mmirage.core.process.batch.collector import _build_output_payload
+
+    result_row = {
+        "custom_id": "caption:multimodal:1",
+        "generated_text": "The image features a solid orange background with the text \"A Cat\" displayed in a bold font.",
+    }
+
+    with caplog.at_level("WARNING"):
+        output = _build_output_payload(result_row, custom_id="caption:multimodal:1")
+
+    assert output == {
+        "caption": "The image features a solid orange background with the text \"A Cat\" displayed in a bold font."
+    }
+    assert "Failed to parse JSON for result row" not in caplog.text
+
+
+def test_build_output_payload_preserves_provider_error_status():
+    from mmirage.core.process.batch.collector import _build_output_payload
+
+    result_row = {
+        "custom_id": "formatted_answer:text:50",
+        "status": "error",
+        "error_message": "Unrecognized request argument supplied: expected_schema",
+    }
+
+    output = _build_output_payload(result_row, custom_id="formatted_answer:text:50")
+
+    assert output == {
+        "status": "error",
+        "error_message": "Unrecognized request argument supplied: expected_schema",
+    }
