@@ -1,0 +1,84 @@
+processors:
+  - type: llm
+    server_args:
+      model_path: Qwen/Qwen3-VL-4B-Instruct
+      tp_size: 1
+      trust_remote_code: true
+      disable_custom_all_reduce: true
+    chat_template: qwen2-vl
+    default_sampling_params:
+      temperature: 0.1
+      top_p: 0.9
+      max_new_tokens: 1024
+      custom_params:
+        chat_template_kwargs:
+          enable_thinking: false
+
+loading_params:
+  state_dir: $SCRATCH/medtrinity_demo_conversations_formatted/_pipeline_state
+
+  datasets:
+    - path: $MEDTRINITY_DEMO
+      type: loadable
+      output_dir: $SCRATCH/medtrinity_demo_conversations_formatted
+
+  num_shards: 16
+  shard_id: "$SLURM_ARRAY_TASK_ID"
+
+  batch_size: 128
+
+processing_params:
+  inputs:
+    - name: original_caption
+      key: caption
+    - name: sample_id
+      key: id
+    - name: medical_image
+      key: image
+      type: image
+
+  outputs:
+    - name: formatted_answer
+      type: llm
+      output_type: plain
+      prompt: |
+        ## Instructions
+        - Reformat the image description with markdown without adding anything else
+        - Add titles and structure your output
+
+        ## Image description
+        {{ original_caption }}
+
+  remove_columns: true
+
+  output_schema:
+    id: "{{ sample_id }}"
+    conversations:
+      - role: "user"
+        content: "Describe this medical image."
+      - role: "assistant"
+        content: "{{ formatted_answer }}"
+    modalities:
+      - "{{ medical_image }}"
+
+execution_params:
+  mode: slurm
+
+  retry: false
+  merge: false
+
+  account: a127
+  job_name: medtrinity-demo-formatting
+
+  nodes: 1
+  ntasks_per_node: 1
+  gpus: 1
+  cpus_per_task: 288
+  time_limit: "11:59:59"
+
+  report_dir: "$SCRATCH/mmirage_reports"
+  hf_home: "${HF_HOME}"
+  edf_env: "${EDF_ENV}"
+
+  poll_interval_seconds: 30
+  settle_time_seconds: 60

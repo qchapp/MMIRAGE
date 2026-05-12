@@ -1,20 +1,48 @@
-<h1 align="center">
-
-![image](https://raw.githubusercontent.com/EPFLiGHT/MMIRAGE/main/mmirage_logo_with_text.png)
-
-</h1>
-
 # MMIRAGE
 
-MMIRAGE, which stands for **M**odular **M**ultimodal **I**ntelligent **R**eformatting and **A**ugmentation **G**eneration **E**ngine, is an advanced platform designed to streamline the processing of datasets using generative models, including vision-language models (VLMs). It is engineered to handle large-scale data reformatting and augmentation tasks with efficiency and precision. By leveraging state-of-the-art generative models, MMIRAGE enables users to perform complex dataset transformations, ensuring compatibility across various formats and schemas. Its multi-node support and parallel processing capabilities make it an ideal choice for scenarios demanding substantial computational power, such as distributed training and inference workflows. MMIRAGE not only simplifies the integration of powerful language models but also provides a customizable framework for diverse use cases, from reformatting conversational datasets to generating Q/A pairs from plain text.
+MMIRAGE (**M**odular **M**ultimodal **I**ntelligent **R**eformatting and **A**ugmentation **G**eneration **E**ngine) is a framework for dataset reformatting and augmentation with language models and vision-language models.
 
-## How to install
+This artifact provides the code and configuration required to reproduce the MedTrinity demo formatting pipeline used in the submitted workshop paper.
 
-To install the library, clone it from GitHub and install it with pip. The base install does not include the local SGLang runtime:
+## Reproducing the MedTrinity Demo Pipeline
+
+This section explains how to download the MedTrinity demo dataset and run the MMIRAGE formatting pipeline.
+
+The reproduction uses the MedTrinity demo subset, loaded with the Hugging Face config `25M_demo`. The saved local dataset contains the columns `image`, `id`, and `caption`. The image is stored directly inside the Hugging Face dataset, so no separate `image_base_path` is required.
+
+## 1. Environment setup
+
+Clone or unpack the anonymous artifact repository provided with the submission.
+
+MMIRAGE can be run either in a Python virtual environment or inside Docker.
+
+### Option A: Python virtual environment
+
+Clone the repository:
 
 ```bash
-git clone git@github.com:EPFLiGHT/MMIRAGE.git
+git clone <artifact-repo-url> MMIRAGE
 cd MMIRAGE
+```
+
+Or unpack the anonymous artifact archive:
+
+```bash
+unzip MMIRAGE-artifact.zip
+cd MMIRAGE
+```
+
+Create and activate a virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+Install MMIRAGE:
+
+```bash
+pip install --upgrade pip
 pip install -e .
 ```
 
@@ -24,23 +52,27 @@ Install the GPU extra when using the SGLang-backed `llm` processor for local GPU
 pip install -e ".[gpu]"
 ```
 
-For testing and scripts that make use of the library, it is advised to create a .env file:
-```bash
-./scripts/generate_env.sh
-```
+If using GPU-backed models through SGLang, ensure that the CUDA and GPU dependencies required by MMIRAGE and SGLang are available in the environment.
 
-## Docker
+### Option B: Docker environment
 
-The `docker-compose.yml` defines two services, `mmirage` (GPU) and `mmirage-cpu`.
+The repository provides Docker and Docker Compose configurations.
+
+The `docker-compose.yml` defines two services:
+
+- `mmirage` (GPU)
+- `mmirage-cpu`
 
 ### Prebuilt images
 
-Prebuilt images are published to GHCR for each push to `main`:
+Prebuilt images are available through GHCR:
 
-- `ghcr.io/epflight/mmirage:latest-gpu` (linux/amd64)
-- `ghcr.io/epflight/mmirage:latest-cpu` (linux/amd64, linux/arm64)
+```text
+ghcr.io/epflight/mmirage:latest-gpu
+ghcr.io/epflight/mmirage:latest-cpu
+```
 
-How to use them:
+Example usage:
 
 ```bash
 # GPU
@@ -52,191 +84,239 @@ docker pull ghcr.io/epflight/mmirage:latest-cpu
 docker run --rm -it ghcr.io/epflight/mmirage:latest-cpu
 ```
 
-### GPU
+### GPU container
 
-The container requires an NVIDIA GPU. The `docker-compose.yml` is configured to request GPU access, but the host must have:
-- NVIDIA GPU drivers installed
-- NVIDIA Container Toolkit / `nvidia-container-runtime` configured for Docker
-- A recent Docker Engine and Docker Compose version with GPU support enabled
+The GPU container requires:
 
-Commands:
+- NVIDIA GPU drivers
+- NVIDIA Container Toolkit / `nvidia-container-runtime`
+- Docker with GPU support enabled
+
+Build and run:
 
 ```bash
-# Build
 docker compose build mmirage
-
-# Run
 docker compose run --rm -it mmirage
 ```
 
-### CPU-only
+### CPU-only container
 
-The CPU image installs MMIRAGE without the GPU extra. It is suitable for workflows that do not instantiate the SGLang-backed `llm` processor, and is intended to support API-backed processors once they are available. No CPU-ready configuration files are provided yet.
+The CPU image installs MMIRAGE without the GPU extra and is intended for workflows that do not instantiate the SGLang-backed `llm` processor.
 
-Commands:
+Build and run:
 
 ```bash
-# Build
 docker compose build mmirage-cpu
-
-# Run
 docker compose run --rm -it mmirage-cpu
 ```
 
-## Key features
+You can verify GPU visibility inside the container with:
 
-- **Multimodal Support**: Process both text and images with vision-language models
-- Easily configurable with a YAML file which configures the following parameters:
-    - The prompt to the LLM (using Jinja2 templating)
-    - Variables with the name and their JMESPath key to a JSON
-    - Image inputs for multimodal processing
-- Parallelizable with multi-node support
-    - The training pipeline uses distributed inference with sharding
-- Support a variety of LLMs and VLMs (Vision-Language Models)
-- Support any dataset schemas (configurable with the YAML format)
-- The ability to either output a JSON (or any other structured format) or plain text
-- Modular architecture with pluggable processors, loaders, and writers
+```bash
+nvidia-smi
+```
 
-## Example usage
+## 2. Accept MedTrinity access and log in to Hugging Face
 
-### Running (single command)
+Open the MedTrinity dataset page and accept the dataset access conditions:
 
-Run the pipeline via the CLI. Retry behavior is driven by your YAML config:
+```text
+https://huggingface.co/datasets/UCSC-VLAA/MedTrinity-25M
+```
 
-- `execution_params.retry: true` → automatically retries failed shards until completion or `max_retries`
-- `execution_params.retry: false` → submits/runs once; you can later trigger retries via `check`
-- `execution_params.merge: true` → after a successful run, automatically merges shard outputs
+Then log in locally:
+
+```bash
+hf auth login
+```
+
+## 3. Download the MedTrinity demo dataset
+
+Choose a local data directory:
+
+```bash
+export DATA_ROOT=/path/to/data
+export MEDTRINITY_DEMO=${DATA_ROOT}/medtrinity_demo
+```
+
+Download and save the demo dataset locally:
+
+```bash
+python scripts/download_medtrinity_demo.py \
+  --output-dir ${MEDTRINITY_DEMO}
+```
+
+Expected output:
+
+```text
+${MEDTRINITY_DEMO}/
+  dataset_info.json
+  state.json
+  data-*.arrow
+  medtrinity_demo_download_metadata.json
+```
+
+## 4. Verify the dataset
+
+Run:
+
+```bash
+python scripts/verify_medtrinity_demo.py \
+  --dataset-path ${MEDTRINITY_DEMO}
+```
+
+The verification script checks that:
+
+- the dataset can be loaded with `datasets.load_from_disk`
+- the required columns `image`, `id`, and `caption` exist
+- images decode correctly as PIL images
+- captions and ids are non-empty strings
+
+## 5. Run the local pipeline
+
+Set the output and cache directories:
+
+```bash
+export SCRATCH=/path/to/scratch
+export HF_HOME=/path/to/hf
+```
+
+Run MMIRAGE with the local reviewer configuration:
+
+```bash
+mmirage run --config configs/medtrinity_demo_local.yaml --stats
+```
+
+Outputs are written to:
+
+```text
+${SCRATCH}/medtrinity_demo_conversations_formatted_local
+```
+
+Output schema:
+
+```json
+{
+  "id": "...",
+  "conversations": [
+    {
+      "role": "user",
+      "content": "Describe this medical image."
+    },
+    {
+      "role": "assistant",
+      "content": "..."
+    }
+  ],
+  "modalities": [
+    "<image stored in the dataset>"
+  ]
+}
+```
+
+Inspect run statistics:
+
+```bash
+mmirage stats --config configs/medtrinity_demo_local.yaml
+```
+
+## 6. Run the 16-node SLURM pipeline
+
+Set:
+
+```bash
+export DATA_ROOT=/path/to/data
+export MEDTRINITY_DEMO=${DATA_ROOT}/medtrinity_demo
+export SCRATCH=/path/to/scratch
+export HF_HOME=/path/to/hf
+export EDF_ENV=/path/to/edf
+```
+
+Run:
+
+```bash
+mmirage run --config configs/medtrinity_demo_16nodes.yaml --stats
+```
+
+The SLURM configuration uses 16 logical shards:
+
+```yaml
+num_shards: 16
+shard_id: "$SLURM_ARRAY_TASK_ID"
+```
+
+Each shard requests one node:
+
+```yaml
+nodes: 1
+gpus: 4
+```
+
+When all array tasks run concurrently, the pipeline uses 16 nodes total.
+
+Inspect statistics:
+
+```bash
+mmirage stats --config configs/medtrinity_demo_16nodes.yaml
+```
+
+## 7. Relevant artifact files
+
+```text
+configs/medtrinity_demo_local.yaml
+configs/medtrinity_demo_16nodes.yaml
+scripts/download_medtrinity_demo.py
+scripts/verify_medtrinity_demo.py
+```
+
+## Features
+
+MMIRAGE supports:
+
+- text and image processing with LLMs and VLMs
+- YAML-configurable pipelines
+- Jinja2 prompt templating
+- JMESPath-based dataset extraction
+- distributed sharded execution
+- local and SLURM execution modes
+- configurable structured outputs
+- modular processors, loaders, and writers
+
+## Basic CLI usage
+
+Run a pipeline:
 
 ```bash
 mmirage run --config configs/config_mock.yaml
 ```
 
-To check status only:
+Check shard status:
 
 ```bash
 mmirage check --config configs/config_mock.yaml
 ```
 
-To check status and submit retries for failed shards:
+Retry failed shards:
 
 ```bash
 mmirage check --config configs/config_mock.yaml --retry
 ```
 
-To merge shards from the CLI directly:
+Merge shard outputs:
 
 ```bash
 mmirage merge --config configs/config_mock.yaml
 ```
 
-To merge shards without a config file (input directory + output directory only):
+Inspect statistics:
 
 ```bash
-mmirage merge-dir --input-dir /path/to/shards --output-dir /path/to/merged
+mmirage stats --config configs/config_mock.yaml
 ```
 
-`--input-dir` can point either to a single dataset directory that contains `shard_*`
-folders, or to a parent directory containing multiple dataset subdirectories.
-If `shard_*` folders are present directly in `--input-dir`, MMIRAGE merges that
-root dataset directly and ignores nested internal folders.
+## Example configuration
 
-For multiple datasets, you can also choose a shared merge root:
-
-```bash
-mmirage merge --config configs/config_mock.yaml --output-root /path/to/merged
-```
-
-MMIRAGE still keeps datasets separate by creating one subdirectory per dataset under the root.
-
-### Text-only: Reformatting dataset
-
-Suppose you have a dataset with samples of the following format
-
-```json
-{ 
-    "conversations" : [{"role": "user", "content": "Describe the image"}, {"role": "assistant", "content": "This is a badly formmatted answer"}],
-    "modalities" : ["<the images>"]
-}
-```
-
-The dataset contains assistant answers that are badly formatted. The goal would be to use a LLM to format our answer in Markdown. With MMIRAGE, it would be as simple as defining a YAML configuration file:
-
-```yaml
-processors:
-  - type: llm
-    server_args:
-      model_path: Qwen/Qwen3-8B
-      tp_size: 4
-      trust_remote_code: true
-    default_sampling_params:
-      temperature: 0.1
-      top_p: 1.0
-      max_new_tokens: 384
-
-loading_params:
-  state_dir: /path/to/state/dir
-  datasets:
-    - path: /path/to/dataset
-      type: loadable
-      output_dir: /path/to/output/shards
-  num_shards: 4
-  shard_id: "$SLURM_ARRAY_TASK_ID"
-  batch_size: 64
-
-processing_params:
-  inputs:
-    - name: assistant_answer
-      key: conversations[1].content
-    - name: user_prompt
-      key: conversations[0].content
-    - name: modalities
-      key: modalities
-
-  outputs:
-    - name: formatted_answer
-      type: llm
-      output_type: plain
-      prompt: | 
-        Reformat the answer in a markdown format without adding anything else:
-        {{ assistant_answer }}
-      
-  remove_columns: false
-  output_schema:
-    conversations:
-      - role: user
-        content: "{{ user_prompt }}"
-      - role: assistant
-        content: "{{ formatted_answer }}"
-    modalities: "{{ modalities }}"
-
-execution_params:
-  mode: local
-  retry: false
-  merge: false
-```
-
-Configuration explanation:
-
-- `processors`: List of processor configurations. Currently supports `llm` type for LLM-based generation.
-- `loading_params`: Parameters for loading and sharding datasets.
-  - `state_dir`: Optional shared directory for shard status/retry state. Defaults to `~/.cache/MMIRAGE/state_dir`.
-  - `datasets`: List of dataset configurations with path, type, and output directory.
-- `processing_params`:
-  - `inputs`: Variables extracted from the input dataset using JMESPath queries.
-  - `outputs`: Variables created by processors. Prompts use Jinja2 templating (`{{ variable }}`).
-  - `output_schema`: Defines the structure of output samples.
-- `execution_params`:
-  - `mode`: "local" to run shard processing in the current Python environment or "slurm" to run through SLURM by submitting an sbatch array job.
-  - `retry`: If true, MMIRAGE automatically retries failed shards until they succeed or `max_retries` is reached. If false, the pipeline runs/submits once, and retries can be triggered later via the check/retry CLI commands.
-  - `merge`: If true, MMIRAGE merges shard outputs after a successful `run`. Merged datasets are written under each dataset `output_dir` in a `merged` subdirectory.
-
-Merge output behavior with multiple datasets:
-- Default (`run` with `execution_params.merge: true`, or `merge` without `--output-root`): each dataset is merged to its own `<dataset.output_dir>/merged`.
-- Shared root (`merge --output-root ...`): one merged subdirectory is created per dataset under the root.
-
-### Multimodal: Processing images with VLMs
-
-MMIRAGE supports multimodal processing with vision-language models:
+The following simplified configuration illustrates the main MMIRAGE sections.
 
 ```yaml
 processors:
@@ -245,14 +325,14 @@ processors:
       model_path: Qwen/Qwen2-VL-7B-Instruct
       tp_size: 4
       trust_remote_code: true
-    chat_template: qwen2-vl  # Required for VLMs
+    chat_template: qwen2-vl
     default_sampling_params:
       temperature: 0.1
       top_p: 0.95
       max_new_tokens: 768
 
 loading_params:
-  state_dir: path/to/state/dir
+  state_dir: /path/to/state/dir
   datasets:
     - path: /path/to/image/dataset
       type: loadable
@@ -265,8 +345,7 @@ processing_params:
   inputs:
     - name: medical_image
       key: image
-      type: image  # Mark as image input
-      image_base_path: /path/to/images  # Base directory for relative paths
+      type: image
     - name: original_caption
       key: caption
       type: text
@@ -278,7 +357,7 @@ processing_params:
       prompt: |
         Describe the medical image in detail.
         Original caption for context: {{ original_caption }}
-        
+
   remove_columns: false
   output_schema:
     image: "{{ medical_image }}"
@@ -288,146 +367,59 @@ processing_params:
 execution_params:
   mode: local
   retry: false
+  merge: false
 ```
 
-Key multimodal features:
-- `chat_template`: Specify the VLM chat template (e.g., `qwen2-vl`)
-- `type: image`: Mark input variables as images
-- `image_base_path`: Base directory for resolving relative image paths
-- Supports PIL Images, URLs, and file paths
+Main configuration sections:
 
-### Benchmarking shard performance
+- `processors`: model and inference configuration
+- `loading_params`: dataset loading and sharding
+- `processing_params`: prompts, extracted variables, and output schema
+- `execution_params`: local or SLURM execution behavior
 
-Pass `--stats` to `run` or `submit` to enable per-shard benchmarking. This activates GPU
-utilization polling and throughput tracking on compute nodes — disabled by default to
-avoid unnecessary overhead.
+## Statistics
+
+Enable runtime and throughput statistics with:
 
 ```bash
-# Local run with stats collection
 mmirage run --config configs/config_mock.yaml --stats
-
-```
-
-After the run completes, inspect the results with:
-
-```bash
-mmirage stats --config configs/config_mock.yaml
-```
-
-This prints a JSON report with per-shard details and an aggregate summary:
-
-```json
-{
-  "per_shard": [
-    {
-      "shard_id": 0,
-      "status": "success",
-      "started_at": "2026-04-30T10:00:00",
-      "finished_at": "2026-04-30T10:01:05",
-      "stats": {
-        "runtime_seconds": 65.2,
-        "runtime_human": "1m 5s",
-        "rows_processed": 1024,
-        "throughput_rows_per_sec": 15.7,
-        "gpu_util_mean": 88.4,
-        "gpu_util_min": 72.0,
-        "gpu_util_max": 98.0,
-        "gpu_util_samples": 13,
-        "input_tokens": 512000,
-        "output_tokens": 196608,
-        "num_gpus": 4,
-        "tokens_per_sec_per_gpu": 753.1,
-        "gpu_days_per_billion_tokens": 0.0015
-      }
-    }
-  ],
-  "aggregate": {
-    "total_shards": 1,
-    "completed_shards": 1,
-    "total_rows_processed": 1000,
-    "wall_clock_runtime_seconds": 133.04,
-    "wall_clock_runtime_human": "2m 13s",
-    "sum_shard_runtime_seconds": 133.04,
-    "sum_shard_runtime_human": "2m 13s",
-    "min_shard_runtime_seconds": 133.04,
-    "min_shard_runtime_human": "2m 13s",
-    "max_shard_runtime_seconds": 133.04,
-    "max_shard_runtime_human": "2m 13s",
-    "overall_throughput_rows_per_sec": 7.52,
-    "mean_gpu_util_pct": 86.2,
-    "num_gpus": 4,
-    "total_input_tokens": 146214,
-    "total_output_tokens": 1022046,
-    "sum_model_load_seconds": 38.272,
-    "sum_inference_runtime_seconds": 94.768,
-    "tokens_per_sec_per_gpu": 10784.72,
-    "gpu_days_per_billion_tokens": 1.0732
-  }
-}
-```
-
-Key metrics:
-- **`runtime_seconds`** / **`runtime_human`**: time from when the shard started on the cluster (after dispatch), excluding queue wait time.
-- **`overall_throughput_rows_per_sec`**: total rows / wall-clock time across all shards running in parallel.
-- **`mean_gpu_util_pct`**: mean percentage GPU utilization across shards.
-- **`tokens_per_sec_per_gpu`**: output tokens generated per second per GPU — the primary throughput metric used by frameworks such as [DataTrove](https://github.com/huggingface/datatrove).
-- **`gpu_days_per_billion_tokens`**: total GPU-days consumed to generate 1 billion output tokens — useful for cost and scaling comparisons across different hardware configurations.
-- Token metrics are `null` when no LLM processor was active, and GPU stats are `null` when `nvidia-smi` is unavailable or `--stats` was not passed.
-
-Reference benchmark:
-- [DataTrove Benchmark](https://github.com/huggingface/datatrove/tree/main/examples/inference/benchmark)
-
-The config `configs/config_benchmark_datatrove.yaml` mirrors the DataTrove inference benchmark conditions:
-
-| Setting | Value |
-|---|---|
-| Dataset | `simplescaling/s1K-1.1` (train split, 1 000 samples) |
-| Prompt | raw `question` field, no system prompt |
-| Output | up to 1 024 tokens per sample |
-| Context | 2 048-token model max context |
-| Model | `Qwen/Qwen3-4B` (DataTrove baseline: tp=1 on a single GPU) |
-
-Download the dataset before running:
-
-```python
-from datasets import load_dataset
-ds = load_dataset('simplescaling/s1K-1.1', split='train')
-ds.save_to_disk('data/s1K-1.1')
-```
-
-Then run with stats collection enabled:
-
-```bash
-mmirage run --config configs/config_benchmark_datatrove.yaml --stats
 ```
 
 Inspect results:
 
 ```bash
-mmirage stats --config configs/config_benchmark_datatrove.yaml
+mmirage stats --config configs/config_mock.yaml
 ```
 
-## Architecture
+Common metrics include:
 
-MMIRAGE uses a modular architecture:
+- `runtime_seconds`
+- `rows_processed`
+- `throughput_rows_per_sec`
+- `gpu_util_mean`
+- `tokens_per_sec_per_gpu`
+- `gpu_days_per_billion_tokens`
 
-```
+Token metrics are `null` when no LLM processor is active. GPU metrics are `null` when `nvidia-smi` is unavailable or `--stats` was not enabled.
+
+## Repository structure
+
+```text
 mmirage/
 ├── config/           # Configuration loading and validation
 ├── core/
-│   ├── loader/       # Dataset loaders (JSONL, HuggingFace)
-│   ├── process/      # Processors (LLM, etc.) and variable system
+│   ├── loader/       # Dataset loaders
+│   ├── process/      # Processors and variable system
 │   │   └── processors/
-│   │       └── llm/  # LLM processor with multimodal support
-│   └── writer/       # Output rendering with Jinja2
-├── shard_process.py  # Main processing script
+│   │       └── llm/  # LLM/VLM processor
+│   └── writer/       # Output rendering
+├── shard_process.py  # Main shard processing script
 └── merge_shards.py   # Shard merging utility
 ```
 
-## Useful tools
+## Useful references
 
-- Jinja2 for template processing: [link](https://jinja.palletsprojects.com/en/stable/)
-- JMESPath for JSON queries: [link](https://jmespath.org/)
-- SGLang for fast inference: [link](https://github.com/sgl-project/sglang)
-- Performance paper: [link](https://arxiv.org/abs/2408.02442)
-- DataTrove Benchmark: [link](https://github.com/huggingface/datatrove/tree/main/examples/inference/benchmark)
+- Jinja2: https://jinja.palletsprojects.com/en/stable/
+- JMESPath: https://jmespath.org/
+- SGLang: https://github.com/sgl-project/sglang
+- DataTrove benchmark: https://github.com/huggingface/datatrove/tree/main/examples/inference/benchmark
