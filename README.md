@@ -56,33 +56,12 @@ If using GPU-backed models through SGLang, ensure that the CUDA and GPU dependen
 
 ### Option B: Docker environment
 
-The repository provides Docker and Docker Compose configurations.
+The repository includes Docker and Docker Compose configurations for both GPU and CPU environments.
 
 The `docker-compose.yml` defines two services:
 
 - `mmirage` (GPU)
 - `mmirage-cpu`
-
-### Prebuilt images
-
-Prebuilt images are available through GHCR:
-
-```text
-ghcr.io/epflight/mmirage:latest-gpu
-ghcr.io/epflight/mmirage:latest-cpu
-```
-
-Example usage:
-
-```bash
-# GPU
-docker pull ghcr.io/epflight/mmirage:latest-gpu
-docker run --rm -it --gpus all ghcr.io/epflight/mmirage:latest-gpu
-
-# CPU
-docker pull ghcr.io/epflight/mmirage:latest-cpu
-docker run --rm -it ghcr.io/epflight/mmirage:latest-cpu
-```
 
 ### GPU container
 
@@ -101,19 +80,13 @@ docker compose run --rm -it mmirage
 
 ### CPU-only container
 
-The CPU image installs MMIRAGE without the GPU extra and is intended for workflows that do not instantiate the SGLang-backed `llm` processor.
+The CPU image installs MMIRAGE without GPU dependencies and can be used for workflows that do not instantiate the local SGLang-backed `llm` processor.
 
 Build and run:
 
 ```bash
 docker compose build mmirage-cpu
 docker compose run --rm -it mmirage-cpu
-```
-
-You can verify GPU visibility inside the container with:
-
-```bash
-nvidia-smi
 ```
 
 ## 2. Accept MedTrinity access and log in to Hugging Face
