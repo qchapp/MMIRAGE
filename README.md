@@ -10,19 +10,18 @@ MMIRAGE, which stands for **M**odular **M**ultimodal **I**ntelligent **R**eforma
 
 ## How to install
 
-To install the library, clone it from GitHub and install it with pip. The base
-install does not include the local SGLang runtime:
+To install the library, clone it from GitHub and install it with pip. The base install does not include the local SGLang runtime:
 
 ```bash
 git clone git@github.com:EPFLiGHT/MMIRAGE.git
-pip install -e ./MMIRAGE
+cd MMIRAGE
+pip install -e .
 ```
 
-Install the GPU extra when using the SGLang-backed `llm` processor for local
-GPU inference:
+Install the GPU extra when using the SGLang-backed `llm` processor for local GPU inference:
 
 ```bash
-pip install -e './MMIRAGE[gpu]'
+pip install -e ".[gpu]"
 ```
 
 For testing and scripts that make use of the library, it is advised to create a .env file:
@@ -30,37 +29,58 @@ For testing and scripts that make use of the library, it is advised to create a 
 ./scripts/generate_env.sh
 ```
 
-## Docker 
+## Docker
 
-### Build
+The `docker-compose.yml` defines two services, `mmirage` (GPU) and `mmirage-cpu`.
+
+### Prebuilt images
+
+Prebuilt images are published to GHCR for each push to `main`:
+
+- `ghcr.io/epflight/mmirage:latest-gpu` (linux/amd64)
+- `ghcr.io/epflight/mmirage:latest-cpu` (linux/amd64, linux/arm64)
+
+How to use them:
 
 ```bash
-docker compose build
+# GPU
+docker pull ghcr.io/epflight/mmirage:latest-gpu
+docker run --rm -it --gpus all ghcr.io/epflight/mmirage:latest-gpu
+
+# CPU
+docker pull ghcr.io/epflight/mmirage:latest-cpu
+docker run --rm -it ghcr.io/epflight/mmirage:latest-cpu
 ```
 
-### Run
-
-```bash
-docker compose run --rm mmirage --config configs/your_config.yaml
-```
+### GPU
 
 The container requires an NVIDIA GPU. The `docker-compose.yml` is configured to request GPU access, but the host must have:
 - NVIDIA GPU drivers installed
 - NVIDIA Container Toolkit / `nvidia-container-runtime` configured for Docker
 - A recent Docker Engine and Docker Compose version with GPU support enabled
 
-Without these host-side prerequisites, `docker compose run` may fail to detect or use the GPU.
+Commands:
+
+```bash
+# Build
+docker compose build mmirage
+
+# Run
+docker compose run --rm -it mmirage
+```
 
 ### CPU-only
 
-The CPU image installs MMIRAGE without the GPU extra. It is suitable for
-workflows that do not instantiate the SGLang-backed `llm` processor, and is
-intended to support API-backed processors once they are available. Current
-configs that use `type: llm` require the GPU image or an install with the
-`[gpu]` extra.
+The CPU image installs MMIRAGE without the GPU extra. It is suitable for workflows that do not instantiate the SGLang-backed `llm` processor, and is intended to support API-backed processors once they are available. No CPU-ready configuration files are provided yet.
+
+Commands:
 
 ```bash
-docker compose run --rm mmirage-cpu --config configs/your_config.yaml
+# Build
+docker compose build mmirage-cpu
+
+# Run
+docker compose run --rm -it mmirage-cpu
 ```
 
 ## Key features

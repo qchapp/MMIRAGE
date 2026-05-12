@@ -1,4 +1,4 @@
-FROM lmsysorg/sglang:latest
+FROM lmsysorg/sglang:v0.5.3rc1-cu126
 
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
@@ -8,4 +8,4 @@ WORKDIR /workspace/MMIRAGE
 
 RUN pip install --no-cache-dir .[gpu]
 
-ENTRYPOINT ["python3", "-m", "mmirage.shard_process"]
+ENTRYPOINT ["/bin/bash"]
