@@ -283,7 +283,7 @@ def test_collector_main_uses_config_metadata_path_when_missing_cli_arg(
     assert captured["output_path"] == str(output_path)
 
 
-def test_collector_main_raises_when_config_metadata_paths_missing(tmp_path, monkeypatch):
+def test_collector_main_raises_when_config_metadata_paths_missing(tmp_path, monkeypatch, caplog):
     from mmirage.core.process.batch import collector
 
     metadata_base = tmp_path / "batch_metadata.jsonl"
@@ -303,20 +303,19 @@ def test_collector_main_raises_when_config_metadata_paths_missing(tmp_path, monk
     )
     monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
 
-    with pytest.raises(
-        ValueError, match="No metadata receipts matched config metadata_output_path patterns"
-    ):
-        collector.main(
-            [
-                "--output-path",
-                str(output_path),
-                "--config",
-                str(config_path),
-            ]
-        )
+    rc = collector.main(
+        [
+            "--output-path",
+            str(output_path),
+            "--config",
+            str(config_path),
+        ]
+    )
+    assert rc == 1
+    assert "No metadata receipts matched config metadata_output_path patterns" in caplog.text
 
 
-def test_collector_main_raises_when_metadata_provider_missing_in_config(tmp_path, monkeypatch):
+def test_collector_main_raises_when_metadata_provider_missing_in_config(tmp_path, monkeypatch, caplog):
     from mmirage.core.process.batch import collector
 
     metadata_path = tmp_path / "receipts.jsonl"
@@ -339,17 +338,18 @@ def test_collector_main_raises_when_metadata_provider_missing_in_config(tmp_path
     cfg = SimpleNamespace(processors=[SimpleNamespace(batch_provider={"provider": "openai"})])
     monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
 
-    with pytest.raises(ValueError, match="missing from YAML batch_provider config"):
-        collector.main(
-            [
-                "--metadata-path",
-                str(metadata_path),
-                "--output-path",
-                str(output_path),
-                "--config",
-                str(config_path),
-            ]
-        )
+    rc = collector.main(
+        [
+            "--metadata-path",
+            str(metadata_path),
+            "--output-path",
+            str(output_path),
+            "--config",
+            str(config_path),
+        ]
+    )
+    assert rc == 1
+    assert "missing from YAML batch_provider config" in caplog.text
 
 
 def test_collect_and_merge_routes_multiple_providers(tmp_path, monkeypatch):
@@ -431,7 +431,7 @@ def test_collect_and_merge_routes_multiple_providers(tmp_path, monkeypatch):
     assert ("batch_unit", "unit") in adapters["unit"].calls
 
 
-def test_collector_main_raises_for_invalid_batch_provider_config(tmp_path, monkeypatch):
+def test_collector_main_raises_for_invalid_batch_provider_config(tmp_path, monkeypatch, caplog):
     from mmirage.core.process.batch import collector
 
     metadata_path = tmp_path / "receipts.jsonl"
@@ -457,14 +457,76 @@ def test_collector_main_raises_for_invalid_batch_provider_config(tmp_path, monke
     )
     monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
 
-    with pytest.raises(ValueError, match="batch_endpoint must start with '/'"):
-        collector.main(
-            [
-                "--metadata-path",
-                str(metadata_path),
-                "--output-path",
-                str(output_path),
-                "--config",
-                str(config_path),
-            ]
+    rc = collector.main(
+        [
+            "--metadata-path",
+            str(metadata_path),
+            "--output-path",
+            str(output_path),
+            "--config",
+            str(config_path),
+        ]
+    )
+    assert rc == 1
+    assert "batch_endpoint must start with '/'" in caplog.text
+
+
+def test_collect_and_merge_tiebreaker_secondary_sort_key(tmp_path, monkeypatch):
+    from mmirage.core.process.batch.collector import _read_metadata_records, collect_and_merge
+
+    metadata_path = tmp_path / "receipts.jsonl"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "provider": "openai",
+                "provider_batch_id": "batch_tie",
+                "custom_id_to_source_index": {"a": 0, "b": 0, "c": 1},
+            }
         )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "merged_tie.jsonl"
+
+    class FakeAdapter:
+        def retrieve_results(self, provider_batch_id, config):
+            # Return rows intentionally out-of-order to ensure collector sorts
+            # deterministically using the secondary key.
+            return [
+                {"custom_id": "b", "generated_text": "B"},
+                {"custom_id": "a", "generated_text": "A"},
+                {"custom_id": "c", "generated_text": "C"},
+            ]
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.collector.BatchAdapterFactory.from_config",
+        lambda config: FakeAdapter(),
+    )
+
+    records = _read_metadata_records(str(metadata_path))
+    rows = collect_and_merge(
+        records=records,
+        provider_configs={"openai": OpenAIBatchConfig(credentials={"api_key": "k"})},
+        output_path=str(output_path),
+    )
+
+    assert [r["custom_id"] for r in rows] == ["a", "b", "c"]
+
+
+def test_build_output_payload_logs_malformed_json(caplog):
+    from mmirage.core.process.batch.collector import _build_output_payload
+
+    malformed_json = '{"question": "incomplete'
+    result_row = {
+        "custom_id": "row_123",
+        "generated_text": malformed_json,
+    }
+
+    with caplog.at_level("WARNING"):
+        output = _build_output_payload(result_row, custom_id="row_123")
+
+    assert output == {"caption": malformed_json}
+    assert "Failed to parse JSON for result row" in caplog.text
+    assert "custom_id=row_123" in caplog.text
+    assert "Treating as raw text" in caplog.text

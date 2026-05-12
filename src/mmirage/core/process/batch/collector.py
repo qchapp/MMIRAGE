@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 from typing import Any, Dict, List, Mapping, MutableMapping, Sequence, Tuple
@@ -26,6 +27,8 @@ from mmirage.core.process.batch.provider_resolution import (
 )
 from mmirage.core.process.batch.registry import BatchAdapterFactory
 
+logger = logging.getLogger(__name__)
+
 
 def _aggregate_batch_mappings(
     records: Sequence[BatchMetadataRecord],
@@ -41,6 +44,9 @@ def _aggregate_batch_mappings(
         provider = record.provider
         provider_batch_id = record.provider_batch_id
         mapping = record.custom_id_to_source_index
+
+        if not provider or not provider_batch_id or not mapping:
+            continue
 
         key = (provider, provider_batch_id)
         aggregated.setdefault(key, {})
@@ -95,14 +101,18 @@ def collect_and_merge(
             custom_id = str(result_row.get("custom_id", "")).strip()
             if not custom_id or custom_id not in mapping:
                 continue
-            row_payload = _build_output_payload(result_row)
+            row_payload = _build_output_payload(result_row, custom_id=custom_id)
             indexed_rows[custom_id] = {
-                "source_index": int(mapping.get(custom_id, 0)),
+                "source_index": int(mapping[custom_id]),
                 "custom_id": custom_id,
                 **row_payload,
             }
 
-    ordered_rows = sorted(indexed_rows.values(), key=lambda row: row.get("source_index", 0))
+    # Sort primarily by source_index and secondarily by custom_id to ensure
+    # deterministic ordering when multiple rows share the same source_index.
+    ordered_rows = sorted(
+        indexed_rows.values(), key=lambda row: (row.get("source_index", 0), row.get("custom_id", ""))
+    )
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
@@ -112,7 +122,7 @@ def collect_and_merge(
     return ordered_rows
 
 
-def _build_output_payload(result_row: Mapping[str, Any]) -> Dict[str, Any]:
+def _build_output_payload(result_row: Mapping[str, Any], custom_id: str = "") -> Dict[str, Any]:
     """Convert provider content into the receiver's output schema.
 
     The collector preserves raw text for opaque generations, but maps structured
@@ -126,6 +136,10 @@ def _build_output_payload(result_row: Mapping[str, Any]) -> Dict[str, Any]:
     try:
         parsed = json.loads(raw_content)
     except json.JSONDecodeError:
+        logger.warning(
+            f"Failed to parse JSON for result row (custom_id={custom_id}). "
+            f"Treating as raw text. Content: {raw_content[:100]}"
+        )
         return {"caption": raw_content}
 
     if isinstance(parsed, dict) and ("question" in parsed or "answer" in parsed):
@@ -190,37 +204,38 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     from mmirage.config.utils import load_mmirage_config
 
-    cfg = load_mmirage_config(args.config)
-    if args.metadata_path:
-        metadata_paths = args.metadata_path
-    else:
-        all_provider_configs = build_all_provider_configs(cfg)
-        metadata_paths = [
-            config.metadata_output_path
-            for config in all_provider_configs.values()
-            if config.metadata_output_path
-        ]
-        metadata_paths = list(dict.fromkeys(metadata_paths))
+    try:
+        cfg = load_mmirage_config(args.config)
+        if args.metadata_path:
+            metadata_paths = args.metadata_path
+        else:
+            all_provider_configs = build_all_provider_configs(cfg)
+            metadata_paths = [
+                config.metadata_output_path
+                for config in all_provider_configs.values()
+                if config.metadata_output_path
+            ]
+            metadata_paths = list(dict.fromkeys(metadata_paths))
+            if not metadata_paths:
+                raise ValueError(
+                    "No metadata paths provided and none found in config batch_provider blocks."
+                )
+            metadata_paths = resolve_metadata_paths_from_config(metadata_paths)
+
         if not metadata_paths:
-            raise ValueError(
-                "No metadata paths provided and none found in config batch_provider blocks."
-            )
-        metadata_paths = resolve_metadata_paths_from_config(metadata_paths)
+            raise ValueError("No metadata paths provided and none found in config batch_provider blocks.")
 
-    if not metadata_paths:
-        raise ValueError("No metadata paths provided and none found in config batch_provider blocks.")
+        records = _read_metadata_records(metadata_paths)
+        provider_configs = resolve_provider_configs(records, cfg)
 
-    records = _read_metadata_records(metadata_paths)
-    provider_configs = resolve_provider_configs(records, cfg)
+        rows = collect_and_merge(records, provider_configs, args.output_path)
+        print(f"Merged {len(rows)} rows and saved to {args.output_path}")
+    except Exception as exc:
+        logger.exception("Collector failed")
+        return 1
 
-    rows = collect_and_merge(records, provider_configs, args.output_path)
-    print(f"Merged {len(rows)} rows and saved to {args.output_path}")
     return 0
 
 
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except Exception as exc:
-        print(f"Collector failed: {exc}", file=sys.stderr)
-        raise SystemExit(1)
+    raise SystemExit(main())
