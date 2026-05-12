@@ -163,6 +163,12 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         provider_batch_id: str,
         config: BatchProviderConfig,
     ) -> Sequence[Dict[str, Any]]:
+        """Download completed OpenAI batch rows and normalize text into ``generated_text``.
+
+        OpenAI batch outputs can surface the assistant payload in nested
+        response bodies, so this method flattens the provider-specific shape
+        before returning rows to the provider-agnostic collector.
+        """
         openai_config = self._as_openai_config(config)
         client = self._create_client(openai_config)
 

@@ -167,6 +167,146 @@ def test_collect_and_merge_outputs_caption_for_plain_text_content(tmp_path, monk
     ]
 
 
+def test_collect_and_merge_keeps_rows_with_duplicate_custom_ids_across_batches(
+    tmp_path, monkeypatch
+):
+    from mmirage.core.process.batch.collector import _read_metadata_records, collect_and_merge
+
+    metadata_path = tmp_path / "receipts.jsonl"
+    metadata_path.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "provider": "openai",
+                        "provider_batch_id": "batch_openai",
+                        "custom_id_to_source_index": {"shared": 0},
+                    }
+                ),
+                json.dumps(
+                    {
+                        "provider": "unit",
+                        "provider_batch_id": "batch_unit",
+                        "custom_id_to_source_index": {"shared": 1},
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "merged_duplicates.jsonl"
+
+    class OpenAIAdapter:
+        def retrieve_results(self, provider_batch_id, config):
+            return [{"custom_id": "shared", "generated_text": "openai"}]
+
+    class UnitAdapter:
+        def retrieve_results(self, provider_batch_id, config):
+            return [{"custom_id": "shared", "generated_text": "unit"}]
+
+    adapters = {
+        "openai": OpenAIAdapter(),
+        "unit": UnitAdapter(),
+    }
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.collector.BatchAdapterFactory.from_config",
+        lambda config: adapters[config.provider],
+    )
+
+    records = _read_metadata_records(str(metadata_path))
+    rows = collect_and_merge(
+        records=records,
+        provider_configs={
+            "openai": SimpleNamespace(provider="openai"),
+            "unit": SimpleNamespace(provider="unit"),
+        },
+        output_path=str(output_path),
+    )
+
+    assert [row["source_index"] for row in rows] == [0, 1]
+    assert [row["custom_id"] for row in rows] == ["shared", "shared"]
+    assert [row["caption"] for row in rows] == ["openai", "unit"]
+
+    written = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+    assert written == rows
+
+
+def test_collect_and_merge_uses_openai_adapter_generated_text(tmp_path, monkeypatch):
+    from mmirage.core.process.batch.collector import _read_metadata_records, collect_and_merge
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+
+    metadata_path = tmp_path / "receipts.jsonl"
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "provider": "openai",
+                "provider_batch_id": "batch_openai",
+                "custom_id_to_source_index": {"o1": 0},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "merged_openai.jsonl"
+
+    class FakeBatches:
+        def retrieve(self, provider_batch_id):
+            class _RetrieveResp:
+                id = provider_batch_id
+                status = "completed"
+                output_file_id = "file_output_1"
+
+            return _RetrieveResp()
+
+    class FakeFiles:
+        def content(self, output_file_id):
+            class _ContentResp:
+                text = (
+                    '{"custom_id":"o1","response":{"body":{"choices":[{"message":{"content":"{\\"question\\":\\"Q\\",\\"answer\\":\\"A\\"}"}}]}}}\n'
+                )
+
+            return _ContentResp()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.batches = FakeBatches()
+            self.files = FakeFiles()
+
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
+        FakeClient,
+    )
+    monkeypatch.setattr(
+        "mmirage.core.process.batch.collector.BatchAdapterFactory.from_config",
+        lambda config: OpenAIBatchAdapter(),
+    )
+
+    records = _read_metadata_records(str(metadata_path))
+    rows = collect_and_merge(
+        records=records,
+        provider_configs={"openai": OpenAIBatchConfig(credentials={"api_key": "k"})},
+        output_path=str(output_path),
+    )
+
+    assert rows == [
+        {
+            "source_index": 0,
+            "custom_id": "o1",
+            "conversations": [
+                {"role": "user", "content": "Q"},
+                {"role": "assistant", "content": "A"},
+            ],
+        }
+    ]
+
+    written = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+    assert written == rows
+
+
 def test_collector_main_uses_config_and_records(tmp_path, monkeypatch):
     from mmirage.core.process.batch import collector
 

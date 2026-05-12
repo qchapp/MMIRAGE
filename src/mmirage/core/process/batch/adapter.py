@@ -137,6 +137,10 @@ class BatchSubmissionAdapter(abc.ABC):
     ) -> Sequence[Dict[str, Any]]:
         """Download and parse completed batch results from the provider.
 
+        Implementations should normalize each returned row into a plain mapping
+        and, when a text payload is available, expose it as ``generated_text``
+        so downstream collectors can consume a provider-agnostic result shape.
+
         Args:
             provider_batch_id: Provider-side batch/job identifier.
             config: Provider configuration containing credentials and endpoint

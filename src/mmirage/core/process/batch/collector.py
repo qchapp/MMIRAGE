@@ -94,7 +94,7 @@ def collect_and_merge(
             config=provider_configs[provider],
         )
 
-    indexed_rows: MutableMapping[str, Dict[str, Any]] = {}
+    indexed_rows: MutableMapping[Tuple[str, str, str], Dict[str, Any]] = {}
     for pair, mapping in pair_to_mapping.items():
         results = pair_to_results.get(pair, [])
         for result_row in results:
@@ -102,7 +102,7 @@ def collect_and_merge(
             if not custom_id or custom_id not in mapping:
                 continue
             row_payload = _build_output_payload(result_row, custom_id=custom_id)
-            indexed_rows[custom_id] = {
+            indexed_rows[(pair[0], pair[1], custom_id)] = {
                 "source_index": int(mapping[custom_id]),
                 "custom_id": custom_id,
                 **row_payload,
