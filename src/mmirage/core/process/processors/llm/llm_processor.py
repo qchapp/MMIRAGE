@@ -9,7 +9,11 @@ import time
 from typing import Any, List, Tuple
 
 import jinja2
-import sglang as sgl
+try:
+    import sglang as sgl
+    SGLANG_AVAILABLE = True
+except ImportError:
+    SGLANG_AVAILABLE = False
 from transformers import AutoTokenizer
 
 from mmirage.core.process.base import BaseProcessor, ProcessorRegistry, TokenCounts
@@ -59,6 +63,12 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             **kwargs: Additional arguments passed to base class.
         """
         super().__init__(engine_args, **kwargs)
+        if not SGLANG_AVAILABLE:
+            raise RuntimeError(
+                "SGLang is not installed. Install with: pip install 'mmirage[gpu]' "
+                "or, from a source checkout, pip install -e '.[gpu]'"
+            )
+
         server_kwargs = asdict(engine_args.server_args)
         extra = server_kwargs.pop("extra_engine_args", {}) or {}
         server_kwargs.update(extra)
