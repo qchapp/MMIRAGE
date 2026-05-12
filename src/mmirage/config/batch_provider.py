@@ -4,8 +4,16 @@ This module defines the shared configuration shape used by any future batch
 submission provider (OpenAI, Anthropic, etc.).
 """
 
+from enum import Enum
 from dataclasses import dataclass, field
 from typing import Any, Dict, Literal, Optional
+
+
+class OversizedRequestPolicy(str, Enum):
+    """Policy for handling single requests that exceed the chunk byte limit."""
+
+    ISOLATE = "isolate"
+    REJECT = "reject"
 
 
 @dataclass
@@ -63,7 +71,7 @@ class BatchProviderConfig:
     max_requests_per_chunk: Optional[int] = None
     metadata_output_path: str = ""
     retry_policy: BatchRetryPolicy = field(default_factory=BatchRetryPolicy)
-    oversized_request_policy: Literal["isolate", "reject"] = "isolate"
+    oversized_request_policy: OversizedRequestPolicy | str = OversizedRequestPolicy.ISOLATE
     extras: Dict[str, Any] = field(default_factory=dict)
     credentials: Dict[str, str] = field(default_factory=dict)
 
@@ -76,5 +84,12 @@ class BatchProviderConfig:
             raise ValueError("max_chunk_bytes must be >= 1")
         if self.max_requests_per_chunk is not None and self.max_requests_per_chunk < 1:
             raise ValueError("max_requests_per_chunk must be >= 1 when provided")
-        if self.oversized_request_policy not in {"isolate", "reject"}:
-            raise ValueError("oversized_request_policy must be either 'isolate' or 'reject'")
+        if isinstance(self.oversized_request_policy, str):
+            try:
+                self.oversized_request_policy = OversizedRequestPolicy(
+                    self.oversized_request_policy.strip().lower()
+                )
+            except ValueError as exc:
+                raise ValueError(
+                    "oversized_request_policy must be either 'isolate' or 'reject'"
+                ) from exc
