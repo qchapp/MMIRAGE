@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, replace
 import json
 import logging
+import time
 from typing import Any, Dict, List, Optional, Tuple
 import uuid
 
@@ -12,7 +13,7 @@ import jinja2
 import sglang as sgl
 from transformers import AutoTokenizer
 
-from mmirage.core.process.base import BaseProcessor, ProcessorRegistry
+from mmirage.core.process.base import BaseProcessor, ProcessorRegistry, TokenCounts
 from mmirage.core.process.batch.orchestrator import BatchSubmissionOrchestrator
 from mmirage.core.process.batch.registry import BatchAdapterFactory
 from mmirage.core.process.processors.llm.config import LLMOutputVar, SGLangLLMConfig
@@ -71,7 +72,12 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             self.llm = None
             self.tokenizer = None
         else:
-            self.llm = sgl.Engine(**asdict(engine_args.server_args))
+            server_kwargs = asdict(engine_args.server_args)
+            extra = server_kwargs.pop("extra_engine_args", {}) or {}
+            server_kwargs.update(extra)
+            _load_start = time.monotonic()
+            self.llm = sgl.Engine(**server_kwargs)
+            self._model_load_seconds: float = time.monotonic() - _load_start
             self.tokenizer = AutoTokenizer.from_pretrained(
                 engine_args.server_args.model_path,
                 trust_remote_code=getattr(engine_args.server_args, "trust_remote_code", False),
@@ -87,6 +93,10 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         self._batch_request_counter = 0
         self._global_row_offset = 0
         self._setup_batch_runtime()
+        
+        # Cumulative token counts across all generate() calls in this processor's lifetime.
+        self._total_input_tokens: int = 0
+        self._total_output_tokens: int = 0
 
     def _setup_batch_runtime(self) -> None:
         provider_cfg = self.config.batch_provider
@@ -133,6 +143,31 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
     def _next_custom_id(self, output_name: str, modality: str) -> str:
         self._batch_request_counter += 1
         return f"{output_name}:{modality}:{self._batch_request_counter}"
+        # Cumulative token counts across all generate() calls in this processor's lifetime.
+        self._total_input_tokens: int = 0
+        self._total_output_tokens: int = 0
+
+    def get_load_time(self) -> float:
+        """Return the wall-clock seconds spent initializing the SGLang engine."""
+        return self._model_load_seconds
+
+    def get_token_counts(self) -> TokenCounts:
+        """Return cumulative token counts for this processor.
+
+        Returns:
+            TokenCounts object containing input and output token counts accumulated since this processor was created.
+        """
+        return TokenCounts(
+            input_tokens=self._total_input_tokens,
+            output_tokens=self._total_output_tokens
+        )
+
+    def _accumulate_tokens(self, outputs: list) -> None:
+        """Add token counts from a list of SGLang generate() outputs."""
+        for out in outputs:
+            meta = out.get("meta_info") or {}
+            self._total_input_tokens += int(meta.get("prompt_tokens") or 0)
+            self._total_output_tokens += int(meta.get("completion_tokens") or 0)
 
     def build_prompt(
         self, prompt_template: str, vars_samples: List[VariableEnvironment]
@@ -261,6 +296,8 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                         f"{len(text_only_outputs) if isinstance(text_only_outputs, list) else 'non-list'}"
                     )
 
+                self._accumulate_tokens(text_only_outputs)
+
                 for local_idx, global_i in enumerate(text_only_indices):
                     value = text_only_outputs[local_idx].get("text", "").strip()
                     if output_var.output_type == "JSON":
@@ -322,6 +359,8 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
                         f"{len(multimodal_prompts)} vs "
                         f"{len(multimodal_outputs) if isinstance(multimodal_outputs, list) else 'non-list'}"
                     )
+
+                self._accumulate_tokens(multimodal_outputs)
 
                 for local_idx, global_i in enumerate(multimodal_indices):
                     value = multimodal_outputs[local_idx].get("text", "").strip()

@@ -11,6 +11,7 @@ from mmirage.config.batch_provider import BatchProviderConfig
 from mmirage.core.process.variables import BaseVar, OutputVar
 
 from mmirage.core.process.base import BaseProcessorConfig
+from mmirage.core.process.base import ProcessorRegistry
 from jinja2 import Environment, meta
 
 logger = logging.getLogger(__name__)
@@ -19,19 +20,20 @@ env = Environment()
 
 def _parse_tp_size_from_env() -> int:
     """Parse tensor parallelism size from SLURM_GPUS_ON_NODE environment variable.
-
+    
     Defensively parses the environment variable, handling invalid values:
     - Returns 1 if the variable is None or empty
     - Strips whitespace before parsing
     - Returns 1 for non-integer values
     - Returns 1 for values <= 0
-
+    
     Returns:
         Tensor parallelism size (>= 1), defaults to 1 on any parsing error.
     """
     env_value = os.environ.get("SLURM_GPUS_ON_NODE")
     if not env_value:
         return 1
+    
     try:
         tp_size = int(env_value.strip())
         # Ensure tp_size is positive (must be >= 1)
@@ -58,12 +60,21 @@ class SGLangServerArgs:
         tp_size: Tensor parallelism size.
         trust_remote_code: Whether to trust remote code from HuggingFace.
         disable_custom_all_reduce: Whether to disable custom all reduce.
+        extra_engine_args: Any additional keyword arguments forwarded verbatim
+            to ``sgl.Engine``. Use this to pass SGLang-specific options that
+            are not listed above, e.g.::
+
+                extra_engine_args:
+                  max_running_requests: 512
+                  chunked_prefill_size: 32768
+                  mem_fraction_static: 0.88
     """
 
     model_path: str = "none"
     tp_size: int = field(default_factory=_parse_tp_size_from_env)
     trust_remote_code: bool = True
     disable_custom_all_reduce: bool = False
+    extra_engine_args: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -139,3 +150,6 @@ class LLMOutputVar(OutputVar):
             return False
 
         return True
+
+
+ProcessorRegistry.register_types("llm", SGLangLLMConfig, LLMOutputVar)

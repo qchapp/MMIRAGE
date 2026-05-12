@@ -11,6 +11,15 @@ from mmirage.core.process.base import BaseProcessorConfig, ProcessorRegistry, Ou
 from mmirage.core.process.batch.provider_resolution import resolve_single_provider_config
 from mmirage.core.loader.base import BaseDataLoaderConfig, DataLoaderRegistry
 
+# Register built-in processors/loaders.
+#
+# We import configuration modules (lightweight) here so the registries know how
+# to construct config/output-var objects from YAML without importing heavy
+# processor implementations (e.g. torch/transformers).
+import mmirage.core.process.processors.llm.config  # noqa: F401
+import mmirage.core.loader.jsonl  # noqa: F401
+import mmirage.core.loader.local_hf  # noqa: F401
+
 EnvValue: TypeAlias = Union[str, List["EnvValue"], Dict[str, "EnvValue"]]
 
 

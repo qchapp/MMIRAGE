@@ -1,3 +1,9 @@
+<h1 align="center">
+
+![image](https://raw.githubusercontent.com/EPFLiGHT/MMIRAGE/main/mmirage_logo_with_text.png)
+
+</h1>
+
 # MMIRAGE
 
 MMIRAGE, which stands for **M**odular **M**ultimodal **I**ntelligent **R**eformatting and **A**ugmentation **G**eneration **E**ngine, is an advanced platform designed to streamline the processing of datasets using generative models, including vision-language models (VLMs). It is engineered to handle large-scale data reformatting and augmentation tasks with efficiency and precision. By leveraging state-of-the-art generative models, MMIRAGE enables users to perform complex dataset transformations, ensuring compatibility across various formats and schemas. Its multi-node support and parallel processing capabilities make it an ideal choice for scenarios demanding substantial computational power, such as distributed training and inference workflows. MMIRAGE not only simplifies the integration of powerful language models but also provides a customizable framework for diverse use cases, from reformatting conversational datasets to generating Q/A pairs from plain text.
@@ -32,6 +38,55 @@ For testing and scripts that make use of the library, it is advised to create a 
 
 ## Example usage
 
+### Running (single command)
+
+Run the pipeline via the CLI. Retry behavior is driven by your YAML config:
+
+- `execution_params.retry: true` → automatically retries failed shards until completion or `max_retries`
+- `execution_params.retry: false` → submits/runs once; you can later trigger retries via `check`
+- `execution_params.merge: true` → after a successful run, automatically merges shard outputs
+
+```bash
+mmirage run --config configs/config_mock.yaml
+```
+
+To check status only:
+
+```bash
+mmirage check --config configs/config_mock.yaml
+```
+
+To check status and submit retries for failed shards:
+
+```bash
+mmirage check --config configs/config_mock.yaml --retry
+```
+
+To merge shards from the CLI directly:
+
+```bash
+mmirage merge --config configs/config_mock.yaml
+```
+
+To merge shards without a config file (input directory + output directory only):
+
+```bash
+mmirage merge-dir --input-dir /path/to/shards --output-dir /path/to/merged
+```
+
+`--input-dir` can point either to a single dataset directory that contains `shard_*`
+folders, or to a parent directory containing multiple dataset subdirectories.
+If `shard_*` folders are present directly in `--input-dir`, MMIRAGE merges that
+root dataset directly and ignores nested internal folders.
+
+For multiple datasets, you can also choose a shared merge root:
+
+```bash
+mmirage merge --config configs/config_mock.yaml --output-root /path/to/merged
+```
+
+MMIRAGE still keeps datasets separate by creating one subdirectory per dataset under the root.
+
 ### Text-only: Reformatting dataset
 
 Suppose you have a dataset with samples of the following format
@@ -58,11 +113,12 @@ processors:
       max_new_tokens: 384
 
 loading_params:
+  state_dir: /path/to/state/dir
   datasets:
     - path: /path/to/dataset
       type: loadable
       output_dir: /path/to/output/shards
-  num_shards: "$SLURM_ARRAY_TASK_COUNT"
+  num_shards: 4
   shard_id: "$SLURM_ARRAY_TASK_ID"
   batch_size: 64
 
@@ -91,17 +147,31 @@ processing_params:
       - role: assistant
         content: "{{ formatted_answer }}"
     modalities: "{{ modalities }}"
+
+execution_params:
+  mode: local
+  retry: false
+  merge: false
 ```
 
 Configuration explanation:
 
 - `processors`: List of processor configurations. Currently supports `llm` type for LLM-based generation.
 - `loading_params`: Parameters for loading and sharding datasets.
+  - `state_dir`: Optional shared directory for shard status/retry state. Defaults to `~/.cache/MMIRAGE/state_dir`.
   - `datasets`: List of dataset configurations with path, type, and output directory.
 - `processing_params`:
   - `inputs`: Variables extracted from the input dataset using JMESPath queries.
   - `outputs`: Variables created by processors. Prompts use Jinja2 templating (`{{ variable }}`).
   - `output_schema`: Defines the structure of output samples.
+- `execution_params`:
+  - `mode`: "local" to run shard processing in the current Python environment or "slurm" to run through SLURM by submitting an sbatch array job.
+  - `retry`: If true, MMIRAGE automatically retries failed shards until they succeed or `max_retries` is reached. If false, the pipeline runs/submits once, and retries can be triggered later via the check/retry CLI commands.
+  - `merge`: If true, MMIRAGE merges shard outputs after a successful `run`. Merged datasets are written under each dataset `output_dir` in a `merged` subdirectory.
+
+Merge output behavior with multiple datasets:
+- Default (`run` with `execution_params.merge: true`, or `merge` without `--output-root`): each dataset is merged to its own `<dataset.output_dir>/merged`.
+- Shared root (`merge --output-root ...`): one merged subdirectory is created per dataset under the root.
 
 ### Multimodal: Processing images with VLMs
 
@@ -121,11 +191,12 @@ processors:
       max_new_tokens: 768
 
 loading_params:
+  state_dir: path/to/state/dir
   datasets:
     - path: /path/to/image/dataset
       type: loadable
       output_dir: /path/to/output/shards
-  num_shards: "$SLURM_ARRAY_TASK_COUNT"
+  num_shards: 4
   shard_id: "$SLURM_ARRAY_TASK_ID"
   batch_size: 32
 
@@ -152,6 +223,10 @@ processing_params:
     image: "{{ medical_image }}"
     caption: "{{ enhanced_caption }}"
     original_caption: "{{ original_caption }}"
+
+execution_params:
+  mode: local
+  retry: false
 ```
 
 Key multimodal features:
@@ -159,6 +234,117 @@ Key multimodal features:
 - `type: image`: Mark input variables as images
 - `image_base_path`: Base directory for resolving relative image paths
 - Supports PIL Images, URLs, and file paths
+
+### Benchmarking shard performance
+
+Pass `--stats` to `run` or `submit` to enable per-shard benchmarking. This activates GPU
+utilization polling and throughput tracking on compute nodes — disabled by default to
+avoid unnecessary overhead.
+
+```bash
+# Local run with stats collection
+mmirage run --config configs/config_mock.yaml --stats
+
+```
+
+After the run completes, inspect the results with:
+
+```bash
+mmirage stats --config configs/config_mock.yaml
+```
+
+This prints a JSON report with per-shard details and an aggregate summary:
+
+```json
+{
+  "per_shard": [
+    {
+      "shard_id": 0,
+      "status": "success",
+      "started_at": "2026-04-30T10:00:00",
+      "finished_at": "2026-04-30T10:01:05",
+      "stats": {
+        "runtime_seconds": 65.2,
+        "runtime_human": "1m 5s",
+        "rows_processed": 1024,
+        "throughput_rows_per_sec": 15.7,
+        "gpu_util_mean": 88.4,
+        "gpu_util_min": 72.0,
+        "gpu_util_max": 98.0,
+        "gpu_util_samples": 13,
+        "input_tokens": 512000,
+        "output_tokens": 196608,
+        "num_gpus": 4,
+        "tokens_per_sec_per_gpu": 753.1,
+        "gpu_days_per_billion_tokens": 0.0015
+      }
+    }
+  ],
+  "aggregate": {
+    "total_shards": 1,
+    "completed_shards": 1,
+    "total_rows_processed": 1000,
+    "wall_clock_runtime_seconds": 133.04,
+    "wall_clock_runtime_human": "2m 13s",
+    "sum_shard_runtime_seconds": 133.04,
+    "sum_shard_runtime_human": "2m 13s",
+    "min_shard_runtime_seconds": 133.04,
+    "min_shard_runtime_human": "2m 13s",
+    "max_shard_runtime_seconds": 133.04,
+    "max_shard_runtime_human": "2m 13s",
+    "overall_throughput_rows_per_sec": 7.52,
+    "mean_gpu_util_pct": 86.2,
+    "num_gpus": 4,
+    "total_input_tokens": 146214,
+    "total_output_tokens": 1022046,
+    "sum_model_load_seconds": 38.272,
+    "sum_inference_runtime_seconds": 94.768,
+    "tokens_per_sec_per_gpu": 10784.72,
+    "gpu_days_per_billion_tokens": 1.0732
+  }
+}
+```
+
+Key metrics:
+- **`runtime_seconds`** / **`runtime_human`**: time from when the shard started on the cluster (after dispatch), excluding queue wait time.
+- **`overall_throughput_rows_per_sec`**: total rows / wall-clock time across all shards running in parallel.
+- **`mean_gpu_util_pct`**: mean percentage GPU utilization across shards.
+- **`tokens_per_sec_per_gpu`**: output tokens generated per second per GPU — the primary throughput metric used by frameworks such as [DataTrove](https://github.com/huggingface/datatrove).
+- **`gpu_days_per_billion_tokens`**: total GPU-days consumed to generate 1 billion output tokens — useful for cost and scaling comparisons across different hardware configurations.
+- Token metrics are `null` when no LLM processor was active, and GPU stats are `null` when `nvidia-smi` is unavailable or `--stats` was not passed.
+
+Reference benchmark:
+- [DataTrove Benchmark](https://github.com/huggingface/datatrove/tree/main/examples/inference/benchmark)
+
+The config `configs/config_benchmark_datatrove.yaml` mirrors the DataTrove inference benchmark conditions:
+
+| Setting | Value |
+|---|---|
+| Dataset | `simplescaling/s1K-1.1` (train split, 1 000 samples) |
+| Prompt | raw `question` field, no system prompt |
+| Output | up to 1 024 tokens per sample |
+| Context | 2 048-token model max context |
+| Model | `Qwen/Qwen3-4B` (DataTrove baseline: tp=1 on a single GPU) |
+
+Download the dataset before running:
+
+```python
+from datasets import load_dataset
+ds = load_dataset('simplescaling/s1K-1.1', split='train')
+ds.save_to_disk('data/s1K-1.1')
+```
+
+Then run with stats collection enabled:
+
+```bash
+mmirage run --config configs/config_benchmark_datatrove.yaml --stats
+```
+
+Inspect results:
+
+```bash
+mmirage stats --config configs/config_benchmark_datatrove.yaml
+```
 
 ## Architecture
 
@@ -183,3 +369,4 @@ mmirage/
 - JMESPath for JSON queries: [link](https://jmespath.org/)
 - SGLang for fast inference: [link](https://github.com/sgl-project/sglang)
 - Performance paper: [link](https://arxiv.org/abs/2408.02442)
+- DataTrove Benchmark: [link](https://github.com/huggingface/datatrove/tree/main/examples/inference/benchmark)
