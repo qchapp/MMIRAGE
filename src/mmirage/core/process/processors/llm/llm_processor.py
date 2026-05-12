@@ -65,6 +65,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
 
         batch_provider_cfg = engine_args.batch_provider
         is_provider_batch_enabled = bool(batch_provider_cfg and batch_provider_cfg.enabled)
+        self._model_load_seconds: float = 0.0
 
         # In provider-batch mode we only build payloads/metadata and should not
         # initialize GPU-backed SGLang runtime.
@@ -77,7 +78,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
             server_kwargs.update(extra)
             _load_start = time.monotonic()
             self.llm = sgl.Engine(**server_kwargs)
-            self._model_load_seconds: float = time.monotonic() - _load_start
+            self._model_load_seconds = time.monotonic() - _load_start
             self.tokenizer = AutoTokenizer.from_pretrained(
                 engine_args.server_args.model_path,
                 trust_remote_code=getattr(engine_args.server_args, "trust_remote_code", False),
@@ -93,7 +94,7 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         self._batch_request_counter = 0
         self._global_row_offset = 0
         self._setup_batch_runtime()
-        
+
         # Cumulative token counts across all generate() calls in this processor's lifetime.
         self._total_input_tokens: int = 0
         self._total_output_tokens: int = 0
