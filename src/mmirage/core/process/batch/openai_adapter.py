@@ -6,6 +6,7 @@ import io
 import json
 import mimetypes
 import os
+import logging
 from typing import Any, Dict, List, Mapping, Sequence
 
 from openai import AuthenticationError, OpenAI
@@ -13,6 +14,8 @@ from openai import AuthenticationError, OpenAI
 from mmirage.config.batch_provider import BatchProviderConfig
 from mmirage.config.openai_batch import OpenAIBatchConfig
 from mmirage.core.process.batch.adapter import BatchSubmissionAdapter, BatchSubmissionResult
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIBatchAdapter(BatchSubmissionAdapter):
@@ -65,36 +68,23 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
 
     @staticmethod
     def _convert_local_images_to_data_uris(body: Dict[str, Any]) -> None:
-        messages = body.get("messages")
-        if not isinstance(messages, list):
-            return
-
-        for message in messages:
-            if not isinstance(message, dict):
-                continue
-
-            content = message.get("content")
-            if not isinstance(content, list):
-                continue
-
-            for part in content:
-                if not isinstance(part, dict) or part.get("type") != "image_url":
-                    continue
-
-                image_url = part.get("image_url")
-                if not isinstance(image_url, dict):
-                    continue
-
-                url = image_url.get("url")
-                if not isinstance(url, str):
-                    continue
-
-                # Keep remote/data URLs untouched.
-                if url.startswith("http://") or url.startswith("https://") or url.startswith("data:"):
-                    continue
-
-                if os.path.exists(url):
-                    image_url["url"] = OpenAIBatchAdapter._local_file_to_data_uri(url)
+        # If the payload shape is different, swallow the exception and leave the body untouched.
+        try:
+            for message in body["messages"]:
+                for part in message["content"]:
+                    if part.get("type") != "image_url":
+                        continue
+                    url = part["image_url"]["url"]
+                    if not isinstance(url, str):
+                        continue
+                    # Keep remote/data URLs untouched.
+                    if url.startswith("http://") or url.startswith("https://") or url.startswith("data:"):
+                        continue
+                    if os.path.exists(url):
+                        part["image_url"]["url"] = OpenAIBatchAdapter._local_file_to_data_uri(url)
+        except (KeyError, IndexError, TypeError, AttributeError):
+            # Ignore malformed shapes.
+            pass
 
     @staticmethod
     def _local_file_to_data_uri(path: str) -> str:
@@ -178,13 +168,14 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         client = self._create_client(openai_config)
 
         retrieved = client.batches.retrieve(provider_batch_id)
-        status = str(self._read_attr(retrieved, "status") or "unknown")
+        status = self._read_attr(retrieved, "status") or "unknown"
         output_file_id = self._read_attr(retrieved, "output_file_id")
 
         if status != "completed" or not output_file_id:
             raise ValueError(
-                f"Batch '{provider_batch_id}' is not completed or has no output file (status={status})."
-            )
+                f"Batch '{provider_batch_id}' is not completed yet (status={status}). "
+                "Please retry after the provider marks it completed and produces an output file."
+            ) from None
 
         content_response = client.files.content(output_file_id)
         jsonl_text = self._extract_content_text(content_response)
@@ -207,7 +198,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         self,
         raw_result: Mapping[str, Any],
     ) -> BatchSubmissionResult:
-        batch_id = str(raw_result.get("id") or raw_result.get("batch_id") or "")
+        batch_id = str(raw_result.get("id") or raw_result.get("batch_id", ""))
         status = raw_result.get("status", "unknown")
 
         return BatchSubmissionResult(
@@ -229,34 +220,28 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
 
     @staticmethod
     def _extract_generated_text(row: Mapping[str, Any]) -> str:
-        response = row.get("response")
-        if not isinstance(response, Mapping):
-            return ""
+        # prefer chat `message.content`, then `choices[0].text`,
+        # then `body.text`. Return empty string if none match.
+        try:
+            content = row["response"]["body"]["choices"][0]["message"]["content"]
+            if isinstance(content, str):
+                return content
+        except (KeyError, IndexError, TypeError):
+            pass
 
-        body = response.get("body")
-        if not isinstance(body, Mapping):
-            return ""
-
-        choices = body.get("choices")
-        if not isinstance(choices, list) or not choices:
-            text = body.get("text")
-            return text if isinstance(text, str) else ""
-
-        first = choices[0]
-        if isinstance(first, Mapping):
-            message = first.get("message")
-            if isinstance(message, Mapping):
-                content = message.get("content")
-                if isinstance(content, str):
-                    return content
-
-            text = first.get("text")
+        try:
+            text = row["response"]["body"]["choices"][0]["text"]
             if isinstance(text, str):
                 return text
+        except (KeyError, IndexError, TypeError):
+            pass
 
-        text = body.get("text")
-        if isinstance(text, str):
-            return text
+        try:
+            body_text = row["response"]["body"]["text"]
+            if isinstance(body_text, str):
+                return body_text
+        except (KeyError, TypeError):
+            pass
 
         return ""
 
@@ -301,7 +286,13 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         if isinstance(content, str):
             return content
 
-        raise ValueError("Unable to parse OpenAI files.content response payload.")
+        logger.debug(
+            "Unable to extract content from OpenAI files.content response; tried 'text', 'read()', and 'content' on %s",
+            type(content_response),
+        )
+        raise ValueError(
+            "Unable to parse OpenAI files.content response: expected 'text' attribute, 'read()' method, or 'content' attribute"
+        )
 
     @staticmethod
     def _read_attr(obj: Any, key: str) -> Any:

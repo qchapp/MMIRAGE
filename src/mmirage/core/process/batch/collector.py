@@ -230,6 +230,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         rows = collect_and_merge(records, provider_configs, args.output_path)
         print(f"Merged {len(rows)} rows and saved to {args.output_path}")
+    except ValueError as exc:
+        logger.error(str(exc))
+        return 1
     except Exception as exc:
         logger.exception("Collector failed")
         return 1
