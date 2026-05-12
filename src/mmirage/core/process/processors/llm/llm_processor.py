@@ -14,7 +14,6 @@ from transformers import AutoTokenizer
 
 from mmirage.core.process.base import BaseProcessor, ProcessorRegistry
 from mmirage.core.process.batch.orchestrator import BatchSubmissionOrchestrator
-from mmirage.core.process.batch.provider_resolution import resolve_single_provider_config
 from mmirage.core.process.batch.registry import BatchAdapterFactory
 from mmirage.core.process.processors.llm.config import LLMOutputVar, SGLangLLMConfig
 from mmirage.core.process.variables import VariableEnvironment
@@ -63,12 +62,8 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         """
         super().__init__(engine_args, **kwargs)
 
-        batch_provider_attrs = getattr(engine_args, "batch_provider", None)
-        if batch_provider_attrs is None:
-            is_provider_batch_enabled = False
-        else:
-            provider_cfg_raw = dict(batch_provider_attrs)
-            is_provider_batch_enabled = bool(provider_cfg_raw.get("enabled", True))
+        batch_provider_cfg = getattr(engine_args, "batch_provider", None)
+        is_provider_batch_enabled = bool(batch_provider_cfg and batch_provider_cfg.enabled)
 
         # In provider-batch mode we only build payloads/metadata and should not
         # initialize GPU-backed SGLang runtime.
@@ -93,14 +88,13 @@ class LLMProcessor(BaseProcessor[LLMOutputVar]):
         self._setup_batch_runtime()
 
     def _setup_batch_runtime(self) -> None:
-        provider_cfg_raw = dict(getattr(self.config, "batch_provider", {}) or {})
-        if not provider_cfg_raw:
+        provider_cfg = getattr(self.config, "batch_provider", None)
+        if provider_cfg is None:
             return
 
-        if not provider_cfg_raw.get("enabled", True):
+        if not provider_cfg.enabled:
             return
 
-        provider_cfg = resolve_single_provider_config(provider_cfg_raw)
         self._batch_provider_config = provider_cfg
         self._batch_adapter = BatchAdapterFactory.from_config(provider_cfg)
         run_id = uuid.uuid4().hex[:6]

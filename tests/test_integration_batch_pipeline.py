@@ -3,6 +3,7 @@ from pathlib import Path
 
 from datasets import load_dataset
 
+from mmirage.config.openai_batch import OpenAIBatchConfig
 from mmirage.core.process import LLMProcessor  # Ensures processor registration.
 from mmirage.core.process.mapper import MMIRAGEMapper
 from mmirage.core.process.processors.llm.config import LLMOutputVar, SGLangLLMConfig, SGLangServerArgs
@@ -83,16 +84,15 @@ def test_integration_batch_pipeline_with_stateful_accumulator(monkeypatch, tmp_p
     llm_cfg = SGLangLLMConfig(
         type="llm",
         server_args=SGLangServerArgs(model_path="dummy-model"),
-        batch_provider={
-            "enabled": True,
-            "provider": "openai",
-            "model": "gpt-4.1-mini",
-            "max_chunk_bytes": 500,
-            "max_requests_per_chunk": None,
-            "metadata_output_path": str(metadata_base),
-            "credentials": {"api_key": "test-key"},
-            "metadata": {"pipeline": "integration-test"},
-        },
+        batch_provider=OpenAIBatchConfig(
+            enabled=True,
+            model="gpt-4.1-mini",
+            max_chunk_bytes=500,
+            max_requests_per_chunk=None,
+            metadata_output_path=str(metadata_base),
+            credentials={"api_key": "test-key"},
+            metadata={"pipeline": "integration-test"},
+        ),
     )
 
     mapper = MMIRAGEMapper(

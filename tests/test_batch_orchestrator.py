@@ -146,11 +146,11 @@ def test_llm_processor_initializes_with_custom_provider(tmp_path):
     config = SGLangLLMConfig(
         type="llm",
         server_args=SGLangServerArgs(model_path="dummy-model"),
-        batch_provider={
-            "provider": "unit",
-            "unit_setting": "custom",
-            "metadata_output_path": str(tmp_path / "metadata.jsonl"),
-        },
+        batch_provider=UnitBatchConfig(
+            provider="unit",
+            unit_setting="custom",
+            metadata_output_path=str(tmp_path / "metadata.jsonl"),
+        ),
     )
 
     processor_cls = ProcessorRegistry.get_processor("llm")
@@ -190,7 +190,7 @@ def test_llm_processor_skips_batch_setup_when_disabled(monkeypatch):
     config = SGLangLLMConfig(
         type="llm",
         server_args=SGLangServerArgs(model_path="dummy-model"),
-        batch_provider={"enabled": False},
+        batch_provider=BatchProviderConfig(provider="openai", enabled=False),
     )
 
     processor_cls = ProcessorRegistry.get_processor("llm")

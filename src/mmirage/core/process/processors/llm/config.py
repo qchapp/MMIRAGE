@@ -7,6 +7,7 @@ import os
 from typing import Dict, Optional, Sequence, Type, Any, List
 from pydantic import BaseModel, create_model
 
+from mmirage.config.batch_provider import BatchProviderConfig
 from mmirage.core.process.variables import BaseVar, OutputVar
 
 from mmirage.core.process.base import BaseProcessorConfig
@@ -82,7 +83,7 @@ class SGLangLLMConfig(BaseProcessorConfig):
     server_args: SGLangServerArgs = field(default_factory=SGLangServerArgs)
     default_sampling_params: Dict[str, Any] = field(default_factory=dict)
     chat_template: str = ""  # Empty means use tokenizer's default
-    batch_provider: Dict[str, Any] = field(default_factory=dict)
+    batch_provider: Optional[BatchProviderConfig] = None
 
 
 @dataclass

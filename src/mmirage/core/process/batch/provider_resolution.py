@@ -6,6 +6,7 @@ provider configuration logic can be reused by receiver and submission flows.
 
 from __future__ import annotations
 
+from dataclasses import asdict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Sequence, Type
 
 from mmirage.config.batch_provider import BatchProviderConfig
@@ -86,7 +87,15 @@ def _extract_batch_provider_blocks(cfg: MMirageConfig) -> Dict[str, Dict[str, An
     """
     provider_blocks: Dict[str, Dict[str, Any]] = {}
     for processor_cfg in cfg.processors:
-        raw_block = dict(getattr(processor_cfg, "batch_provider", {}) or {})
+        raw_provider = getattr(processor_cfg, "batch_provider", None)
+        if raw_provider is None:
+            continue
+
+        if isinstance(raw_provider, BatchProviderConfig):
+            raw_block = asdict(raw_provider)
+        else:
+            raw_block = dict(raw_provider or {})
+
         if not raw_block:
             continue
 
