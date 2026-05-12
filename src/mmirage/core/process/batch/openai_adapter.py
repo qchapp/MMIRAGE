@@ -8,7 +8,7 @@ import mimetypes
 import os
 from typing import Any, Dict, List, Mapping, Sequence
 
-from openai import OpenAI
+from openai import AuthenticationError, OpenAI
 
 from mmirage.config.batch_provider import BatchProviderConfig
 from mmirage.config.openai_batch import OpenAIBatchConfig
@@ -26,9 +26,17 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         payload: Dict[str, Any],
         config: BatchProviderConfig,
     ) -> Mapping[str, Any]:
-        openai_config = self._as_openai_config(config)
+        openai_config = self._check_openai_config(config)
         body = copy.deepcopy(payload)
-        expected_schema = body.pop("expected_schema", None)
+        expected_schema = body.get("expected_schema")
+        if expected_schema is not None and (
+            not isinstance(expected_schema, list)
+            or not all(isinstance(key, str) for key in expected_schema)
+        ):
+            raise ValueError(
+                "expected_schema must be a list of strings, "
+                f"got {type(expected_schema).__name__}"
+            )
         body.setdefault("model", openai_config.model)
         self._convert_local_images_to_data_uris(body)
 
@@ -56,7 +64,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         }
 
     @staticmethod
-    def _convert_local_images_to_data_uris(body: Mapping[str, Any]) -> None:
+    def _convert_local_images_to_data_uris(body: Dict[str, Any]) -> None:
         messages = body.get("messages")
         if not isinstance(messages, list):
             return
@@ -70,9 +78,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
                 continue
 
             for part in content:
-                if not isinstance(part, dict):
-                    continue
-                if part.get("type") != "image_url":
+                if not isinstance(part, dict) or part.get("type") != "image_url":
                     continue
 
                 image_url = part.get("image_url")
@@ -110,9 +116,8 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         chunk_id: str,
         requests: Sequence[Mapping[str, Any]],
         config: BatchProviderConfig,
-    ) -> Mapping[str, Any]:
-        openai_config = self._as_openai_config(config)
-
+    ) -> Dict[str, Any]:
+        openai_config = self._check_openai_config(config)
         client = self._create_client(openai_config)
 
         jsonl_lines = [
@@ -148,7 +153,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         provider_batch_id: str,
         config: BatchProviderConfig,
     ) -> BatchSubmissionResult:
-        openai_config = self._as_openai_config(config)
+        openai_config = self._check_openai_config(config)
         client = self._create_client(openai_config)
 
         retrieved = client.batches.retrieve(provider_batch_id)
@@ -169,7 +174,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         response bodies, so this method flattens the provider-specific shape
         before returning rows to the provider-agnostic collector.
         """
-        openai_config = self._as_openai_config(config)
+        openai_config = self._check_openai_config(config)
         client = self._create_client(openai_config)
 
         retrieved = client.batches.retrieve(provider_batch_id)
@@ -203,16 +208,21 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         raw_result: Mapping[str, Any],
     ) -> BatchSubmissionResult:
         batch_id = str(raw_result.get("id") or raw_result.get("batch_id") or "")
-        status = str(raw_result.get("status") or "unknown")
+        status = raw_result.get("status", "unknown")
 
         return BatchSubmissionResult(
             provider_batch_id=batch_id,
             status=status,
-            raw_response=dict(raw_result),
+            raw_response=raw_result,
         )
 
     @staticmethod
-    def _as_openai_config(config: BatchProviderConfig) -> OpenAIBatchConfig:
+    def _check_openai_config(config: BatchProviderConfig) -> OpenAIBatchConfig:
+        """Validate that `config` is an `OpenAIBatchConfig` and return it.
+
+        Raises `TypeError` when the provided `config` is not an
+        `OpenAIBatchConfig`.
+        """
         if isinstance(config, OpenAIBatchConfig):
             return config
         raise TypeError("OpenAIBatchAdapter requires OpenAIBatchConfig")
@@ -228,17 +238,21 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
             return ""
 
         choices = body.get("choices")
-        if isinstance(choices, list) and choices:
-            first = choices[0]
-            if isinstance(first, Mapping):
-                message = first.get("message")
-                if isinstance(message, Mapping):
-                    content = message.get("content")
-                    if isinstance(content, str):
-                        return content
-                text = first.get("text")
-                if isinstance(text, str):
-                    return text
+        if not isinstance(choices, list) or not choices:
+            text = body.get("text")
+            return text if isinstance(text, str) else ""
+
+        first = choices[0]
+        if isinstance(first, Mapping):
+            message = first.get("message")
+            if isinstance(message, Mapping):
+                content = message.get("content")
+                if isinstance(content, str):
+                    return content
+
+            text = first.get("text")
+            if isinstance(text, str):
+                return text
 
         text = body.get("text")
         if isinstance(text, str):
@@ -248,7 +262,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
 
     @staticmethod
     def _create_client(config: OpenAIBatchConfig) -> OpenAI:
-        api_key = (config.credentials.get("api_key", "") or "").strip()
+        api_key = config.credentials.get("api_key", "").strip()
         if not api_key:
             api_key = os.environ.get("OPENAI_API_KEY", "").strip()
 
@@ -257,10 +271,15 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
                 "OpenAI API key is missing. Provide credentials.api_key or set OPENAI_API_KEY."
             )
 
-        client_kwargs = {"api_key": api_key}
-        if config.base_url:
-            client_kwargs["base_url"] = config.base_url
-        return OpenAI(**client_kwargs)
+        try:
+            client_kwargs = {"api_key": api_key}
+            if config.base_url:
+                client_kwargs["base_url"] = config.base_url
+            return OpenAI(**client_kwargs)
+        except AuthenticationError as exc:
+            raise ValueError(f"OpenAI authentication failed: {exc}") from exc
+        except Exception as exc:
+            raise ValueError(f"Failed to create OpenAI client: {exc}") from exc
 
     @staticmethod
     def _extract_content_text(content_response: Any) -> str:

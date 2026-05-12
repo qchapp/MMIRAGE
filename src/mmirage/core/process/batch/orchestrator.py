@@ -60,7 +60,6 @@ class BatchSubmissionOrchestrator:
         return self._emit_ready_chunks(
             model_params_snapshot=model_params_snapshot,
             finalize=True,
-            
         )
 
     def _emit_ready_chunks(
