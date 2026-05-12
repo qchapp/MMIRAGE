@@ -124,17 +124,17 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         metadata["chunk_id"] = chunk_id
 
         batch_response = client.batches.create(
-            input_file_id=self._read_attr(file_response, "id"),
+            input_file_id=file_response.id,
             endpoint=openai_config.batch_endpoint,
             completion_window=openai_config.completion_window,
             metadata=metadata,
         )
 
         return {
-            "id": self._read_attr(batch_response, "id"),
-            "status": self._read_attr(batch_response, "status"),
-            "endpoint": self._read_attr(batch_response, "endpoint"),
-            "input_file_id": self._read_attr(file_response, "id"),
+            "id": batch_response.id,
+            "status": getattr(batch_response, "status", None),
+            "endpoint": getattr(batch_response, "endpoint", None),
+            "input_file_id": file_response.id,
             "chunk_id": chunk_id,
         }
 
@@ -145,13 +145,8 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
     ) -> BatchSubmissionResult:
         openai_config = self._check_openai_config(config)
         client = self._create_client(openai_config)
-
         retrieved = client.batches.retrieve(provider_batch_id)
-        raw_result = {
-            "id": self._read_attr(retrieved, "id"),
-            "status": self._read_attr(retrieved, "status"),
-        }
-        return self.parse_submission_result(raw_result=raw_result)
+        return self.parse_submission_result(raw_result=retrieved)
 
     def retrieve_results(
         self,
@@ -168,8 +163,8 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         client = self._create_client(openai_config)
 
         retrieved = client.batches.retrieve(provider_batch_id)
-        status = self._read_attr(retrieved, "status") or "unknown"
-        output_file_id = self._read_attr(retrieved, "output_file_id")
+        status = getattr(retrieved, "status", None) or "unknown"
+        output_file_id = getattr(retrieved, "output_file_id", None)
 
         if status != "completed" or not output_file_id:
             raise ValueError(
@@ -198,8 +193,20 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
         self,
         raw_result: Mapping[str, Any],
     ) -> BatchSubmissionResult:
-        batch_id = str(raw_result.get("id") or raw_result.get("batch_id", ""))
-        status = raw_result.get("status", "unknown")
+        # Prefer attribute access for OpenAI SDK objects, fall back to mapping access.
+        def _attr_or_get(obj: Any, attr: str, default: Any = None) -> Any:
+            try:
+                val = getattr(obj, attr)
+            except Exception:
+                val = None
+            if val is not None:
+                return val
+            if isinstance(obj, Mapping):
+                return obj.get(attr, default)
+            return default
+
+        batch_id = str(_attr_or_get(raw_result, "id") or _attr_or_get(raw_result, "batch_id", ""))
+        status = _attr_or_get(raw_result, "status", "unknown")
 
         return BatchSubmissionResult(
             provider_batch_id=batch_id,
@@ -247,9 +254,7 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
 
     @staticmethod
     def _create_client(config: OpenAIBatchConfig) -> OpenAI:
-        api_key = config.credentials.get("api_key", "").strip()
-        if not api_key:
-            api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        api_key = (config.credentials.get("api_key", "").strip() or os.environ.get("OPENAI_API_KEY", "").strip() )
 
         if not api_key:
             raise ValueError(
@@ -268,34 +273,21 @@ class OpenAIBatchAdapter(BatchSubmissionAdapter):
 
     @staticmethod
     def _extract_content_text(content_response: Any) -> str:
-        text = getattr(content_response, "text", None)
+        # Assume `content_response` is an httpx.Response (OpenAI SDK v1).
+        # Prefer `.text`, fallback to `.content` bytes decode.
+        try:
+            text = content_response.text
+        except Exception:
+            text = None
+
         if isinstance(text, str):
             return text
-
-        read = getattr(content_response, "read", None)
-        if callable(read):
-            data = read()
-            if isinstance(data, bytes):
-                return data.decode("utf-8")
-            if isinstance(data, str):
-                return data
 
         content = getattr(content_response, "content", None)
         if isinstance(content, bytes):
             return content.decode("utf-8")
-        if isinstance(content, str):
-            return content
 
-        logger.debug(
-            "Unable to extract content from OpenAI files.content response; tried 'text', 'read()', and 'content' on %s",
-            type(content_response),
-        )
-        raise ValueError(
-            "Unable to parse OpenAI files.content response: expected 'text' attribute, 'read()' method, or 'content' attribute"
-        )
+        logger.debug("Unable to extract content from response of type %s", type(content_response))
+        raise ValueError("Unable to parse OpenAI files.content response: missing text or content bytes")
 
-    @staticmethod
-    def _read_attr(obj: Any, key: str) -> Any:
-        if isinstance(obj, Mapping):
-            return obj.get(key)
-        return getattr(obj, key)
+    # _read_attr removed: code now expects OpenAI SDK v1 response objects with attributes.
