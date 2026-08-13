@@ -415,6 +415,7 @@ archive.
 | Raw SGLang overhead | One CUDA GPU for `Qwen/Qwen3-4B`; H100 command documented separately. | `python experiments/raw_sglang_overhead/scripts/run.py --workload-dir experiments/raw_sglang_overhead/workload --output-dir /tmp/anonlib_overhead_dry_run --repetitions 1 --dry-run` | [`experiments/raw_sglang_overhead/README.md`](experiments/raw_sglang_overhead/README.md) |
 | Shard recovery | Kubernetes or Run:ai namespace, H100 access, `kubectl`, and a shared ReadWriteMany PVC. | Prepare workload and use `run_k8s.py status` after runs; there is no no-op Kubernetes dry-run. | Companion experiment PR. |
 | Single-node H100 scaling | One node or pod with four visible H100 GPUs. | Dry-run wrapper documented in the companion experiment PR. | Companion experiment PR. |
+| AnonLib vs NeMo Curator comparison | One H100-80GB for the full shared-SGLang ChartQA run, plus isolated AnonLib and NeMo Python environments. | Mock OpenAI-compatible VLM server and small ChartQA smoke workload documented in the companion experiment PR. | Companion experiment PR. |
 
 Use fresh output directories for reruns unless the experiment README explicitly
 tells you to pass `--overwrite`. Generated experiment outputs are intentionally
@@ -428,8 +429,8 @@ python -m py_compile experiments/_shared/*.py \
   experiments/raw_sglang_overhead/scripts/*.py
 ```
 
-After merging the companion shard-recovery and H100-scaling experiment PRs, also
-compile their scripts and run `bash -n` on the scaling wrappers.
+After merging companion experiment PRs, also compile their scripts and run any
+shell syntax checks documented in their runbooks.
 
 For the global experiment layout policy, see
 [`experiments/README.md`](experiments/README.md).
