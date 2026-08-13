@@ -16,6 +16,16 @@ The total JSONL workload is fixed. Only the number of independent AnonLib shard 
 
 Each worker is pinned with `CUDA_VISIBLE_DEVICES=<gpu_id>`, uses `tp_size: 1`, and runs the same semantic recipe. The model is not tensor-parallelized.
 
+Primary metrics:
+
+- `aggregate_output_tok_s`: total output-token throughput across all shard workers.
+- `output_tok_s_per_gpu`: aggregate throughput divided by GPU count.
+- `rows_s`: completed workload rows per second.
+- `speedup_vs_1gpu`: mean aggregate throughput divided by the 1-GPU mean.
+- `parallel_efficiency`: `speedup_vs_1gpu / gpu_count`.
+
+This experiment does not measure multi-node scaling, tensor parallelism, Kubernetes scheduling, image startup, dataset preparation, or model download time. The only intended independent variable is the number of one-GPU AnonLib shard workers on one H100 node.
+
 ## Files
 
 | Path | Purpose |
@@ -137,12 +147,79 @@ Generated files under `experiments/single_node_h100_scaling/results/`:
 | `parallel_efficiency_vs_gpu.png` | Parallel efficiency plot. |
 | `runs/gpu_<N>/rep_<R>/` | Per-repetition shard configs, logs, state, outputs, and summaries. |
 
+Expected tree after all three scaling points complete:
+
+```text
+experiments/single_node_h100_scaling/results/
+  experiment_metadata.json
+  raw_results.csv
+  summary.csv
+  summary.json
+  latex_table.txt
+  aggregate_throughput_vs_gpu.png
+  parallel_efficiency_vs_gpu.png
+  runs/
+    gpu_1/
+      rep_1/
+        run_manifest.json
+        rep_summary.json
+        configs/
+        logs/
+        output/
+        state/
+      rep_2/
+      rep_3/
+    gpu_2/
+      rep_1/
+      rep_2/
+      rep_3/
+    gpu_4/
+      rep_1/
+      rep_2/
+      rep_3/
+```
+
 Important metrics:
 
 - `aggregate_output_tok_s = total_output_tokens / end_to_end_wall_seconds`
 - `output_tok_s_per_gpu = aggregate_output_tok_s / gpu_count`
 - `speedup_vs_1gpu = mean aggregate_output_tok_s at N GPUs / 1-GPU mean`
 - `parallel_efficiency = speedup_vs_1gpu / gpu_count`
+
+## Common Failures
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| 4-GPU wrapper fails immediately | Fewer than four visible CUDA devices. | Run `nvidia-smi` and start the job in a pod with four visible H100s. |
+| A point refuses to rerun | Existing `runs/gpu_<N>/rep_<R>/` directories are present. | Use a fresh `results/` directory or pass `--overwrite` for the point being replaced. |
+| A shard fails and `failed_launch.json` appears | Worker process exited nonzero. | Inspect `runs/gpu_<N>/rep_<R>/logs/` and the shard `state/` directories. |
+| Results are noisy or efficiency is unexpectedly low | Shared-node interference, wrong GPU type, or different workload size. | Record `experiment_metadata.json`, verify H100 devices, and keep workload metadata with the result. |
+| Plot files are missing | `matplotlib` is unavailable or plotting failed after summary generation. | Install `matplotlib` and rerun `scripts/plot.py` from `summary.csv`. |
+
+## Reproducibility Metadata
+
+Keep these with any reported result:
+
+- Git commit of the branch used to run the wrappers.
+- `experiment_metadata.json`, including visible GPU IDs, environment metadata, batch size, repetitions, and workload metadata.
+- `workload/metadata.json`, including dataset/model revision information.
+- Exact execution configs under `configs/execution_*.yaml` and semantic recipe under `configs/semantic_recipe.yaml`.
+- Per-repetition `run_manifest.json`, `rep_summary.json`, logs, state, and output directories.
+- Final `raw_results.csv`, `summary.csv`, `summary.json`, `latex_table.txt`, and generated plots.
+
+## Paper Artifact Mapping
+
+Use these generated files for paper artifacts:
+
+| Paper artifact | Source file |
+|---|---|
+| Per-repetition scaling data | `experiments/single_node_h100_scaling/results/raw_results.csv` |
+| Aggregate scaling table | `experiments/single_node_h100_scaling/results/summary.csv` and `summary.json` |
+| Paper table fragment | `experiments/single_node_h100_scaling/results/latex_table.txt` |
+| Throughput-vs-GPU figure | `experiments/single_node_h100_scaling/results/aggregate_throughput_vs_gpu.png` |
+| Parallel-efficiency figure | `experiments/single_node_h100_scaling/results/parallel_efficiency_vs_gpu.png` |
+
+Fill in the final paper figure or table number here after manuscript numbering is fixed.
 
 ## Interpretation Boundary
 
