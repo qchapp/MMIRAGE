@@ -1,0 +1,18 @@
+{
+  "created_at": "2026-08-12T16:04:15.054576+00:00",
+  "dataset": "simplescaling/s1K-1.1",
+  "dataset_revision_requested": null,
+  "dataset_revision_resolved": "96c411f1fe4c49d20f0e2a1565f61e1a28b0b84d",
+  "measured_prompts_jsonl": "experiments/raw_sglang_overhead/workload/prompts.jsonl",
+  "model_path": "Qwen/Qwen3-4B",
+  "model_revision_requested": null,
+  "model_revision_resolved": "1cfa9a7208912126459214e8b04321603b3df60c",
+  "num_rows": 1000,
+  "prompt_construction": "MMIRAGE LLMProcessor behavior: Jinja prompt_text, then tokenizer.apply_chat_template(..., add_generation_prompt=True). Raw client uses the resulting prompt field.",
+  "prompt_text_template": "<|im_start|>user\n{question}\n<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n",
+  "split": "train",
+  "start_index": 0,
+  "warmup_prompts_jsonl": "experiments/raw_sglang_overhead/workload/warmup_prompts.jsonl",
+  "warmup_rows": 16,
+  "warmup_rows_reused_from_measured": true
+}
