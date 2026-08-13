@@ -171,3 +171,10 @@ tests/mock_data/shards/
 
 # devcontainer
 .devcontainer/
+
+# Raw SGLang overhead benchmark: experiment outputs kept local
+# (regenerate with scripts/benchmarks/run_sglang_overhead_benchmark.py)
+experiments/raw_sglang_overhead/results_a100/
+experiments/raw_sglang_overhead/results_h100/
+experiments/raw_sglang_overhead/paper_evidence/
+experiments/**/*.zip
