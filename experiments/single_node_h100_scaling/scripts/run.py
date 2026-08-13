@@ -21,8 +21,8 @@ import yaml
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPTS_DIR.parent
-EXPERIMENT_DIR = PROJECT_ROOT / "experiments" / "single_node_h100_scaling"
+EXPERIMENT_DIR = SCRIPTS_DIR.parent
+PROJECT_ROOT = EXPERIMENT_DIR.parents[1]
 RUN_FIELDS = [
     "gpu_count",
     "repetition",
@@ -486,7 +486,7 @@ def write_all_outputs(output_root: Path, metadata: Dict[str, Any]) -> None:
     write_json(output_root / "summary.json", summary)
     write_summary_csv(output_root / "summary.csv", summary)
     write_latex_table(output_root / "latex_table.txt", summary)
-    plot_script = SCRIPTS_DIR / "scaling_plot.py"
+    plot_script = SCRIPTS_DIR / "plot.py"
     if plot_script.exists() and rows:
         subprocess.run(
             [sys.executable, str(plot_script), "--summary-csv", str(output_root / "summary.csv"), "--output-dir", str(output_root)],

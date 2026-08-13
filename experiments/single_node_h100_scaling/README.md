@@ -8,7 +8,7 @@ PDF-derived caveat: the current paper states the MedTrinity distributed run used
 
 ## Design
 
-The semantic transformation is fixed in `semantic_recipe.yaml` for all GPU counts. The wrappers only change execution/resource settings: `gpu_count`, visible GPU IDs, and therefore the number of deterministic AnonLib logical shards.
+The semantic transformation is fixed in `configs/semantic_recipe.yaml` for all GPU counts. The wrappers only change execution/resource settings: `gpu_count`, visible GPU IDs, and therefore the number of deterministic AnonLib logical shards.
 
 Each shard process is pinned to one GPU with `CUDA_VISIBLE_DEVICES=<gpu_id>` and uses `tp_size: 1`. This intentionally avoids tensor-parallelizing Qwen3-4B, because the model fits on one H100 and tensor parallelism would answer a different question.
 
@@ -19,7 +19,7 @@ AnonLib uses Hugging Face Datasets sharding through `Dataset.shard(num_shards=<g
 Default target size is 30,000 unique UltraChat prompts. Increase to 50,000 if the run is too short on your pod.
 
 ```bash
-python3 scripts/prepare_dataset.py \
+python3 experiments/single_node_h100_scaling/scripts/prepare_workload.py \
   --output-dir experiments/single_node_h100_scaling/workload \
   --dataset HuggingFaceH4/ultrachat_200k \
   --split train_sft \
@@ -34,18 +34,18 @@ The script writes `workload/workload.jsonl`, `workload/metadata.json`, and SHA-2
 Run each point three times:
 
 ```bash
-bash scripts/run_1gpu.sh
-bash scripts/run_2gpu.sh
-bash scripts/run_4gpu.sh
+bash experiments/single_node_h100_scaling/scripts/run_1gpu.sh
+bash experiments/single_node_h100_scaling/scripts/run_2gpu.sh
+bash experiments/single_node_h100_scaling/scripts/run_4gpu.sh
 ```
 
 To inspect commands without launching SGLang/AnonLib work:
 
 ```bash
-bash scripts/run_4gpu.sh --dry-run
+bash experiments/single_node_h100_scaling/scripts/run_4gpu.sh --dry-run
 ```
 
-All outputs are written under `experiments/single_node_h100_scaling/` by default:
+All generated outputs are written under `experiments/single_node_h100_scaling/results/` by default:
 
 ```text
 raw_results.csv
@@ -76,7 +76,7 @@ output_tok_s_per_gpu, rows_s, mean_gpu_utilization
 After runs finish, plots are generated automatically. You can regenerate them with:
 
 ```bash
-python3 scripts/scaling_plot.py \
-  --summary-csv experiments/single_node_h100_scaling/summary.csv \
-  --output-dir experiments/single_node_h100_scaling
+python3 experiments/single_node_h100_scaling/scripts/plot.py \
+  --summary-csv experiments/single_node_h100_scaling/results/summary.csv \
+  --output-dir experiments/single_node_h100_scaling/results
 ```
