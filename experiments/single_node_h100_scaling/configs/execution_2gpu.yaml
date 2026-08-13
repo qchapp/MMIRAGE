@@ -1,0 +1,9 @@
+semantic_recipe: experiments/single_node_h100_scaling/configs/semantic_recipe.yaml
+workload_jsonl: experiments/single_node_h100_scaling/workload/workload.jsonl
+output_root: experiments/single_node_h100_scaling/results
+gpu_count: 2
+visible_gpus: [0, 1]
+repetitions: 3
+batch_size: 256
+environment:
+  TOKENIZERS_PARALLELISM: "false"
