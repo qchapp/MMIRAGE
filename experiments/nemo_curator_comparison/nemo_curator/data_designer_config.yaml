@@ -1,0 +1,49 @@
+# Data Designer configuration equivalent of the generated builder in chartqa_pipeline.py.
+# This file is inspectable and validates the declarative column graph, but the
+# Curator comparison uses chartqa_pipeline.py because Python is required to pass
+# custom column callables, resolve relative image paths for Data Designer, and
+# render the final nested Curator output schema.
+data_designer:
+  model_configs:
+    - alias: chartqa_vlm
+      model: Qwen/Qwen2.5-VL-7B-Instruct
+      provider: shared_sglang
+      skip_health_check: true
+      inference_parameters:
+        generation_type: chat-completion
+        temperature: 0.0
+        top_p: 1.0
+        max_tokens: 128
+        max_parallel_requests: 64
+  columns:
+    - name: normalized_query
+      column_type: custom
+      generator_function: normalize_query
+      generation_strategy: cell_by_cell
+    - name: vlm_result
+      column_type: llm-structured
+      model_alias: chartqa_vlm
+      prompt: |
+        You are transforming ChartQA examples into training data. Use the chart image and the question to answer concisely.
+
+        Question: {{ normalized_query }}
+
+        Return JSON only with two string fields: answer and rationale.
+      output_format:
+        title: VLMResult
+        type: object
+        properties:
+          answer:
+            type: string
+          rationale:
+            type: string
+        required:
+          - answer
+          - rationale
+      multi_modal_context:
+        - modality: image
+          column_name: image_path
+    - name: generated_answer_normalized
+      column_type: custom
+      generator_function: normalize_generated_answer
+      generation_strategy: cell_by_cell
