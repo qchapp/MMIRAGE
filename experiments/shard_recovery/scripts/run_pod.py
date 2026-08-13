@@ -15,7 +15,7 @@ DEFAULT_CONTAINER_REPO = Path("/workspace/ANONLIB")
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    return Path(__file__).resolve().parents[3]
 
 
 sys.path.insert(0, str(repo_root() / "src"))

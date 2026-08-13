@@ -17,8 +17,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 from datasets import load_from_disk
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-EXPERIMENT_DIR = REPO_ROOT / "experiments" / "shard_recovery"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONTAINER_REPO = Path("/workspace/ANONLIB")
 DEFAULT_SHARED_ROOT = "/workspace/anonlib-recovery"
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -30,7 +30,7 @@ from anonlib.config.utils import load_anonlib_config  # noqa: E402
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shared-root", default=os.environ.get("ANONLIB_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-    parser.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "anonlib_recovery.yaml"))
+    parser.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "anonlib_recovery.yaml"))
     parser.add_argument("--conditions", default="baseline,fail_1,fail_4,fail_8")
     parser.add_argument("--reps", default="1")
     parser.add_argument("--output-dir", default=None)

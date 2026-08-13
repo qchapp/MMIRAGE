@@ -2,17 +2,16 @@
 """Local shard-recovery runner (no Kubernetes).
 
 Runs the same ANONLIB shard-recovery experiment as
-``run_shard_recovery.py`` but from a single pod terminal without creating
+``run_k8s.py`` but from a single pod terminal without creating
 Kubernetes pods. Each logical shard is a local subprocess that runs the same
-pod entrypoint (``run_shard_recovery_pod.py``); one GPU is pinned per
+pod entrypoint (``run_pod.py``); one GPU is pinned per
 concurrent shard through ``CUDA_VISIBLE_DEVICES``. The deliberate pod
 termination of the Kubernetes experiment is emulated by sending ``SIGTERM`` to
 the selected wrapper processes, which the wrapper records as ANONLIB shard
 failure exactly as it does for a terminated Kubernetes pod.
 
 The controller/raw_logs directory layout written here matches
-``run_shard_recovery.py`` so that
-``extract_shard_recovery_results.py`` consumes the results unchanged.
+``run_k8s.py`` so that ``extract_results.py`` consumes the results unchanged.
 """
 
 from __future__ import annotations
@@ -29,8 +28,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "benchmarks"))
-from run_shard_recovery import (  # noqa: E402
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR))
+from run_k8s import (  # noqa: E402
     CONDITION_FAILURE_SHARDS,
     baseline_kill_after,
     chunked,
@@ -45,8 +45,8 @@ from run_shard_recovery import (  # noqa: E402
     write_json,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-EXPERIMENT_DIR = REPO_ROOT / "experiments" / "shard_recovery"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_SHARED_ROOT = "/workspace/anonlib-recovery"
 DEFAULT_GPU_IDS = "0,1,2,3"
 
@@ -57,7 +57,7 @@ from anonlib.config.utils import load_anonlib_config  # noqa: E402
 from anonlib.shard_utils import read_status, shard_state_dir  # noqa: E402
 
 
-POD_ENTRYPOINT = REPO_ROOT / "scripts" / "benchmarks" / "run_shard_recovery_pod.py"
+POD_ENTRYPOINT = EXPERIMENT_DIR / "scripts" / "run_pod.py"
 
 
 def parse_args() -> argparse.Namespace:
@@ -66,7 +66,7 @@ def parse_args() -> argparse.Namespace:
 
     def add_common(p: argparse.ArgumentParser) -> None:
         p.add_argument("--shared-root", default=os.environ.get("ANONLIB_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-        p.add_argument("--config", default=str(EXPERIMENT_DIR / "anonlib_recovery.yaml"))
+        p.add_argument("--config", default=str(EXPERIMENT_DIR / "configs" / "anonlib_recovery.yaml"))
         p.add_argument("--max-active-shards", type=int, default=4)
         p.add_argument("--gpu-ids", default=DEFAULT_GPU_IDS)
         p.add_argument("--wait-timeout-seconds", type=int, default=21600)
@@ -89,7 +89,7 @@ def parse_args() -> argparse.Namespace:
     status_p.add_argument("--condition", choices=sorted(CONDITION_FAILURE_SHARDS), required=True)
     status_p.add_argument("--rep", type=int, default=1)
     status_p.add_argument("--shared-root", default=os.environ.get("ANONLIB_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-    status_p.add_argument("--config", default=str(EXPERIMENT_DIR / "anonlib_recovery.yaml"))
+    status_p.add_argument("--config", default=str(EXPERIMENT_DIR / "configs" / "anonlib_recovery.yaml"))
 
     return parser.parse_args()
 

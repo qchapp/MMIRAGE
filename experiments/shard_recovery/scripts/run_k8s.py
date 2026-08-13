@@ -17,8 +17,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 import yaml
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-EXPERIMENT_DIR = REPO_ROOT / "experiments" / "shard_recovery"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONTAINER_REPO = Path("/workspace/ANONLIB")
 DEFAULT_SHARED_ROOT = "/workspace/anonlib-recovery"
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -49,8 +49,8 @@ def parse_args() -> argparse.Namespace:
         p.add_argument("--pvc", required=True)
         p.add_argument("--image", required=True)
         p.add_argument("--shared-root", default=os.environ.get("ANONLIB_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-        p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "anonlib_recovery.yaml"))
-        p.add_argument("--config-in-container", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "anonlib_recovery.yaml"))
+        p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "anonlib_recovery.yaml"))
+        p.add_argument("--config-in-container", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "anonlib_recovery.yaml"))
         p.add_argument("--repo-dir-in-container", default=str(DEFAULT_CONTAINER_REPO))
         p.add_argument("--image-pull-policy", default="IfNotPresent")
         p.add_argument("--service-account", default=None)
@@ -81,7 +81,7 @@ def parse_args() -> argparse.Namespace:
     status_p.add_argument("--condition", choices=sorted(CONDITION_FAILURE_SHARDS), required=True)
     status_p.add_argument("--rep", type=int, default=1)
     status_p.add_argument("--shared-root", default=os.environ.get("ANONLIB_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-    status_p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "anonlib_recovery.yaml"))
+    status_p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "anonlib_recovery.yaml"))
 
     return parser.parse_args()
 
@@ -174,7 +174,7 @@ def pod_manifest(args: argparse.Namespace, condition: str, rep: int, phase: str,
         "workingDir": args.repo_dir_in_container,
         "command": ["python"],
         "args": [
-            f"{args.repo_dir_in_container}/scripts/benchmarks/run_shard_recovery_pod.py",
+            f"{args.repo_dir_in_container}/experiments/shard_recovery/scripts/run_pod.py",
             "--config",
             args.config_in_container,
             "--shard-id",
