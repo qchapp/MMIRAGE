@@ -570,6 +570,17 @@ python3 scripts/analyze_nemo_curator_comparison.py \
   --results-root experiments/nemo_curator_comparison/results
 ```
 
+#### Planned follow-up experiments
+
+- [`experiment_plan_llm_only.txt`](experiment_plan_llm_only.txt) — LLM-only variant: the
+  same transformation expressed with a single structured LLM call and no deterministic
+  Python normalization on either framework, so both sides execute identical per-row work and
+  the footprint comparison is fair.
+- [`experiment_plan_pr52_custom_processor.txt`](experiment_plan_pr52_custom_processor.txt) —
+  post-PR #52 re-run: the full recipe re-expressed once MMIRAGE ships a native `custom`
+  processor, so both frameworks execute the same user Python functions per sample as
+  first-class features.
+
 ## Architecture
 
 AnonLib uses a modular architecture:

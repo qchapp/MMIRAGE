@@ -1,0 +1,80 @@
+EXPERIMENT PLAN (Plan B) — Re-run after PR #52: native custom processor
+========================================================================
+Status: DOCUMENTED ONLY — not yet executed. Refer back to this file to run it later.
+
+## Context
+PR #52 "Feature: Introduce Custom Processor for User Python Script Execution"
+(https://github.com/LiGHTers-playground/MMIRAGE/pull/52, branch feature/custom_function)
+adds a native `custom` processor to the MMIRAGE/AnonLib core:
+- YAML-configurable: type: custom, script_path, function_name, max_workers, start_method
+  (spawn default), timeout_ms, max_timeouts, max_errors, fallback_value
+- pebble ProcessPool with spawn isolation; strict order preservation; soft-fail fallback
+  injection; circuit breaker on max_timeouts/max_errors; immediate trip on fatal worker
+  crash; local-import sys.path injection for the user script directory
+- the user function receives the full current row as a dict and must return plain data
+  (strings, numbers, lists, dicts, None)
+
+## Does Plan B compare custom code per sample on BOTH sides including NeMo? YES.
+Both frameworks execute the SAME user Python functions (normalize_query,
+normalize_generated_answer) once per row/sample:
+- AnonLib: the native `custom` processor runs the function in an isolated worker process
+  per row.
+- NeMo Curator/Data Designer: CustomColumnConfig with generation_strategy CELL_BY_CELL calls
+  the generator function per cell (= per row).
+The full original recipe (the one already benchmarked and committed) is re-expressed with
+native custom-function support on both sides, so the comparison measures first-class
+framework machinery on both frameworks. This closes the fairness gap that motivated Plan A
+(the ~100-line benchmark-harness CustomProcessor shim in the AnonLib adapter disappears).
+
+## Prerequisites
+1. PR #52 merged into upstream LiGHTers-playground/MMIRAGE main.
+2. Rebase/update the fork; create branch experiment/nemo-curator-comparison-pr52 off updated
+   main.
+3. Reinstall the AnonLib venv from the merged main; pin the mmirage commit in VERSIONS.md.
+4. Smoke-test: run normalize_query and normalize_generated_answer through the native custom
+   processor on a few rows (dict return pickling under spawn; timeout_ms is None by default
+   in the merged PR -> set explicitly).
+
+## Recipe changes (relative to the committed original recipe)
+### AnonLib
+- anonlib/chartqa_anonlib.yaml: replace the custom_pre/custom_post blocks with two native
+  `custom` processor blocks pointing at anonlib/chartqa_custom.py (function_name
+  normalize_query / normalize_generated_answer); keep the llm block and the output_schema
+  references {{ normalized_query.normalized_query }} and
+  {{ generated_answer_normalized.generated_answer_normalized }}.
+- anonlib/run_anonlib_with_openai_vision_endpoint.py: delete the CustomProcessor stack and
+  the custom_pre/custom_post registrations (now shipped in core); keep EndpointEngine and
+  main().
+### NeMo
+- unchanged: chartqa_pipeline.py's CustomColumnConfig usage is already the native mechanism.
+
+## Expected footprint (apples-to-apples)
+- AnonLib declarative: ~100 -> ~130 (two custom processor config blocks)
+- AnonLib glue python: ~267 -> ~24 (chartqa_custom.py) + EndpointEngine adapter (~150)
+- NeMo: unchanged (~42 declarative / ~208 glue)
+
+## Method (same as the committed experiment)
+- Same pinned 1000-row workload (prepare_chartqa.py, seed 20260813, pinned ChartQA revision).
+- Balanced 3-rep order anonlib,nemo,nemo,anonlib,anonlib,nemo; shared SGLang
+  Qwen/Qwen2.5-VL-7B-Instruct endpoint; max_tokens 128; concurrency 64; batch 64.
+- run_comparison.py --overwrite; analyze_results.py; regenerate latex_table.tex.
+- Expect runtime parity with the committed original run (custom pool adds negligible wall time).
+
+## Success criteria
+- 1000/1000 schema-valid rows per repetition.
+- Runtime within noise of the original run (~68.6 s vs ~131.2 s e2e).
+- Footprint: AnonLib glue python drops to ~24 + adapter; declarative ~130.
+
+## Risks / notes
+- spawn pool startup per shard (small for 1 shard / 1000 rows).
+- dict return values must be pickle-safe (they are: plain strings).
+- timeout_ms default None (untimed) in the merged PR -> set explicit (e.g. 5000).
+- custom processor counters are cumulative over the whole shard -> size max_timeouts and
+  max_errors for 1000 rows, not per batch.
+
+## Execution steps (when authorized)
+1. Branch experiment/nemo-curator-comparison-pr52 off updated main.
+2. Apply recipe edits; pin mmirage commit in VERSIONS.md; reinstall venv.
+3. Smoke-test with the mock server (inference/mock_openai_vlm_server.py).
+4. Full balanced 3-rep run + analyze + regenerate latex_table.tex; commit evidence.
+5. Update README_REPRODUCE.md, writeup_nemo.txt, and the paper.

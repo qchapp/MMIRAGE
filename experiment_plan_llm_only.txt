@@ -1,0 +1,96 @@
+EXPERIMENT PLAN (Plan A) — LLM-only variant of the AnonLib vs NeMo Curator/Data Designer comparison
+==================================================================================================
+Status: DOCUMENTED ONLY — not yet executed. Refer back to this file to run it later.
+
+## Goal
+Make the current comparison rely only on LLM-based refactoring of datasets, so that both
+frameworks execute identical per-row work and the implementation-footprint comparison is
+fair. No deterministic Python normalization on either side.
+
+## Motivation
+The committed experiment (branch experiment/nemo-curator-comparison) uses two deterministic
+Python functions on BOTH sides (normalize_query, normalize_generated_answer). The footprint
+comparison is therefore unfair: AnonLib's copy of this "run a Python function" capability is
+a ~100-line benchmark-harness CustomProcessor inside the endpoint adapter, while NeMo gets
+the same capability natively via Data Designer CustomColumnConfig. The LLM-only variant
+removes custom functions entirely: a single structured LLM call produces all fields, so the
+two frameworks differ only in framework machinery (which is what the benchmark should
+measure). It also sidesteps the related LOC criticism that configs are reused/adapted from
+examples rather than authored line-by-line: with both configs shrunk to near-identical tiny
+declarative specs, LOC stops being a differentiator, reinforcing that runtime, validity, and
+setup are the real comparison dimensions.
+
+## Current recipe (what gets removed)
+- AnonLib: anonlib/chartqa_anonlib.yaml — the custom_pre (normalize_query) and custom_post
+  (normalize_generated_answer) processors plus their outputs and fallback blocks.
+- AnonLib: the CustomProcessor stack inside anonlib/run_anonlib_with_openai_vision_endpoint.py
+  (CustomProcessorConfig/CustomOutputVar/CustomPre/CustomPost classes, CustomProcessor class,
+  and the custom_pre/custom_post registrations in patch_sglang_engine()).
+- NeMo: nemo_curator/chartqa_pipeline.py — the two CustomColumnConfig columns
+  (generator_function=normalize_query / normalize_generated_answer).
+- Both: delete anonlib/chartqa_custom.py and nemo_curator/chartqa_custom.py.
+
+## New recipe (what the LLM produces)
+One structured LLM call per row returns four string fields:
+- answer: the answer to the question
+- rationale: one short sentence explaining the chart evidence
+- normalized_query: the question, whitespace-normalized (LLM-performed)
+- generated_answer_normalized: the answer, lowercased and whitespace-normalized (LLM-performed)
+
+This keeps the exact nested training-data output schema, so analyze_results.py validity checks
+are unchanged (metadata.{reference_answer, generated_answer_normalized, source};
+messages[0].content = image + text).
+
+### AnonLib changes
+1. anonlib/chartqa_anonlib.yaml:
+   - remove the custom_pre and custom_post processor blocks (and their fallback blocks)
+   - llm output: output_schema -> answer, rationale, normalized_query,
+     generated_answer_normalized (all str)
+   - prompt: use the raw "{{ query }}" as the Question; instruct the model to also return the
+     two normalized fields
+   - processing_params.outputs: keep only vlm_result (type llm, output_type JSON)
+   - output_schema: user text = {{ vlm_result.normalized_query }};
+     metadata.generated_answer_normalized = {{ vlm_result.generated_answer_normalized }}
+2. anonlib/run_anonlib_with_openai_vision_endpoint.py:
+   - delete CustomProcessorConfig, CustomOutputVar, CustomPreProcessorConfig,
+     CustomPostProcessorConfig, CustomPreOutputVar, CustomPostOutputVar, CustomProcessor,
+     and the custom_pre/custom_post registrations in patch_sglang_engine()
+   - keep EndpointEngine (incl. json_schema/response_format handling) + patch_sglang_engine
+     (llm-only) + main()
+3. delete anonlib/chartqa_custom.py
+
+### NeMo changes
+1. nemo_curator/chartqa_pipeline.py:
+   - VLMResult: add normalized_query and generated_answer_normalized (all str)
+   - build_config: remove the two CustomColumnConfig entries; vlm_result prompt uses raw
+     "{{ query }}"
+   - RenderNestedChartQAStage: read the four fields from row["vlm_result"]; drop the
+     normalized_query / generated_answer_normalized DataFrame columns from the required set
+2. nemo_curator/data_designer_config.yaml: drop the two custom columns; output_format gains
+   the two fields
+3. delete nemo_curator/chartqa_custom.py
+
+## Expected impact
+- AnonLib glue python: ~267 -> ~140 (adapter only: EndpointEngine + runner)
+- AnonLib declarative: ~100 -> ~105 (4-field schema/prompt)
+- NeMo glue python: ~208 -> ~160 (pipeline + render only)
+- NeMo declarative: ~42 -> ~50
+- Runtime/validity expected unchanged: 1000/1000 valid, ~68.6 s vs ~131.2 s e2e.
+
+## Consistency check to add in analyze_results.py (when executed)
+- assert per row: generated_answer_normalized == lower(trim(answer)); LLM-produced
+  normalization should match the deterministic one, confirming the LLM-only path is
+  behaviorally equivalent to the original recipe on the fields we compare.
+
+## Execution steps (when authorized)
+1. Branch: create experiment/nemo-curator-comparison-llm-only off this branch.
+2. Apply the edits above (py_compile under both .venv and .venv-nemo).
+3. Dry-run against the mock server (inference/mock_openai_vlm_server.py).
+4. Full balanced 3-rep run against the shared SGLang server:
+   --order anonlib,nemo,nemo,anonlib,anonlib,nemo --repetitions 3 --overwrite
+   --output-root experiments/nemo_curator_comparison/results
+   --model Qwen/Qwen2.5-VL-7B-Instruct --base-url http://127.0.0.1:30000/v1
+   --anonlib-python .venv/bin/python --nemo-python .venv-nemo/bin/python
+   --batch-size 64 --concurrency 64 --max-tokens 128
+5. Analyze + regenerate latex_table.tex; commit evidence.
+6. Update README_REPRODUCE.md, writeup_nemo.txt, and the paper numbers.
