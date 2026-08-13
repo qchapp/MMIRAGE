@@ -10,16 +10,16 @@ measured paths send the same prompts to the same one-GPU SGLang HTTP endpoint:
 The experiment reports every repetition and summarizes them with mean and
 standard deviation; it never selects the best run.
 
-## Files used by the experiment
+## Files
 
 | Path | Purpose |
 |---|---|
 | `workload/` | Bundled 1,000 measured prompts, 16 warm-up prompts, and provenance metadata |
-| `../../scripts/benchmarks/prepare_s1k_overhead_workload.py` | Optionally regenerates a workload from `simplescaling/s1K-1.1` |
-| `../../scripts/benchmarks/run_sglang_overhead_benchmark.py` | Starts SGLang, runs both paths, and aggregates results |
-| `../../scripts/benchmarks/raw_sglang_client.py` | Implements the raw comparison path |
-| `../../scripts/benchmarks/run_anonlib_with_sglang_endpoint.py` | Adapts the AnonLib path to the shared HTTP endpoint for this experiment only |
-| `../../configs/config_overhead_s1k_sglang.yaml` | AnonLib pipeline configuration used by the runner |
+| `configs/anonlib_sglang.yaml` | AnonLib pipeline configuration used by the runner |
+| `scripts/prepare_workload.py` | Optionally regenerates a workload from `simplescaling/s1K-1.1` |
+| `scripts/run.py` | Starts SGLang, runs both paths, and aggregates results |
+| `scripts/raw_sglang_client.py` | Implements the raw comparison path |
+| `scripts/run_anonlib_with_sglang_endpoint.py` | Adapts the AnonLib path to the shared HTTP endpoint for this experiment only |
 
 All commands below must be run from the repository root.
 
@@ -44,7 +44,7 @@ server and both clients to the same physical GPU.
 The bundled workload can be used directly:
 
 ```bash
-python scripts/benchmarks/run_sglang_overhead_benchmark.py \
+python experiments/raw_sglang_overhead/scripts/run.py \
   --workload-dir experiments/raw_sglang_overhead/workload \
   --output-dir /tmp/anonlib_overhead_dry_run \
   --repetitions 1 \
@@ -60,7 +60,7 @@ Regeneration requires access to Hugging Face. Writing to `/tmp` leaves the
 bundled workload unchanged:
 
 ```bash
-python scripts/benchmarks/prepare_s1k_overhead_workload.py \
+python experiments/raw_sglang_overhead/scripts/prepare_workload.py \
   --output-dir /tmp/anonlib_overhead_workload \
   --num-rows 1000 \
   --warmup-rows 16 \
@@ -73,7 +73,7 @@ run the regenerated version.
 ## 4. Run the full one-GPU comparison
 
 ```bash
-python scripts/benchmarks/run_sglang_overhead_benchmark.py \
+python experiments/raw_sglang_overhead/scripts/run.py \
   --workload-dir experiments/raw_sglang_overhead/workload \
   --output-dir /tmp/anonlib_overhead_results \
   --repetitions 3 \
@@ -92,7 +92,7 @@ For an H100 with the dependency versions used for the recorded results, force
 the `flashinfer` attention backend:
 
 ```bash
-python scripts/benchmarks/run_sglang_overhead_benchmark.py \
+python experiments/raw_sglang_overhead/scripts/run.py \
   --workload-dir experiments/raw_sglang_overhead/workload \
   --output-dir /tmp/anonlib_overhead_results_h100 \
   --repetitions 3 \

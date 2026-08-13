@@ -20,7 +20,9 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 DEFAULT_MODEL = "Qwen/Qwen3-4B"
-DEFAULT_CONFIG = "configs/config_overhead_s1k_sglang.yaml"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
+DEFAULT_CONFIG = str(EXPERIMENT_DIR / "configs" / "anonlib_sglang.yaml")
 DEFAULT_SERVER_EXTRA_ARGS = [
     "--tp-size",
     "1",
@@ -123,7 +125,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def project_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    return PROJECT_ROOT
 
 
 def read_json(path: Path) -> Dict[str, Any]:
@@ -291,7 +293,7 @@ def raw_command(
 ) -> List[str]:
     command = [
         sys.executable,
-        "scripts/benchmarks/raw_sglang_client.py",
+        str(EXPERIMENT_DIR / "scripts" / "raw_sglang_client.py"),
         "--prompts-jsonl",
         str(prompts_jsonl),
         "--output-jsonl",
@@ -371,7 +373,7 @@ def run_anonlib(
     return timed_subprocess(
         [
             sys.executable,
-            "scripts/benchmarks/run_anonlib_with_sglang_endpoint.py",
+            str(EXPERIMENT_DIR / "scripts" / "run_anonlib_with_sglang_endpoint.py"),
             "--config",
             args.config,
             "--summary-json",
