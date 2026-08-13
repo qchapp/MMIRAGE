@@ -106,7 +106,7 @@ class ProcessingParams:
 class AnonLibConfig:
     """Main configuration class for AnonLib pipeline.
 
-    Contains all configuration needed to run a AnonLib processing pipeline,
+    Contains all configuration needed to run an AnonLib processing pipeline,
     including processor configurations, dataset loading parameters, processing
     parameters, and execution parameters.
 

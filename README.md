@@ -390,7 +390,20 @@ Key multimodal features:
 - `image_base_path`: Base directory for resolving relative image paths
 - Supports PIL Images, URLs, and file paths
 
-### Benchmarking shard performance
+## Running the benchmarks and experiments
+
+Run all commands in this section from the repository root. Both experiments use
+`Qwen/Qwen3-4B` and require the GPU extra:
+
+```bash
+python -m pip install -e '.[gpu]'
+python -c "import sglang; print(sglang.__version__)"
+```
+
+The expected SGLang version is `0.5.10`. The first run may download the model,
+so ensure the machine can access Hugging Face and has sufficient cache space.
+
+### Collecting statistics for any pipeline
 
 Pass `--stats` to `run` or `submit` to enable per-shard benchmarking. This activates GPU
 utilization polling and throughput tracking on compute nodes — disabled by default to
@@ -399,7 +412,6 @@ avoid unnecessary overhead.
 ```bash
 # Local run with stats collection
 anonlib run --config configs/config_mock.yaml --stats
-
 ```
 
 After the run completes, inspect the results with:
@@ -408,57 +420,8 @@ After the run completes, inspect the results with:
 anonlib stats --config configs/config_mock.yaml
 ```
 
-This prints a JSON report with per-shard details and an aggregate summary:
-
-```json
-{
-  "per_shard": [
-    {
-      "shard_id": 0,
-      "status": "success",
-      "started_at": "2026-04-30T10:00:00",
-      "finished_at": "2026-04-30T10:01:05",
-      "stats": {
-        "runtime_seconds": 65.2,
-        "runtime_human": "1m 5s",
-        "rows_processed": 1024,
-        "throughput_rows_per_sec": 15.7,
-        "gpu_util_mean": 88.4,
-        "gpu_util_min": 72.0,
-        "gpu_util_max": 98.0,
-        "gpu_util_samples": 13,
-        "input_tokens": 512000,
-        "output_tokens": 196608,
-        "num_gpus": 4,
-        "tokens_per_sec_per_gpu": 753.1,
-        "gpu_days_per_billion_tokens": 0.0015
-      }
-    }
-  ],
-  "aggregate": {
-    "total_shards": 1,
-    "completed_shards": 1,
-    "total_rows_processed": 1000,
-    "wall_clock_runtime_seconds": 133.04,
-    "wall_clock_runtime_human": "2m 13s",
-    "sum_shard_runtime_seconds": 133.04,
-    "sum_shard_runtime_human": "2m 13s",
-    "min_shard_runtime_seconds": 133.04,
-    "min_shard_runtime_human": "2m 13s",
-    "max_shard_runtime_seconds": 133.04,
-    "max_shard_runtime_human": "2m 13s",
-    "overall_throughput_rows_per_sec": 7.52,
-    "mean_gpu_util_pct": 86.2,
-    "num_gpus": 4,
-    "total_input_tokens": 146214,
-    "total_output_tokens": 1022046,
-    "sum_model_load_seconds": 38.272,
-    "sum_inference_runtime_seconds": 94.768,
-    "tokens_per_sec_per_gpu": 10784.72,
-    "gpu_days_per_billion_tokens": 1.0732
-  }
-}
-```
+This prints a JSON report containing per-shard statistics and an aggregate
+summary.
 
 Key metrics:
 - **`runtime_seconds`** / **`runtime_human`**: time from when the shard started on the cluster (after dispatch), excluding queue wait time.
@@ -468,8 +431,7 @@ Key metrics:
 - **`gpu_days_per_billion_tokens`**: total GPU-days consumed to generate 1 billion output tokens — useful for cost and scaling comparisons across different hardware configurations.
 - Token metrics are `null` when no LLM processor was active, and GPU stats are `null` when `nvidia-smi` is unavailable or `--stats` was not passed.
 
-Reference benchmark:
-- [DataTrove Benchmark](https://github.com/huggingface/datatrove/tree/main/examples/inference/benchmark)
+### Experiment 1: DataTrove-compatible throughput
 
 The config `configs/config_benchmark_datatrove.yaml` mirrors the DataTrove inference benchmark conditions:
 
@@ -481,35 +443,96 @@ The config `configs/config_benchmark_datatrove.yaml` mirrors the DataTrove infer
 | Context | 2 048-token model max context |
 | Model | `Qwen/Qwen3-4B` (DataTrove baseline: tp=1 on a single GPU) |
 
-Download the dataset before running:
+1. Download and save the benchmark dataset:
 
-```python
+```bash
+python - <<'PY'
 from datasets import load_dataset
 
 ds = load_dataset("simplescaling/s1K-1.1", split="train")
 ds.save_to_disk("data/s1K-1.1")
+PY
 ```
 
-Then run with stats collection enabled:
+2. Choose the execution mode in `configs/config_benchmark_datatrove.yaml`.
+For a direct one-GPU run, set:
+
+```yaml
+execution_params:
+  mode: local
+```
+
+For SLURM, leave `mode: slurm` and replace `my_account` with the allocation on
+the target cluster.
+
+3. Run the pipeline with statistics enabled:
 
 ```bash
 anonlib run --config configs/config_benchmark_datatrove.yaml --stats
 ```
 
-Inspect results:
+4. Print the resulting per-shard and aggregate metrics:
 
 ```bash
 anonlib stats --config configs/config_benchmark_datatrove.yaml
 ```
 
-### Raw SGLang overhead benchmark
+The processed shard is written below `data/benchmark_s1k/output/`, and execution
+state and statistics are written below `data/benchmark_s1k/_pipeline_state/`.
+This experiment measures AnonLib throughput under DataTrove-compatible settings;
+it does not provide a same-server raw SGLang comparison.
 
-To isolate AnonLib's throughput overhead relative to a raw SGLang baseline
-(independent of the chosen throughput benchmark), see the experiment in
-`experiments/raw_sglang_overhead/`. Its
-[`README`](experiments/raw_sglang_overhead/README.md) covers the rationale,
-metric definitions, dependency setup, and reproducible one-GPU run commands
-(validated on A100 and H100).
+Reference: [DataTrove inference benchmark](https://github.com/huggingface/datatrove/tree/main/examples/inference/benchmark).
+
+### Experiment 2: raw SGLang overhead
+
+This experiment compares two paths against the same one-GPU SGLang HTTP server:
+
+1. a raw `/v1/completions` client;
+2. the full AnonLib loading, mapping, rendering, state, and statistics path.
+
+The repository already contains the prepared 1,000-row workload under
+`experiments/raw_sglang_overhead/workload/`. First validate the commands without
+starting a model server:
+
+```bash
+python scripts/benchmarks/run_sglang_overhead_benchmark.py \
+  --workload-dir experiments/raw_sglang_overhead/workload \
+  --output-dir /tmp/anonlib_overhead_dry_run \
+  --repetitions 1 \
+  --dry-run
+```
+
+Then run three measured repetitions on one GPU:
+
+```bash
+python scripts/benchmarks/run_sglang_overhead_benchmark.py \
+  --workload-dir experiments/raw_sglang_overhead/workload \
+  --output-dir /tmp/anonlib_overhead_results \
+  --repetitions 3 \
+  --gpu-count 1 \
+  --gpu-index 0 \
+  --concurrency 64 \
+  --port 30000 \
+  --model-path Qwen/Qwen3-4B
+```
+
+Omit `--gpu-index` on a single-GPU machine. The selected port must be free. Each
+repetition starts a fresh SGLang server for the raw path and another for the
+AnonLib path, so the full experiment loads the model six times.
+
+The output directory contains:
+
+- `raw_results.csv`: one row per repetition and execution path;
+- `summary.json`: aggregate metrics, throughput retention, and relative overhead;
+- `summary.csv`: the aggregate metrics in tabular form;
+- `table.tex`: a paper-ready LaTeX table;
+- `plot_throughput.py`: a script that generates a throughput box plot;
+- `rep_*/`: per-run outputs and SGLang server logs.
+
+See [`experiments/raw_sglang_overhead/README.md`](experiments/raw_sglang_overhead/README.md)
+for workload regeneration, hardware-specific SGLang arguments, metric
+definitions, and the recorded reference results.
 
 ## Architecture
 

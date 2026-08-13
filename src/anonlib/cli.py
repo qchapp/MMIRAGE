@@ -212,7 +212,7 @@ def add_shared_arguments(parser: argparse.ArgumentParser) -> None:
         parser: Subcommand parser receiving shared arguments.
     """
     parser.add_argument(
-        "--config", required=True, help="Path to a AnonLib YAML config file"
+        "--config", required=True, help="Path to an AnonLib YAML config file"
     )
     parser.add_argument(
         "--log-level",

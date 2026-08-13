@@ -1,89 +1,139 @@
-# Raw SGLang Overhead Benchmark
+# Raw SGLang overhead experiment
 
-This experiment estimates how much raw SGLang throughput AnonLib retains while adding dataset loading, declarative field mapping, output rendering, state tracking, and statistics.
+This experiment estimates the end-to-end overhead introduced by AnonLib's data
+loading, declarative mapping, rendering, state tracking, and statistics. Both
+measured paths send the same prompts to the same one-GPU SGLang HTTP endpoint:
 
-It directly addresses the current paper's stated RQ3 gap: the existing DataTrove-style result shows that AnonLib can drive a high-throughput SGLang path, but it does not isolate AnonLib overhead under a like-for-like raw SGLang baseline.
+1. `raw_sglang`: a minimal `/v1/completions` client;
+2. `anonlib_sglang`: the complete AnonLib pipeline.
 
-This is an end-to-end empirical overhead estimate, not a pure CPU orchestration microbenchmark.
+The experiment reports every repetition and summarizes them with mean and
+standard deviation; it never selects the best run.
+
+## Files used by the experiment
+
+| Path | Purpose |
+|---|---|
+| `workload/` | Bundled 1,000 measured prompts, 16 warm-up prompts, and provenance metadata |
+| `../../scripts/benchmarks/prepare_s1k_overhead_workload.py` | Optionally regenerates a workload from `simplescaling/s1K-1.1` |
+| `../../scripts/benchmarks/run_sglang_overhead_benchmark.py` | Starts SGLang, runs both paths, and aggregates results |
+| `../../scripts/benchmarks/raw_sglang_client.py` | Implements the raw comparison path |
+| `../../scripts/benchmarks/run_anonlib_with_sglang_endpoint.py` | Adapts the AnonLib path to the shared HTTP endpoint for this experiment only |
+| `../../configs/config_overhead_s1k_sglang.yaml` | AnonLib pipeline configuration used by the runner |
+
+All commands below must be run from the repository root.
+
+## 1. Install and verify dependencies
+
+```bash
+python -m pip install -e '.[gpu]'
+python -c "import sglang; print(sglang.__version__)"
+nvidia-smi
+```
+
+The expected SGLang version is `0.5.10`. The runner uses `sglang serve` when the
+console script is available and otherwise falls back to
+`python -m sglang.launch_server`.
+
+The measured run requires one available GPU, a free local TCP port, and enough
+space for `Qwen/Qwen3-4B`. On a multi-GPU node, use `--gpu-index` to pin the
+server and both clients to the same physical GPU.
+
+## 2. Validate the experiment without starting a GPU server
+
+The bundled workload can be used directly:
+
+```bash
+python scripts/benchmarks/run_sglang_overhead_benchmark.py \
+  --workload-dir experiments/raw_sglang_overhead/workload \
+  --output-dir /tmp/anonlib_overhead_dry_run \
+  --repetitions 1 \
+  --dry-run
+```
+
+This checks the workload, resolves the server command, and writes experiment
+metadata. It does not start SGLang or run inference.
+
+## 3. Optionally regenerate the workload
+
+Regeneration requires access to Hugging Face. Writing to `/tmp` leaves the
+bundled workload unchanged:
+
+```bash
+python scripts/benchmarks/prepare_s1k_overhead_workload.py \
+  --output-dir /tmp/anonlib_overhead_workload \
+  --num-rows 1000 \
+  --warmup-rows 16 \
+  --model-path Qwen/Qwen3-4B
+```
+
+Use `/tmp/anonlib_overhead_workload` as `--workload-dir` in the next command to
+run the regenerated version.
+
+## 4. Run the full one-GPU comparison
+
+```bash
+python scripts/benchmarks/run_sglang_overhead_benchmark.py \
+  --workload-dir experiments/raw_sglang_overhead/workload \
+  --output-dir /tmp/anonlib_overhead_results \
+  --repetitions 3 \
+  --gpu-count 1 \
+  --gpu-index 0 \
+  --concurrency 64 \
+  --port 30000 \
+  --model-path Qwen/Qwen3-4B
+```
+
+Omit `--gpu-index` on a single-GPU machine. Each repetition runs the raw path
+and the AnonLib path with a freshly started server, so three repetitions load
+the model six times.
+
+For an H100 with the dependency versions used for the recorded results, force
+the `flashinfer` attention backend:
+
+```bash
+python scripts/benchmarks/run_sglang_overhead_benchmark.py \
+  --workload-dir experiments/raw_sglang_overhead/workload \
+  --output-dir /tmp/anonlib_overhead_results_h100 \
+  --repetitions 3 \
+  --gpu-count 1 \
+  --gpu-index 0 \
+  --concurrency 64 \
+  --port 30000 \
+  --model-path Qwen/Qwen3-4B \
+  --server-extra-args-json '["--tp-size","1","--trust-remote-code","--disable-custom-all-reduce","--max-running-requests","1000","--attention-backend","flashinfer"]'
+```
+
+`--server-extra-args-json` replaces the default argument list, so all desired
+server arguments must be included. If the installed SGLang CLI differs, use
+`--server-command-json` to provide the complete launch command.
+
+## 5. Inspect the outputs
+
+| Output | Contents |
+|---|---|
+| `raw_results.csv` | One row per repetition and path |
+| `summary.json` | Aggregate metrics, throughput retention, overhead, and environment metadata |
+| `summary.csv` | Aggregate metrics in tabular form |
+| `table.tex` | Paper-ready LaTeX table |
+| `plot_throughput.py` | Script that writes `throughput_boxplot.png` when run |
+| `rep_*/raw_sglang/` | Raw-client outputs and server logs |
+| `rep_*/anonlib_sglang/` | AnonLib outputs, state, statistics, and server logs |
 
 Definitions:
 
-- `AnonLib throughput retention = mean(AnonLib tok/s) / mean(raw SGLang tok/s)`
-- `relative orchestration overhead = 1 - throughput_retention`
+- `throughput retention = mean(AnonLib tok/s) / mean(raw SGLang tok/s)`
+- `relative orchestration overhead = 1 - throughput retention`
 
-The scripts report mean +/- standard deviation across all repetitions. They never select the best run.
+This is an end-to-end empirical overhead estimate, not a CPU-only orchestration
+microbenchmark. Generated result directories are intentionally kept local and
+are ignored by Git.
 
-Important implementation constraint:
+## Recorded reference results
 
-- Stock AnonLib text generation constructs an in-process `sgl.Engine` rather than connecting to an OpenAI-compatible HTTP endpoint.
-- To keep AnonLib source unchanged while satisfying same-endpoint parity, `scripts/benchmarks/run_anonlib_with_sglang_endpoint.py` patches `sglang.Engine` only inside the benchmark subprocess and forwards AnonLib generation calls to the same external SGLang `/v1/completions` endpoint used by the raw client.
-- This wrapper is benchmark scaffolding, not a AnonLib feature change.
-
-PDF discrepancy to preserve:
-
-- The current paper resolves the MedTrinity run as `16 nodes x 1 GPU`.
-- The semester report appendix says the 16-node Slurm run used `16 nodes with 4 GH200 GPUs per node`.
-- This overhead experiment avoids that allocation ambiguity by targeting one GPU in one Run:ai pod, without Slurm. On nodes with multiple GPUs, pass `--gpu-index <N>` so the server and both paths run on a single pinned GPU (`CUDA_VISIBLE_DEVICES`).
-
-Dependencies / setup:
-
-- The SGLang stack is declared in `pyproject.toml` under the `gpu` optional
-  extra (`sglang==0.5.10`, `sgl_kernel`, `xgrammar`, `compressed_tensors`).
-  Install it with the project in editable mode:
-  `uv pip install -e '.[gpu]'` (or `pip install -e '.[gpu]'`).
-- The benchmark runner needs the `sglang` console script on `PATH` (installed
-  with the extra); otherwise it falls back to `python -m sglang.launch_server`.
-- Verify before running: `python -c "import sglang; print(sglang.__version__)"`
-  should print `0.5.10`.
-
-Tiny validation without GPU benchmark execution:
-
-```bash
-python scripts/benchmarks/prepare_s1k_overhead_workload.py --output-dir /tmp/anonlib_overhead_tiny --num-rows 2 --warmup-rows 1
-python scripts/benchmarks/run_sglang_overhead_benchmark.py --workload-dir /tmp/anonlib_overhead_tiny --output-dir /tmp/anonlib_overhead_tiny_results --repetitions 1 --dry-run
-```
-
-Full one-GPU experiment on A100 (`results_a100/`):
-
-```bash
-python scripts/benchmarks/prepare_s1k_overhead_workload.py --output-dir experiments/raw_sglang_overhead/workload --num-rows 1000 --warmup-rows 16 --model-path Qwen/Qwen3-4B
-python scripts/benchmarks/run_sglang_overhead_benchmark.py --workload-dir experiments/raw_sglang_overhead/workload --output-dir experiments/raw_sglang_overhead/results_a100 --repetitions 3 --gpu-count 1 --concurrency 64 --port 30000 --model-path Qwen/Qwen3-4B --gpu-index 0
-```
-
-Full one-GPU experiment on H100 (`results_h100/`) - **requires** forcing the
-flashinfer attention backend, otherwise the default sm_90 backend (FA3) crashes
-against the installed nvidia-cutlass/cutlass-mlir wheel:
-
-```bash
-python scripts/benchmarks/run_sglang_overhead_benchmark.py --workload-dir experiments/raw_sglang_overhead/workload --output-dir experiments/raw_sglang_overhead/results_h100 --repetitions 3 --gpu-count 1 --concurrency 64 --port 30000 --model-path Qwen/Qwen3-4B --gpu-index 0 --server-extra-args-json '["--tp-size","1","--trust-remote-code","--disable-custom-all-reduce","--max-running-requests","1000","--attention-backend","flashinfer"]'
-```
-
-`--server-extra-args-json` replaces the default extra args, so the full default
-set must be passed explicitly. On A100 (sm_80) SGLang auto-selects `flashinfer`,
-so both runs use the same attention backend.
-
-The runner uses `sglang serve` when the console script exists on `PATH`; otherwise it falls back to `python -m sglang.launch_server` from the active Python environment.
-
-If the installed SGLang CLI uses different flag names, keep both paths matched by passing the exact command once:
-
-```bash
-python scripts/benchmarks/run_sglang_overhead_benchmark.py --workload-dir experiments/raw_sglang_overhead/workload --output-dir experiments/raw_sglang_overhead/results_h100 --server-command-json '["python", "-m", "sglang.launch_server", "--model-path", "Qwen/Qwen3-4B", "--host", "127.0.0.1", "--port", "30000", "--tp-size", "1", "--trust-remote-code", "--disable-custom-all-reduce", "--max-running-requests", "1000"]'
-```
-
-Expected outputs:
-
-- `raw_results.csv`
-- `summary.json`
-- `summary.csv`
-- `table.tex`
-- `plot_throughput.py`
-
-## Results
-
-Both runs completed with `1000/1000` rows succeeding in every repetition (3 reps
-each). Results are kept under `results_a100/` and `results_h100/`; a merged,
-paper-ready evidence package is in `paper_evidence/` (with a zip archive
-`anonlib_vs_sglang_evidence.zip`).
+Both recorded runs completed with `1000/1000` rows succeeding in every
+repetition (three repetitions each). The table below records the reference
+measurements; generated per-run result directories are not committed.
 
 | GPU | Path | Output tok/s/GPU | Rows/s | Gen. wall (s) | Success |
 |---|---|---|---|---|---|

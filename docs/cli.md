@@ -15,7 +15,7 @@ Common flags available on most subcommands:
 
 | Flag | Description |
 |---|---|
-| `--config PATH` | Path to a AnonLib YAML config file (**required**) |
+| `--config PATH` | Path to an AnonLib YAML config file (**required**) |
 | `--log-level LEVEL` | Log verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR` (default: `INFO`) |
 
 ---
