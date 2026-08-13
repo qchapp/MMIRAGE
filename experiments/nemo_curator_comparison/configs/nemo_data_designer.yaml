@@ -1,0 +1,53 @@
+# Data Designer configuration equivalent of the generated builder in chartqa_pipeline.py.
+# This file is inspectable and validates the declarative column graph, but the
+# Curator comparison uses chartqa_pipeline.py because Python is required to
+# resolve relative image paths for Data Designer and render the final nested
+# Curator output schema.
+data_designer:
+  model_configs:
+    - alias: chartqa_vlm
+      model: Qwen/Qwen2.5-VL-7B-Instruct
+      provider: shared_sglang
+      skip_health_check: true
+      inference_parameters:
+        generation_type: chat-completion
+        temperature: 0.0
+        top_p: 1.0
+        max_tokens: 256
+        max_parallel_requests: 64
+  columns:
+    - name: vlm_result
+      column_type: llm-structured
+      model_alias: chartqa_vlm
+      prompt: |
+        You are transforming ChartQA examples into training data. Use the chart image and the question to answer concisely.
+
+        Question: {{ query }}
+
+        Return JSON only with these four string fields, in this order:
+        - answer: the answer to the question.
+        - normalized_query: copy Question exactly, changing only leading/trailing whitespace and runs of whitespace. Do not rephrase, lowercase, correct spelling, or change punctuation.
+        - generated_answer_normalized: copy answer exactly, then lowercase it and collapse/trim whitespace. Do not remove or change punctuation, symbols, units, or number forms.
+        - rationale: at most 20 words explaining the chart evidence.
+
+        Before returning, verify that the two normalized fields obey those exact mechanical rules.
+      output_format:
+        title: VLMResult
+        type: object
+        properties:
+          answer:
+            type: string
+          normalized_query:
+            type: string
+          generated_answer_normalized:
+            type: string
+          rationale:
+            type: string
+        required:
+          - answer
+          - normalized_query
+          - generated_answer_normalized
+          - rationale
+      multi_modal_context:
+        - modality: image
+          column_name: image_path
