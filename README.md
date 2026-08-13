@@ -534,6 +534,42 @@ See [`experiments/raw_sglang_overhead/README.md`](experiments/raw_sglang_overhea
 for workload regeneration, hardware-specific SGLang arguments, metric
 definitions, and the recorded reference results.
 
+### Experiment 3: AnonLib vs NeMo Curator/Data Designer
+
+This experiment compares AnonLib with NVIDIA's NeMo Curator + Data Designer on
+the same end-to-end multimodal transformation: turn a heterogeneous ChartQA
+source into nested training-data records (image + question + VLM answer +
+rationale + metadata), with both frameworks calling the same externally managed
+SGLang OpenAI-compatible endpoint.
+
+The experiment measures framework-specific machinery (declarative config LOC and
+glue Python LOC), setup effort (fresh-environment install time), runtime
+end-to-end, output-token throughput, and output validity on a pinned 1,000-row
+ChartQA subset. Full reproduction instructions, version pins, and the recorded
+results are in
+[`experiments/nemo_curator_comparison/README_REPRODUCE.md`](experiments/nemo_curator_comparison/README_REPRODUCE.md).
+
+```bash
+# Prepare the pinned 1000-row workload (regenerable; not tracked in git)
+python3 scripts/prepare_chartqa.py \
+  --output-dir experiments/nemo_curator_comparison/workload/chartqa \
+  --num-rows 1000 --seed 20260813 --image-format path
+
+# Balanced 3-repetition run, each framework in its own environment
+python3 scripts/run_nemo_curator_comparison.py \
+  --order anonlib,nemo,nemo,anonlib,anonlib,nemo --repetitions 3 \
+  --workload-jsonl experiments/nemo_curator_comparison/workload/chartqa/chartqa_subset.jsonl \
+  --image-base-path experiments/nemo_curator_comparison/workload/chartqa \
+  --output-root experiments/nemo_curator_comparison/results \
+  --model Qwen/Qwen2.5-VL-7B-Instruct --base-url http://127.0.0.1:30000/v1 \
+  --batch-size 64 --concurrency 64 --max-tokens 128 \
+  --anonlib-python .venv-anonlib/bin/python --nemo-python .venv-nemo/bin/python
+
+# Analyze + generate the paper-ready LaTeX table
+python3 scripts/analyze_nemo_curator_comparison.py \
+  --results-root experiments/nemo_curator_comparison/results
+```
+
 ## Architecture
 
 AnonLib uses a modular architecture:
