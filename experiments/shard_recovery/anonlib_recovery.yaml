@@ -1,0 +1,71 @@
+# ANONLIB shard-level recovery experiment configuration.
+# Kubernetes is external orchestration: each pod runs one local ANONLIB shard.
+
+processors:
+  - type: llm
+    server_args:
+      model_path: Qwen/Qwen3-4B
+      tp_size: 1
+      trust_remote_code: true
+      disable_custom_all_reduce: true
+      extra_engine_args:
+        max_running_requests: 512
+    default_sampling_params:
+      temperature: 0.0
+      max_new_tokens: 384
+      top_p: 1.0
+
+loading_params:
+  state_dir: ${ANONLIB_RECOVERY_STATE_DIR}
+  datasets:
+    - path: ${ANONLIB_RECOVERY_INPUT_JSONL}
+      type: JSONL
+      output_dir: ${ANONLIB_RECOVERY_OUTPUT_DIR}
+  num_shards: 16
+  shard_id: "$SLURM_ARRAY_TASK_ID"
+  batch_size: 128
+
+processing_params:
+  inputs:
+    - name: anonlib_id
+      key: anonlib_id
+    - name: order_index
+      key: order_index
+    - name: source_index
+      key: source_index
+    - name: source_dataset
+      key: source_dataset
+    - name: source_split
+      key: source_split
+    - name: source_revision
+      key: source_revision
+    - name: source_prompt
+      key: source_prompt
+    - name: prompt_text
+      key: prompt_text
+
+  outputs:
+    - name: generated_answer
+      type: llm
+      output_type: plain
+      prompt: "{{ prompt_text }}"
+
+  remove_columns: false
+  output_schema:
+    anonlib_id: "{{ anonlib_id }}"
+    order_index: "{{ order_index }}"
+    source_index: "{{ source_index }}"
+    source_dataset: "{{ source_dataset }}"
+    source_split: "{{ source_split }}"
+    source_revision: "{{ source_revision }}"
+    source_prompt: "{{ source_prompt }}"
+    prompt_text: "{{ prompt_text }}"
+    generated_answer: "{{ generated_answer }}"
+
+execution_params:
+  mode: local
+  retry: false
+  merge: false
+  max_retries: 3
+  poll_interval_seconds: 30
+  settle_time_seconds: 30
