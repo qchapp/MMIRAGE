@@ -33,7 +33,7 @@ Each worker is pinned with `CUDA_VISIBLE_DEVICES=<gpu_id>`, uses `tp_size: 1`, a
 
 ## Prerequisites
 
-- One terminal inside a pod or job with 4 visible H100 GPUs for the full run.
+- One terminal inside a pod or job with 4 visible H100 GPUs for the full run. The 1-GPU and 2-GPU commands use subsets of those visible devices.
 - Python environment with AnonLib GPU dependencies, SGLang, CUDA-compatible PyTorch, `datasets`, and `matplotlib`.
 - Hugging Face access to `HuggingFaceH4/ultrachat_200k` and `Qwen/Qwen3-4B` if they are not cached.
 - Enough local or shared storage for the workload, model cache, and result directories.
@@ -91,7 +91,7 @@ bash experiments/single_node_h100_scaling/scripts/run_2gpu.sh
 bash experiments/single_node_h100_scaling/scripts/run_4gpu.sh
 ```
 
-Each wrapper runs three repetitions by default. Do not interrupt between GPU points unless you intend to resume manually.
+Each wrapper runs three repetitions by default. Use a fresh `experiments/single_node_h100_scaling/results/` directory for a clean rerun, or pass `--overwrite` for the specific GPU point you want to replace.
 
 If you rerun a point and want to replace its existing repetition directories, pass `--overwrite`:
 
