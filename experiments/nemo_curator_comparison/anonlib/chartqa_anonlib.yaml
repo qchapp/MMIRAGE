@@ -1,0 +1,109 @@
+processors:
+  - type: custom_pre
+    script_path: experiments/nemo_curator_comparison/anonlib/chartqa_custom.py
+    function_name: normalize_query
+    max_workers: 4
+    start_method: spawn
+    timeout_ms: 5000
+    max_timeouts: 10
+    max_errors: 10
+    fallback_value:
+      normalized_query: ""
+
+  - type: llm
+    server_args:
+      model_path: ${ANONLIB_CHARTQA_MODEL_PATH}
+      tp_size: 1
+      trust_remote_code: true
+      disable_custom_all_reduce: true
+      extra_engine_args:
+        max_running_requests: ${ANONLIB_CHARTQA_MAX_RUNNING_REQUESTS}
+    chat_template: qwen2-vl
+    default_sampling_params:
+      temperature: 0.0
+      top_p: 1.0
+      max_tokens: ${ANONLIB_CHARTQA_MAX_TOKENS}
+
+  - type: custom_post
+    script_path: experiments/nemo_curator_comparison/anonlib/chartqa_custom.py
+    function_name: normalize_generated_answer
+    max_workers: 4
+    start_method: spawn
+    timeout_ms: 5000
+    max_timeouts: 10
+    max_errors: 10
+    fallback_value:
+      generated_answer_normalized: ""
+
+loading_params:
+  state_dir: ${ANONLIB_CHARTQA_STATE_DIR}
+  datasets:
+    - path: ${ANONLIB_CHARTQA_INPUT_JSONL}
+      type: JSONL
+      output_dir: ${ANONLIB_CHARTQA_OUTPUT_DIR}
+      image_base_path: ${ANONLIB_CHARTQA_IMAGE_BASE_PATH}
+  num_shards: 1
+  shard_id: 0
+  batch_size: ${ANONLIB_CHARTQA_BATCH_SIZE}
+
+processing_params:
+  inputs:
+    - name: id
+      key: id
+    - name: image
+      key: image_path
+      type: image
+    - name: image_ref
+      key: image_path
+    - name: query
+      key: query
+    - name: reference_answer
+      key: reference_answer
+    - name: source
+      key: source
+
+  outputs:
+    - name: normalized_query
+      type: custom_pre
+    - name: vlm_result
+      type: llm
+      output_type: JSON
+      output_schema:
+        answer: str
+        rationale: str
+      prompt: |
+        You are transforming ChartQA examples into training data.
+        Use the chart image and the question to answer concisely.
+
+        Question: {{ normalized_query.normalized_query }}
+
+        Return JSON only with two string fields:
+        - answer: the answer to the question
+        - rationale: one short sentence explaining the chart evidence
+    - name: generated_answer_normalized
+      type: custom_post
+
+  remove_columns: false
+  cast_images: false
+  output_schema:
+    id: "{{ id }}"
+    messages:
+      - role: user
+        content:
+          - type: image
+            image: "{{ image_ref }}"
+          - type: text
+            text: "{{ normalized_query.normalized_query }}"
+      - role: assistant
+        content: "{{ vlm_result.answer }}\n\nRationale: {{ vlm_result.rationale }}"
+    metadata:
+      reference_answer: "{{ reference_answer }}"
+      generated_answer_normalized: "{{ generated_answer_normalized.generated_answer_normalized }}"
+      source: "{{ source }}"
+
+execution_params:
+  mode: local
+  retry: false
+  merge: true
+  report_dir: ${ANONLIB_CHARTQA_REPORT_DIR}
+  hf_home: ${HF_HOME}
