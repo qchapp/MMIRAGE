@@ -1,3 +1,0 @@
-counted_files,declarative_loc,framework,glue_python_loc,pipeline_components,user_authored_files
-experiments/nemo_curator_comparison/configs/anonlib_chartqa.yaml;experiments/nemo_curator_comparison/scripts/run_anonlib_with_openai_vision_endpoint.py,81,anonlib,158,4,2
-experiments/nemo_curator_comparison/scripts/run_nemo_curator_pipeline.py;experiments/nemo_curator_comparison/configs/nemo_data_designer.yaml,45,nemo,180,5,2

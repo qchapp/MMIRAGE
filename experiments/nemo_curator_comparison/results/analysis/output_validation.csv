@@ -1,7 +1,0 @@
-answer_normalization_consistent_rows,duplicate_ids,framework,invalid_rows,missing_rows,query_normalization_consistent_rows,rep,row_order_correct,schema_valid_rows
-983,0,anonlib,0,0,168,1,True,1000
-983,0,anonlib,0,0,168,2,True,1000
-983,0,anonlib,0,0,168,3,True,1000
-967,0,nemo,0,0,294,1,True,1000
-968,0,nemo,0,0,295,2,True,1000
-965,0,nemo,0,0,301,3,True,1000

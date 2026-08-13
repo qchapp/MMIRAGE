@@ -37,16 +37,16 @@ framework machinery on both frameworks. This closes the fairness gap that motiva
 
 ## Recipe changes (relative to the committed original recipe)
 ### AnonLib
-- anonlib/chartqa_anonlib.yaml: replace the custom_pre/custom_post blocks with two native
-  `custom` processor blocks pointing at anonlib/chartqa_custom.py (function_name
+- configs/anonlib_chartqa.yaml: replace the custom_pre/custom_post blocks with two native
+  `custom` processor blocks pointing at a user function module (function_name
   normalize_query / normalize_generated_answer); keep the llm block and the output_schema
   references {{ normalized_query.normalized_query }} and
   {{ generated_answer_normalized.generated_answer_normalized }}.
-- anonlib/run_anonlib_with_openai_vision_endpoint.py: delete the CustomProcessor stack and
+- scripts/run_anonlib_with_openai_vision_endpoint.py: delete the CustomProcessor stack and
   the custom_pre/custom_post registrations (now shipped in core); keep EndpointEngine and
   main().
 ### NeMo
-- unchanged: chartqa_pipeline.py's CustomColumnConfig usage is already the native mechanism.
+- unchanged: the NeMo runner's CustomColumnConfig usage is already the native mechanism.
 
 ## Expected footprint (apples-to-apples)
 - AnonLib declarative: ~100 -> ~130 (two custom processor config blocks)
@@ -54,10 +54,10 @@ framework machinery on both frameworks. This closes the fairness gap that motiva
 - NeMo: unchanged (~42 declarative / ~208 glue)
 
 ## Method (same as the committed experiment)
-- Same pinned 1000-row workload (prepare_chartqa.py, seed 20260813, pinned ChartQA revision).
+- Same pinned 1000-row workload (scripts/prepare_workload.py, seed 20260813, pinned ChartQA revision).
 - Balanced 3-rep order anonlib,nemo,nemo,anonlib,anonlib,nemo; shared SGLang
   Qwen/Qwen2.5-VL-7B-Instruct endpoint; max_tokens 128; concurrency 64; batch 64.
-- run_comparison.py --overwrite; analyze_results.py; regenerate latex_table.tex.
+- scripts/run_comparison.py --overwrite; scripts/analyze_results.py; regenerate latex_table.tex.
 - Expect runtime parity with the committed original run (custom pool adds negligible wall time).
 
 ## Success criteria
@@ -75,6 +75,6 @@ framework machinery on both frameworks. This closes the fairness gap that motiva
 ## Execution steps (when authorized)
 1. Branch experiment/nemo-curator-comparison-pr52 off updated main.
 2. Apply recipe edits; pin mmirage commit in VERSIONS.md; reinstall venv.
-3. Smoke-test with the mock server (inference/mock_openai_vlm_server.py).
-4. Full balanced 3-rep run + analyze + regenerate latex_table.tex; commit evidence.
-5. Update README.md, notes/writeup_nemo.md, and the paper.
+3. Smoke-test with scripts/mock_openai_vlm_server.py.
+4. Full balanced 3-rep run + analyze + regenerate latex_table.tex locally.
+5. Archive generated evidence outside git and update the paper separately.

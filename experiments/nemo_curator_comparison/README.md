@@ -19,7 +19,7 @@ Primary metrics:
 - `declarative_loc` and `glue_python_loc`: nonblank, noncomment lines in the counted framework-specific files.
 - `setup_seconds`: warm-cache fresh-venv install time measured with `uv`.
 
-This is not a ChartQA accuracy evaluation, a VLM quality evaluation, a multi-GPU scaling experiment, or a claim that LLM prompting is a reliable substitute for deterministic preprocessing. The LLM-only recipe is structurally matched but not mechanically equivalent to deterministic normalization.
+This is not a ChartQA accuracy evaluation, a VLM quality evaluation, a multi-GPU scaling experiment, or a claim that LLM prompting is a reliable substitute for deterministic preprocessing. The consistency metrics test whether the structurally matched LLM-only recipe is mechanically equivalent to deterministic normalization; do not assume that equivalence in advance.
 
 ## Files
 
@@ -27,7 +27,7 @@ This is not a ChartQA accuracy evaluation, a VLM quality evaluation, a multi-GPU
 |---|---|
 | `configs/anonlib_chartqa.yaml` | AnonLib ChartQA transformation recipe. |
 | `configs/nemo_data_designer.yaml` | Inspectable Data Designer column graph equivalent to the NeMo runner. |
-| `configs/sglang_server.json` | Recorded shared-server settings to reproduce. |
+| `configs/sglang_server.json` | Shared-server settings to reproduce. |
 | `scripts/prepare_workload.py` | Downloads the pinned ChartQA subset, image assets, manifest, and checksums. |
 | `scripts/run_comparison.py` | Balanced repetition runner for AnonLib and NeMo. |
 | `scripts/run_anonlib_with_openai_vision_endpoint.py` | Benchmark adapter that forwards AnonLib SGLang calls to an external OpenAI-compatible VLM endpoint without changing `src/`. |
@@ -37,9 +37,9 @@ This is not a ChartQA accuracy evaluation, a VLM quality evaluation, a multi-GPU
 | `scripts/launch_sglang_server.sh` | Shared SGLang server launcher. |
 | `scripts/mock_openai_vlm_server.py` | Tiny OpenAI-compatible mock for schema and command smoke checks. |
 | `environment/` | Isolated dependency pins for AnonLib and NeMo/Data Designer. |
-| `results/analysis/` | Committed condensed evidence from the recorded run. |
-| `setup_times/` | Committed setup-time measurements used by analysis. |
-| `notes/` | Executed-plan notes, follow-up plan, and paper handoff notes. |
+| `results/` | Generated run outputs and analysis; ignored by git. |
+| `setup_times/` | Generated setup-time measurements; ignored by git. |
+| `notes/` | Experiment protocol and follow-up plan. |
 | `VERSIONS.md` | Version pins and interpretation guardrails. |
 
 ## Prerequisites
@@ -333,7 +333,7 @@ experiments/nemo_curator_comparison/
     nemo.json
 ```
 
-The condensed analysis under `results/analysis/` is committed as experiment evidence. The workload and raw per-repetition outputs are regenerated and kept local.
+The workload, setup timings, per-repetition outputs, and condensed analysis are regenerated and kept outside git.
 
 ## Common Failures
 
@@ -343,8 +343,8 @@ The condensed analysis under `results/analysis/` is committed as experiment evid
 | AnonLib smoke downloads model files | The adapter still loads tokenizer/chat-template metadata. | Use a reachable Hugging Face model ID; it should not load model weights. |
 | Client cannot reach the endpoint | `--base-url` or port does not match the mock/SGLang server. | Check `/v1/models`, server logs, and the `CHARTQA_SGLANG_PORT` value. |
 | A rerun refuses to start | Existing `results/<framework>_rep<N>/` directory is present. | Use a fresh output root or pass `--overwrite` intentionally. |
-| NeMo drops rows at `max_tokens=128` | Prompted fenced JSON can be truncated before all required fields. | Use the recorded final setting `--max-tokens 256`. |
-| Analysis reports low normalization consistency | LLM-generated normalization changed wording, case, punctuation, symbols, or number forms. | Report it as the measured negative result; do not claim deterministic equivalence. |
+| NeMo drops rows with a small token budget | Prompted fenced JSON can be truncated before all required fields. | Use the configured `--max-tokens 256` or inspect the generation failures before increasing it further. |
+| Analysis reports low normalization consistency | LLM-generated normalization may change wording, case, punctuation, symbols, or number forms. | Report the consistency metric; do not assume deterministic equivalence. |
 | Token throughput is `N/A` for NeMo | Data Designer does not expose equivalent token accounting in this harness. | Compare rows/s and end-to-end time as primary framework metrics. |
 
 ## Reproducibility Metadata
@@ -371,7 +371,6 @@ Use these generated files for paper artifacts:
 | Output validity and normalization consistency | `results/analysis/output_validation.csv` |
 | Implementation footprint table | `results/analysis/implementation_footprint.csv` |
 | Paper table fragment | `results/analysis/latex_table.tex` |
-| Paper handoff notes | `notes/writeup_nemo.md` |
 | Follow-up custom-processor plan | `notes/experiment_plan_pr52_custom_processor.md` |
 
 Fill in the final paper figure or table number here after manuscript numbering is fixed.
@@ -390,17 +389,6 @@ python3 -m zipfile -c nemo_curator_comparison_results_full.zip \
 ```
 
 The first bundle is enough for paper tables. The second also carries full raw run artifacts.
-
-## Recorded Reference Results
-
-The final matched run used `Qwen/Qwen2.5-VL-7B-Instruct`, 1,000 ChartQA rows, `max_tokens=256`, concurrency 64, and three balanced repetitions per framework on one H100-80GB.
-
-| Framework | Valid rows | End-to-end wall (s) | Rows/s | Output tok/s/GPU | Setup (s) | Declarative LOC | Glue Python LOC |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| AnonLib | 1000/1000 | 142.66 +/- 0.56 | 7.01 +/- 0.03 | 564.99 +/- 2.39 | 120.82 | 81 | 158 |
-| NeMo Curator + Data Designer | 1000/1000 | 153.94 +/- 0.26 | 6.50 +/- 0.01 | N/A | 34.62 | 45 | 180 |
-
-Exact LLM-produced normalization was imperfect. Query whitespace-normalization matched for `168/1000` AnonLib rows and `296.67 +/- 3.79/1000` NeMo rows. Lowercase answer normalization matched for `983/1000` AnonLib rows and `966.67 +/- 1.53/1000` NeMo rows. Treat those as measured semantic-consistency outcomes, not deterministic preprocessing.
 
 ## Interpretation Boundary
 

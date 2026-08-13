@@ -1,6 +1,6 @@
 EXPERIMENT PLAN (Plan A) — LLM-only variant of the AnonLib vs NeMo Curator/Data Designer comparison
 ==================================================================================================
-Status: EXECUTED on branch experiment/nemo-curator-comparison-llm-only (2026-08-13).
+Status: IMPLEMENTED PROTOCOL. Run the scripts in this experiment directory to generate results.
 
 ## Goal
 Make the current comparison rely only on LLM-based refactoring of datasets, so that both
@@ -20,15 +20,14 @@ examples rather than authored line-by-line: with both configs shrunk to near-ide
 declarative specs, LOC stops being a differentiator, reinforcing that runtime, validity, and
 setup are the real comparison dimensions.
 
-## Current recipe (what gets removed)
-- AnonLib: anonlib/chartqa_anonlib.yaml — the custom_pre (normalize_query) and custom_post
+## Recipe change
+- AnonLib config: configs/anonlib_chartqa.yaml — remove the custom_pre (normalize_query) and custom_post
   (normalize_generated_answer) processors plus their outputs and fallback blocks.
-- AnonLib: the CustomProcessor stack inside anonlib/run_anonlib_with_openai_vision_endpoint.py
+- AnonLib runner: scripts/run_anonlib_with_openai_vision_endpoint.py — remove the CustomProcessor stack
   (CustomProcessorConfig/CustomOutputVar/CustomPre/CustomPost classes, CustomProcessor class,
   and the custom_pre/custom_post registrations in patch_sglang_engine()).
-- NeMo: nemo_curator/chartqa_pipeline.py — the two CustomColumnConfig columns
+- NeMo runner: scripts/run_nemo_curator_pipeline.py — remove the two CustomColumnConfig columns
   (generator_function=normalize_query / normalize_generated_answer).
-- Both: delete anonlib/chartqa_custom.py and nemo_curator/chartqa_custom.py.
 
 ## New recipe (what the LLM produces)
 One structured LLM call per row returns four string fields:
@@ -37,12 +36,12 @@ One structured LLM call per row returns four string fields:
 - normalized_query: the question, whitespace-normalized (LLM-performed)
 - generated_answer_normalized: the answer, lowercased and whitespace-normalized (LLM-performed)
 
-This keeps the exact nested training-data output schema, so analyze_results.py validity checks
+This keeps the exact nested training-data output schema, so scripts/analyze_results.py validity checks
 are unchanged (metadata.{reference_answer, generated_answer_normalized, source};
 messages[0].content = image + text).
 
 ### AnonLib changes
-1. anonlib/chartqa_anonlib.yaml:
+1. configs/anonlib_chartqa.yaml:
    - remove the custom_pre and custom_post processor blocks (and their fallback blocks)
    - llm output: output_schema -> answer, rationale, normalized_query,
      generated_answer_normalized (all str)
@@ -51,47 +50,35 @@ messages[0].content = image + text).
    - processing_params.outputs: keep only vlm_result (type llm, output_type JSON)
    - output_schema: user text = {{ vlm_result.normalized_query }};
      metadata.generated_answer_normalized = {{ vlm_result.generated_answer_normalized }}
-2. anonlib/run_anonlib_with_openai_vision_endpoint.py:
+2. scripts/run_anonlib_with_openai_vision_endpoint.py:
    - delete CustomProcessorConfig, CustomOutputVar, CustomPreProcessorConfig,
      CustomPostProcessorConfig, CustomPreOutputVar, CustomPostOutputVar, CustomProcessor,
      and the custom_pre/custom_post registrations in patch_sglang_engine()
    - keep EndpointEngine (incl. json_schema/response_format handling) + patch_sglang_engine
      (llm-only) + main()
-3. delete anonlib/chartqa_custom.py
+3. do not include a separate deterministic normalization module
 
 ### NeMo changes
-1. nemo_curator/chartqa_pipeline.py:
+1. scripts/run_nemo_curator_pipeline.py:
    - VLMResult: add normalized_query and generated_answer_normalized (all str)
    - build_config: remove the two CustomColumnConfig entries; vlm_result prompt uses raw
      "{{ query }}"
    - RenderNestedChartQAStage: read the four fields from row["vlm_result"]; drop the
      normalized_query / generated_answer_normalized DataFrame columns from the required set
-2. nemo_curator/data_designer_config.yaml: drop the two custom columns; output_format gains
+2. configs/nemo_data_designer.yaml: omit the two custom columns; output_format gains
    the two fields
-3. delete nemo_curator/chartqa_custom.py
+3. do not include a separate deterministic normalization module
 
-## Observed impact (final 3-repetition run)
-- AnonLib footprint: 81 declarative LOC, 158 glue Python LOC, 2 counted files.
-- NeMo footprint: 45 declarative LOC, 180 glue Python LOC, 2 counted files.
-- Both frameworks materialized 1000/1000 schema-valid rows in every repetition.
-- AnonLib: 142.66 +/- 0.56 s end-to-end, 7.01 +/- 0.03 rows/s.
-- NeMo: 153.94 +/- 0.26 s end-to-end, 6.50 +/- 0.01 rows/s.
-- The final run used max_tokens=256. At 128 tokens, NeMo dropped 13-17 rows per
-  repetition because its prompt-instructed JSON was truncated before all required fields.
+## Analysis checks
+`scripts/analyze_results.py` reports, rather than asserts, exact mechanical normalization:
+- whether query text equals the whitespace-collapsed source query;
+- whether generated_answer_normalized equals the lowercase, whitespace-collapsed answer.
 
-## Consistency check and result
-`analyze_results.py` now reports, rather than asserts, exact mechanical normalization:
-- query text equals whitespace-collapsed source query: AnonLib 168/1000 in every rep;
-  NeMo 296.67 +/- 3.79/1000.
-- generated_answer_normalized equals lowercase + whitespace-collapsed answer: AnonLib
-  983/1000 in every rep; NeMo 966.67 +/- 1.53/1000.
+These metrics test whether the prompted LLM behavior matches deterministic normalization.
+Do not claim behavioral equivalence unless the generated evidence supports it.
 
-The LLM frequently paraphrases or changes case/punctuation despite explicit instructions.
-Therefore the LLM-only recipe is structurally equivalent but is NOT behaviorally equivalent
-to deterministic normalization. This limitation must be reported with the benchmark.
-
-## Executed command
-The final balanced run used:
+## Reproduction command
+Use the balanced run:
    --order anonlib,nemo,nemo,anonlib,anonlib,nemo --repetitions 3 --overwrite
    --output-root experiments/nemo_curator_comparison/results
    --model Qwen/Qwen2.5-VL-7B-Instruct --base-url http://127.0.0.1:30000/v1
