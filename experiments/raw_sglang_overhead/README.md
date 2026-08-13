@@ -13,6 +13,16 @@ The runner compares two paths:
 
 The reported metrics are based on every repetition. The scripts do not select the best run.
 
+Primary metrics:
+
+- `output_tokens_per_second_per_gpu`: measured output-token throughput for each path.
+- `rows_per_second`: completed prompt rows per second.
+- `throughput_retention`: mean AnonLib throughput divided by mean raw SGLang throughput.
+- `relative_orchestration_overhead`: `1 - throughput_retention`.
+- `generation_wall_seconds`: measured generation time, excluding model startup.
+
+This experiment does not measure image build time, dependency installation, dataset preparation, model download time, or cold cluster scheduling. Each measured path gets a fresh SGLang server per repetition, so model-load time is recorded separately and is not part of the throughput-retention numerator.
+
 ## Files
 
 | Path | Purpose |
@@ -120,10 +130,70 @@ The output directory contains:
 | `rep_*/raw_sglang/` | Raw-client outputs and SGLang logs. |
 | `rep_*/anonlib_sglang/` | AnonLib outputs, state, stats, and SGLang logs. |
 
+Expected tree after the full command with three repetitions:
+
+```text
+/tmp/anonlib_overhead_results/
+  experiment_metadata.json
+  raw_results.csv
+  summary.csv
+  summary.json
+  table.tex
+  plot_throughput.py
+  rep_1/
+    raw_sglang/
+      outputs.jsonl
+      summary.json
+      sglang_server.log
+      warmup/
+    anonlib_sglang/
+      output/
+      state/
+      wrapper_summary.json
+      sglang_server.log
+      warmup/
+  rep_2/
+  rep_3/
+```
+
 Key definitions:
 
 - `throughput retention = mean(AnonLib tok/s) / mean(raw SGLang tok/s)`
 - `relative orchestration overhead = 1 - throughput retention`
+
+## Common Failures
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| SGLang never becomes ready | Model download is slow, model path is unavailable, or GPU memory is insufficient. | Check `rep_*/<path>/sglang_server.log`, verify Hugging Face access, and rerun on a GPU with enough memory. |
+| Port bind error | Another process is using `--port 30000`. | Rerun with a free `--port` value. |
+| `output_dir` contains mixed old and new files | A previous run used the same directory. | Use a fresh `--output-dir` for full runs. |
+| Raw and AnonLib success counts differ | One path failed rows or timed out. | Inspect `raw_results.csv`, `rep_*/raw_sglang/summary.json`, and `rep_*/anonlib_sglang/state/shard_0/status.json`. |
+| Throughput is far below the recorded reference | Wrong GPU, missing `flashinfer` backend on H100, or noisy shared node. | Record `experiment_metadata.json`, check `nvidia-smi`, and use the H100 command if reproducing H100 numbers. |
+
+## Reproducibility Metadata
+
+Keep these with any reported result:
+
+- Git commit from `experiment_metadata.json` field `anonlib_commit`.
+- SGLang version from `experiment_metadata.json` field `sglang_version`.
+- GPU names, CUDA version, and driver from `experiment_metadata.json` field `gpu_cuda_driver`.
+- Exact server command from `experiment_metadata.json` field `server_arguments`.
+- Workload metadata and model/dataset revisions from `experiment_metadata.json`.
+- Output directory checksum or archived copy containing `raw_results.csv`, `summary.json`, and all `rep_*/` logs.
+
+## Paper Artifact Mapping
+
+Use these generated files for paper artifacts:
+
+| Paper artifact | Source file |
+|---|---|
+| Raw per-repetition data | `raw_results.csv` |
+| Aggregate numbers and overhead | `summary.json` and `summary.csv` |
+| Paper table fragment | `table.tex` |
+| Optional throughput plot | Run `python plot_throughput.py` inside the output directory to create `throughput_boxplot.png`. |
+
+Fill in the final paper figure or table number here after manuscript numbering is fixed.
 
 ## Recorded Reference Results
 
