@@ -415,6 +415,7 @@ archive.
 | Raw SGLang overhead | One CUDA GPU for `Qwen/Qwen3-4B`; H100 command documented separately. | `python experiments/raw_sglang_overhead/scripts/run.py --workload-dir experiments/raw_sglang_overhead/workload --output-dir /tmp/anonlib_overhead_dry_run --repetitions 1 --dry-run` | [`experiments/raw_sglang_overhead/README.md`](experiments/raw_sglang_overhead/README.md) |
 | Shard recovery | Kubernetes or Run:ai namespace, H100 access, `kubectl`, and a shared ReadWriteMany PVC. | Prepare workload and use `run_k8s.py status` after runs; there is no no-op Kubernetes dry-run. | [`experiments/shard_recovery/README.md`](experiments/shard_recovery/README.md) |
 | Single-node H100 scaling | One node or pod with four visible H100 GPUs. | `bash experiments/single_node_h100_scaling/scripts/run_4gpu.sh --dry-run` | [`experiments/single_node_h100_scaling/README.md`](experiments/single_node_h100_scaling/README.md) |
+| AnonLib vs NeMo Curator comparison | One H100-80GB for the full shared-SGLang ChartQA run, plus isolated AnonLib and NeMo Python environments. | Mock OpenAI-compatible VLM server and small ChartQA smoke workload documented in the runbook. | [`experiments/nemo_curator_comparison/README.md`](experiments/nemo_curator_comparison/README.md) |
 
 Use fresh output directories for reruns unless the experiment README explicitly
 tells you to pass `--overwrite`. Generated experiment outputs are intentionally
@@ -427,11 +428,13 @@ pods, or GPU benchmarks, run:
 python -m py_compile experiments/_shared/*.py \
   experiments/raw_sglang_overhead/scripts/*.py \
   experiments/shard_recovery/scripts/*.py \
-  experiments/single_node_h100_scaling/scripts/*.py
+  experiments/single_node_h100_scaling/scripts/*.py \
+  experiments/nemo_curator_comparison/scripts/*.py
 
 bash -n experiments/single_node_h100_scaling/scripts/run_1gpu.sh
 bash -n experiments/single_node_h100_scaling/scripts/run_2gpu.sh
 bash -n experiments/single_node_h100_scaling/scripts/run_4gpu.sh
+bash -n experiments/nemo_curator_comparison/scripts/launch_sglang_server.sh
 ```
 
 For the global experiment layout policy, see
