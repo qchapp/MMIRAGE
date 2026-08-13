@@ -19,7 +19,6 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import data_designer.config as dd
-from data_designer.config.column_configs import GenerationStrategy
 from nemo_curator.backends.xenna import XennaExecutor
 from nemo_curator.pipeline import Pipeline
 from nemo_curator.stages.base import ProcessingStage
@@ -29,11 +28,10 @@ from nemo_curator.stages.text.io.writer.jsonl import JsonlWriter
 from nemo_curator.tasks import DocumentBatch
 from pydantic import BaseModel
 
-from chartqa_custom import normalize_generated_answer, normalize_query
-
-
 class VLMResult(BaseModel):
     answer: str
+    normalized_query: str
+    generated_answer_normalized: str
     rationale: str
 
 
@@ -74,7 +72,7 @@ class RenderNestedChartQAStage(ProcessingStage[DocumentBatch, DocumentBatch]):
 
     def process(self, batch: DocumentBatch) -> DocumentBatch:
         df = batch.to_pandas()
-        required = {"id", "image_ref", "normalized_query", "vlm_result", "reference_answer", "generated_answer_normalized", "source"}
+        required = {"id", "image_ref", "vlm_result", "reference_answer", "source"}
         missing = required - set(df.columns)
         if missing:
             raise ValueError(f"Missing columns for nested ChartQA render: {sorted(missing)}")
@@ -86,6 +84,8 @@ class RenderNestedChartQAStage(ProcessingStage[DocumentBatch, DocumentBatch]):
                     vlm_result = json.loads(vlm_result)
                 except json.JSONDecodeError:
                     vlm_result = {"answer": vlm_result, "rationale": ""}
+            normalized_query = vlm_result.get("normalized_query", "")
+            generated_answer_normalized = vlm_result.get("generated_answer_normalized", "")
             rows.append(
                 {
                     "id": row["id"],
@@ -94,7 +94,7 @@ class RenderNestedChartQAStage(ProcessingStage[DocumentBatch, DocumentBatch]):
                             "role": "user",
                             "content": [
                                 {"type": "image", "image": row["image_ref"]},
-                                {"type": "text", "text": row["normalized_query"]},
+                                {"type": "text", "text": normalized_query},
                             ],
                         },
                         {
@@ -104,7 +104,7 @@ class RenderNestedChartQAStage(ProcessingStage[DocumentBatch, DocumentBatch]):
                     ],
                     "metadata": {
                         "reference_answer": row["reference_answer"],
-                        "generated_answer_normalized": row["generated_answer_normalized"],
+                        "generated_answer_normalized": generated_answer_normalized,
                         "source": row.get("source", "ChartQA"),
                     },
                 }
@@ -125,7 +125,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model-alias", default="chartqa_vlm")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--top-p", type=float, default=1.0)
-    parser.add_argument("--max-tokens", type=int, default=128)
+    parser.add_argument("--max-tokens", type=int, default=256)
     parser.add_argument("--max-parallel-requests", type=int, default=64)
     parser.add_argument("--files-per-partition", type=int, default=1)
     parser.add_argument("--dry-run-validate", action="store_true")
@@ -153,31 +153,27 @@ def build_config(args: argparse.Namespace) -> tuple[dd.DataDesignerConfigBuilder
     )
     builder = dd.DataDesignerConfigBuilder(model_configs=[model])
     builder.add_column(
-        dd.CustomColumnConfig(
-            name="normalized_query",
-            generator_function=normalize_query,
-            generation_strategy=GenerationStrategy.CELL_BY_CELL,
-        )
-    )
-    builder.add_column(
         dd.LLMStructuredColumnConfig(
             name="vlm_result",
             model_alias=args.model_alias,
             prompt=(
                 "You are transforming ChartQA examples into training data. "
                 "Use the chart image and the question to answer concisely.\n\n"
-                "Question: {{ normalized_query }}\n\n"
-                "Return JSON only with two string fields: answer and rationale."
+                "Question: {{ query }}\n\n"
+                "Return JSON only with these four string fields, in this order:\n"
+                "- answer: the answer to the question.\n"
+                "- normalized_query: copy Question exactly, changing only leading/trailing "
+                "whitespace and runs of whitespace. Do not rephrase, lowercase, correct "
+                "spelling, or change punctuation.\n"
+                "- generated_answer_normalized: copy answer exactly, then lowercase it and "
+                "collapse/trim whitespace. Do not remove or change punctuation, symbols, "
+                "units, or number forms.\n"
+                "- rationale: at most 20 words explaining the chart evidence.\n\n"
+                "Before returning, verify that the two normalized fields obey those exact "
+                "mechanical rules."
             ),
             output_format=VLMResult,
             multi_modal_context=[dd.ImageContext(column_name="image_path")],
-        )
-    )
-    builder.add_column(
-        dd.CustomColumnConfig(
-            name="generated_answer_normalized",
-            generator_function=normalize_generated_answer,
-            generation_strategy=GenerationStrategy.CELL_BY_CELL,
         )
     )
     return builder, [provider]

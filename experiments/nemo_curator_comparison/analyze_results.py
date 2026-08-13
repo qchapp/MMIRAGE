@@ -14,12 +14,10 @@ from typing import Any
 FRAMEWORK_FILES = {
     "anonlib": [
         "experiments/nemo_curator_comparison/anonlib/chartqa_anonlib.yaml",
-        "experiments/nemo_curator_comparison/anonlib/chartqa_custom.py",
         "experiments/nemo_curator_comparison/anonlib/run_anonlib_with_openai_vision_endpoint.py",
     ],
     "nemo": [
         "experiments/nemo_curator_comparison/nemo_curator/chartqa_pipeline.py",
-        "experiments/nemo_curator_comparison/nemo_curator/chartqa_custom.py",
         "experiments/nemo_curator_comparison/nemo_curator/data_designer_config.yaml",
     ],
 }
@@ -94,6 +92,29 @@ def validate_row(row: dict[str, Any]) -> bool:
         return False
 
 
+def collapse_whitespace(value: Any) -> str:
+    return " ".join(str(value).split())
+
+
+def message_text(content: Any) -> str:
+    if isinstance(content, list):
+        return "".join(
+            str(block.get("text", ""))
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        )
+    return str(content)
+
+
+def normalization_checks(row: dict[str, Any], expected_row: dict[str, Any]) -> tuple[bool, bool]:
+    messages = row["messages"]
+    user_text = message_text(messages[0]["content"])
+    answer = message_text(messages[1]["content"]).split("\n\nRationale:", 1)[0]
+    query_ok = user_text == collapse_whitespace(expected_row["query"])
+    answer_ok = row["metadata"]["generated_answer_normalized"] == collapse_whitespace(answer).lower()
+    return query_ok, answer_ok
+
+
 def sample_stdev(values: list[float]) -> float:
     return statistics.stdev(values) if len(values) >= 2 else 0.0
 
@@ -105,7 +126,7 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         return
     fieldnames = sorted({key for row in rows for key in row})
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -115,6 +136,8 @@ def summarize(raw_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         "total_rows",
         "successfully_materialized_rows",
         "schema_valid_rows",
+        "query_normalization_consistent_rows",
+        "answer_normalization_consistent_rows",
         "total_generated_tokens",
         "generation_wall_seconds",
         "full_end_to_end_wall_seconds",
@@ -220,6 +243,7 @@ def load_setup_times(setup_times_dir: Path) -> dict[str, float]:
 def collect(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     expected_rows = jsonl_rows(Path(args.expected_input_jsonl))
     expected_ids = [row["id"] for row in expected_rows]
+    expected_by_id = {row["id"]: row for row in expected_rows}
     setup_times = load_setup_times(Path(args.setup_times_dir))
     raw_rows: list[dict[str, Any]] = []
     validation_rows: list[dict[str, Any]] = []
@@ -231,6 +255,15 @@ def collect(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict[s
         rows = find_output_rows(run_dir)
         ids = [row.get("id") for row in rows]
         valid_rows = sum(1 for row in rows if validate_row(row))
+        query_normalization_consistent = 0
+        answer_normalization_consistent = 0
+        for row in rows:
+            expected_row = expected_by_id.get(row.get("id"))
+            if expected_row is None or not validate_row(row):
+                continue
+            query_ok, answer_ok = normalization_checks(row, expected_row)
+            query_normalization_consistent += int(query_ok)
+            answer_normalization_consistent += int(answer_ok)
         missing = len(set(expected_ids) - set(ids))
         duplicates = len(ids) - len(set(ids))
         order_correct = ids == expected_ids[: len(ids)]
@@ -252,6 +285,8 @@ def collect(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict[s
                 "missing_rows": missing,
                 "duplicate_ids": duplicates,
                 "schema_valid_rows": valid_rows,
+                "query_normalization_consistent_rows": query_normalization_consistent,
+                "answer_normalization_consistent_rows": answer_normalization_consistent,
                 "row_order_correct": order_correct,
                 "total_generated_tokens": tokens,
                 "generation_wall_seconds": generation_wall,
@@ -269,6 +304,8 @@ def collect(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict[s
                 "framework": framework,
                 "rep": rep,
                 "schema_valid_rows": valid_rows,
+                "query_normalization_consistent_rows": query_normalization_consistent,
+                "answer_normalization_consistent_rows": answer_normalization_consistent,
                 "invalid_rows": len(rows) - valid_rows,
                 "missing_rows": missing,
                 "duplicate_ids": duplicates,

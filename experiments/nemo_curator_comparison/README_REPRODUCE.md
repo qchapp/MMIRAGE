@@ -1,6 +1,6 @@
 # Reproduce The ChartQA AnonLib vs NeMo Curator Comparison
 
-This folder defines a controlled comparison for an end-to-end multimodal ChartQA transformation. It does not launch the full H100 benchmark automatically.
+This folder defines and records a controlled LLM-only comparison for an end-to-end multimodal ChartQA transformation. It does not launch the full H100 benchmark automatically.
 
 ## Scientific Scope
 
@@ -14,13 +14,12 @@ The current NeMo inspection found one important mismatch: NeMo Curator `v1.3.0` 
 
 - `prepare_chartqa.py`: downloads the pinned ChartQA subset, writes JSONL, image assets, manifest, and checksums.
 - `anonlib/chartqa_anonlib.yaml`: AnonLib transformation recipe.
-- `anonlib/chartqa_custom.py`: deterministic query and generated-answer normalization.
 - `anonlib/run_anonlib_with_openai_vision_endpoint.py`: benchmark-only adapter that forwards AnonLib SGLang calls to an external OpenAI-compatible VLM endpoint without modifying `src/`. Counted in the implementation footprint as AnonLib runner/glue.
 - `nemo_curator/chartqa_pipeline.py`: idiomatic Curator pipeline using `JsonlReader`, `DataDesignerStage`, a minimal render stage, and `JsonlWriter`.
-- `nemo_curator/data_designer_config.yaml`: inspectable Data Designer column graph. Python is still required for callable custom columns and Curator nested rendering.
+- `nemo_curator/data_designer_config.yaml`: inspectable LLM-only Data Designer column graph. Python is still required for Curator image-path resolution and nested rendering.
 - `inference/launch_sglang_server.sh`: shared SGLang server launcher.
 - `run_comparison.py`: balanced 3-repetition runner.
-- `analyze_results.py`: output validation, summaries, footprint counting (each framework's runner script, custom functions, and declarative config), setup-time reporting, and LaTeX table generation.
+- `analyze_results.py`: output validation, mechanical-normalization checks, summaries, footprint counting, setup-time reporting, and LaTeX table generation.
 - `measure_setup.py`: times a fresh environment creation + dependency install per framework and records it for `analyze_results.py`.
 
 Root wrappers are also available under `scripts/`.
@@ -148,7 +147,7 @@ python3 experiments/nemo_curator_comparison/run_comparison.py \
   --base-url http://127.0.0.1:30080/v1 \
   --batch-size 4 \
   --concurrency 4 \
-  --max-tokens 32
+  --max-tokens 256
 deactivate
 ```
 
@@ -166,7 +165,7 @@ python3 experiments/nemo_curator_comparison/run_comparison.py \
   --base-url http://127.0.0.1:30080/v1 \
   --batch-size 4 \
   --concurrency 4 \
-  --max-tokens 32
+  --max-tokens 256
 deactivate
 ```
 
@@ -222,7 +221,7 @@ python3 scripts/run_nemo_curator_comparison.py \
   --base-url http://127.0.0.1:30000/v1 \
   --batch-size 64 \
   --concurrency 64 \
-  --max-tokens 128 \
+  --max-tokens 256 \
   --anonlib-python .venv-anonlib/bin/python \
   --nemo-python .venv-nemo/bin/python
 ```
@@ -274,9 +273,11 @@ python3 -m zipfile -c nemo_curator_comparison_results_full.zip \
 The first bundle (analysis + provenance, a few KB) is enough for paper tables;
 the second also carries the full raw run artifacts.
 
-## Expected Runtime Estimate
+## Recorded Result
 
-With `Qwen/Qwen2.5-VL-7B-Instruct`, 1,000 ChartQA rows, `max_tokens=128`, and concurrency 64 on one H100-80GB, a recorded run measured ~70–90 s end-to-end per AnonLib repetition (3×~48K output tokens, ~550–1085 tok/s/GPU) and ~107–146 s end-to-end per NeMo Curator/Data Designer repetition. The exact numbers depend on SGLang multimodal batching, image preprocessing, response-format support, and whether Data Designer retries or throttles requests. Run the 8-row smoke test first, then a 32 or 128 row pilot if the 1,000-row benchmark appears too short or too long.
+With `Qwen/Qwen2.5-VL-7B-Instruct`, 1,000 ChartQA rows, `max_tokens=256`, and concurrency 64 on one H100-80GB, all six runs materialized 1000/1000 schema-valid rows. AnonLib measured 142.66 +/- 0.56 s (7.01 +/- 0.03 rows/s); NeMo Curator/Data Designer measured 153.94 +/- 0.26 s (6.50 +/- 0.01 rows/s). AnonLib reported 564.99 +/- 2.39 output tok/s/GPU; Data Designer does not expose equivalent token accounting.
+
+The LLM-only normalization is not mechanically reliable despite explicit prompting. Exact query whitespace-normalization held for 168/1000 AnonLib rows and 296.67 +/- 3.79/1000 NeMo rows; exact lowercased answer normalization held for 983/1000 and 966.67 +/- 1.53/1000, respectively. Treat these as measured semantic-consistency outcomes, not deterministic preprocessing. At `max_tokens=128`, NeMo also dropped 13-17 rows per repetition because its prompted fenced JSON was truncated; the recorded final run therefore uses 256 for both frameworks.
 
 ## Main Table Policy
 

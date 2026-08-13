@@ -1,6 +1,6 @@
 EXPERIMENT PLAN (Plan A) — LLM-only variant of the AnonLib vs NeMo Curator/Data Designer comparison
 ==================================================================================================
-Status: DOCUMENTED ONLY — not yet executed. Refer back to this file to run it later.
+Status: EXECUTED on branch experiment/nemo-curator-comparison-llm-only (2026-08-13).
 
 ## Goal
 Make the current comparison rely only on LLM-based refactoring of datasets, so that both
@@ -70,27 +70,35 @@ messages[0].content = image + text).
    the two fields
 3. delete nemo_curator/chartqa_custom.py
 
-## Expected impact
-- AnonLib glue python: ~267 -> ~140 (adapter only: EndpointEngine + runner)
-- AnonLib declarative: ~100 -> ~105 (4-field schema/prompt)
-- NeMo glue python: ~208 -> ~160 (pipeline + render only)
-- NeMo declarative: ~42 -> ~50
-- Runtime/validity expected unchanged: 1000/1000 valid, ~68.6 s vs ~131.2 s e2e.
+## Observed impact (final 3-repetition run)
+- AnonLib footprint: 81 declarative LOC, 158 glue Python LOC, 2 counted files.
+- NeMo footprint: 45 declarative LOC, 180 glue Python LOC, 2 counted files.
+- Both frameworks materialized 1000/1000 schema-valid rows in every repetition.
+- AnonLib: 142.66 +/- 0.56 s end-to-end, 7.01 +/- 0.03 rows/s.
+- NeMo: 153.94 +/- 0.26 s end-to-end, 6.50 +/- 0.01 rows/s.
+- The final run used max_tokens=256. At 128 tokens, NeMo dropped 13-17 rows per
+  repetition because its prompt-instructed JSON was truncated before all required fields.
 
-## Consistency check to add in analyze_results.py (when executed)
-- assert per row: generated_answer_normalized == lower(trim(answer)); LLM-produced
-  normalization should match the deterministic one, confirming the LLM-only path is
-  behaviorally equivalent to the original recipe on the fields we compare.
+## Consistency check and result
+`analyze_results.py` now reports, rather than asserts, exact mechanical normalization:
+- query text equals whitespace-collapsed source query: AnonLib 168/1000 in every rep;
+  NeMo 296.67 +/- 3.79/1000.
+- generated_answer_normalized equals lowercase + whitespace-collapsed answer: AnonLib
+  983/1000 in every rep; NeMo 966.67 +/- 1.53/1000.
 
-## Execution steps (when authorized)
-1. Branch: create experiment/nemo-curator-comparison-llm-only off this branch.
-2. Apply the edits above (py_compile under both .venv and .venv-nemo).
-3. Dry-run against the mock server (inference/mock_openai_vlm_server.py).
-4. Full balanced 3-rep run against the shared SGLang server:
+The LLM frequently paraphrases or changes case/punctuation despite explicit instructions.
+Therefore the LLM-only recipe is structurally equivalent but is NOT behaviorally equivalent
+to deterministic normalization. This limitation must be reported with the benchmark.
+
+## Executed command
+The final balanced run used:
    --order anonlib,nemo,nemo,anonlib,anonlib,nemo --repetitions 3 --overwrite
    --output-root experiments/nemo_curator_comparison/results
    --model Qwen/Qwen2.5-VL-7B-Instruct --base-url http://127.0.0.1:30000/v1
    --anonlib-python .venv/bin/python --nemo-python .venv-nemo/bin/python
-   --batch-size 64 --concurrency 64 --max-tokens 128
-5. Analyze + regenerate latex_table.tex; commit evidence.
-6. Update README_REPRODUCE.md, writeup_nemo.txt, and the paper numbers.
+   --batch-size 64 --concurrency 64 --max-tokens 256
+
+Data Designer runtime seeds the input DataFrame, which makes `{{ query }}` referenceable.
+Standalone `--dry-run-validate` lacks that seed and reports a spurious INVALID_REFERENCE.
+The mock returns plain JSON when `response_format` is requested (AnonLib) and fenced JSON
+otherwise (Data Designer), matching the two real client paths.

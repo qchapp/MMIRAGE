@@ -21,7 +21,16 @@ class Handler(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length", "0"))
         body = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
-        text = "```json\n" + json.dumps({"answer": "mock answer", "rationale": "mock rationale"}) + "\n```"
+        record = {
+            "answer": "mock answer",
+            "normalized_query": "mock query",
+            "generated_answer_normalized": "mock answer",
+            "rationale": "mock rationale",
+        }
+        if "response_format" in body:
+            text = json.dumps(record)
+        else:
+            text = "```json\n" + json.dumps(record) + "\n```"
         usage = {"prompt_tokens": 32, "completion_tokens": 8, "total_tokens": 40}
         self._send(
             {

@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--nemo-python", default=sys.executable, help="Interpreter with nemo_curator/data_designer (default: this interpreter).")
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--concurrency", type=int, default=64)
-    parser.add_argument("--max-tokens", type=int, default=128)
+    parser.add_argument("--max-tokens", type=int, default=256)
     parser.add_argument("--overwrite", action="store_true", help="Overwrite an existing per-run directory.")
     parser.add_argument("--dry-run", action="store_true", help="Print planned commands without running them.")
     parser.add_argument("--mock", action="store_true", help="Use a local mock OpenAI-compatible server for tiny smoke tests.")

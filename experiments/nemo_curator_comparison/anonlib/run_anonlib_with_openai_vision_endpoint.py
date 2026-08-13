@@ -3,17 +3,14 @@
 
 This benchmark-only adapter patches ``sglang.Engine`` so AnonLib's stock LLM
 processor talks to an externally managed OpenAI-compatible VLM endpoint instead
-of starting an in-process SGLang engine. It also registers the ``custom_pre``
-and ``custom_post`` processor types used by the ChartQA recipe. Everything lives
-in this file so the ``src/anonlib`` package stays untouched.
+of starting an in-process SGLang engine. Everything lives in this file so the
+``src/anonlib`` package stays untouched.
 """
 
 from __future__ import annotations
 
 import argparse
 import base64
-import concurrent.futures
-import importlib.util
 import json
 import mimetypes
 import os
@@ -22,19 +19,10 @@ import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Literal
+from typing import Any, Iterable
 
 from transformers import AutoTokenizer
-
-from anonlib.core.process.base import (
-    BaseProcessor,
-    BaseProcessorConfig,
-    ProcessorRegistry,
-    TokenCounts,
-)
-from anonlib.core.process.variables import OutputVar, VariableEnvironment
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SRC_DIR = PROJECT_ROOT / "src"
@@ -157,124 +145,10 @@ class EndpointEngine:
         }
 
 
-@dataclass
-class CustomProcessorConfig(BaseProcessorConfig):
-    """Config for deterministic script-driven processors (``custom_pre``/``custom_post``).
-
-    The referenced script is expected to expose ``function_name(row) -> dict``
-    returning the new variable values computed from the row.
-    """
-
-    script_path: str = ""
-    function_name: str = ""
-    max_workers: int = 4
-    start_method: str = "spawn"
-    timeout_ms: int = 5000
-    max_timeouts: int = 10
-    max_errors: int = 10
-    fallback_value: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class CustomOutputVar(OutputVar):
-    """Output variable produced by a custom script processor."""
-
-    type: str = ""
-
-    def is_computable(self, vars: Iterable[Any]) -> bool:
-        return True
-
-
-@dataclass
-class CustomPreProcessorConfig(CustomProcessorConfig):
-    type: Literal["custom_pre"] = "custom_pre"
-
-
-@dataclass
-class CustomPostProcessorConfig(CustomProcessorConfig):
-    type: Literal["custom_post"] = "custom_post"
-
-
-@dataclass
-class CustomPreOutputVar(CustomOutputVar):
-    type: Literal["custom_pre"] = "custom_pre"
-
-
-@dataclass
-class CustomPostOutputVar(CustomOutputVar):
-    type: Literal["custom_post"] = "custom_post"
-
-
-class CustomProcessor(BaseProcessor[CustomOutputVar]):
-    """Processor that runs a deterministic Python function from a user script.
-
-    The function receives the full row (as a plain dict) and returns a dict of
-    new variable values. Timeouts and exceptions fall back to the configured
-    ``fallback_value``.
-    """
-
-    def __init__(self, config: CustomProcessorConfig, **kwargs: Any) -> None:
-        super().__init__(config, **kwargs)
-        self._func = self._load_function(config.script_path, config.function_name)
-        self._executor = ThreadPoolExecutor(max_workers=max(1, config.max_workers))
-        self._timeouts = 0
-        self._errors = 0
-
-    @staticmethod
-    def _load_function(script_path: str, function_name: str) -> Any:
-        path = Path(script_path).resolve()
-        spec = importlib.util.spec_from_file_location(path.stem, path)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Could not load custom processor script {path}")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        function = getattr(module, function_name, None)
-        if function is None:
-            raise AttributeError(f"Function {function_name!r} not found in {path}")
-        return function
-
-    def batch_process_sample(
-        self, batch: list[VariableEnvironment], output_var: CustomOutputVar
-    ) -> list[VariableEnvironment]:
-        return [self._process_one(env, output_var) for env in batch]
-
-    def _process_one(
-        self, env: VariableEnvironment, output_var: CustomOutputVar
-    ) -> VariableEnvironment:
-        row = dict(env.to_dict())
-        try:
-            future = self._executor.submit(self._func, row)
-            result = future.result(timeout=self.config.timeout_ms / 1000.0)
-        except concurrent.futures.TimeoutError:
-            self._timeouts += 1
-            result = dict(self.config.fallback_value or {})
-        except Exception:
-            self._errors += 1
-            result = dict(self.config.fallback_value or {})
-        if not isinstance(result, dict):
-            result = {output_var.name: result}
-        return env.with_variable(output_var.name, result)
-
-    def get_token_counts(self) -> TokenCounts:
-        return TokenCounts(input_tokens=0, output_tokens=0)
-
-    def get_load_time(self) -> float:
-        return 0.0
-
-    def shutdown(self) -> None:
-        self._executor.shutdown(wait=False)
-
-
 def patch_sglang_engine() -> None:
     import sglang
 
     sglang.Engine = EndpointEngine
-    for name, config_cls, output_cls in (
-        ("custom_pre", CustomPreProcessorConfig, CustomPreOutputVar),
-        ("custom_post", CustomPostProcessorConfig, CustomPostOutputVar),
-    ):
-        ProcessorRegistry.register_types(name, config_cls, output_cls)
-        ProcessorRegistry.register(name, config_cls, output_cls)(CustomProcessor)
 
 
 def parse_args() -> argparse.Namespace:

@@ -7,7 +7,7 @@
     "concurrency": 64,
     "dry_run": false,
     "image_base_path": "experiments/nemo_curator_comparison/workload/chartqa",
-    "max_tokens": 128,
+    "max_tokens": 256,
     "mock": false,
     "model": "Qwen/Qwen2.5-VL-7B-Instruct",
     "nemo_python": ".venv-nemo/bin/python",
@@ -23,12 +23,12 @@
   "git_head": {
     "returncode": 0,
     "stderr": "",
-    "stdout": "3d156fac59b9f3145ed468d9c2783ab80d7dbd46\n"
+    "stdout": "510afea83b524a9361edcfa2779e6aa0bccee6dd\n"
   },
   "git_status": {
     "returncode": 0,
     "stderr": "",
-    "stdout": "?? MMIRAGE.pdf\n?? experiments/nemo_curator_comparison/\n?? experiments/shard_recovery/\n?? experiments/single_node_h100_scaling/aggregate_throughput_vs_gpu.png\n?? experiments/single_node_h100_scaling/experiment_metadata.json\n?? experiments/single_node_h100_scaling/latex_table.txt\n?? experiments/single_node_h100_scaling/parallel_efficiency_vs_gpu.png\n?? experiments/single_node_h100_scaling/raw_results.csv\n?? experiments/single_node_h100_scaling/runs/\n?? experiments/single_node_h100_scaling/summary.csv\n?? experiments/single_node_h100_scaling/summary.json\n?? experiments/single_node_h100_scaling/workload/\n?? experiments/single_node_h100_scaling/write_up_gpu_scaling.txt\n?? prompt_sglang.txt\n?? scripts/analyze_nemo_curator_comparison.py\n?? scripts/measure_setup.py\n?? scripts/prepare_chartqa.py\n?? scripts/run_nemo_curator_comparison.py\n?? writeup_shard_fail.txt\n?? written_report.pdf\n"
+    "stdout": " M .gitignore\n M experiments/nemo_curator_comparison/analyze_results.py\n M experiments/nemo_curator_comparison/anonlib/chartqa_anonlib.yaml\n D experiments/nemo_curator_comparison/anonlib/chartqa_custom.py\n M experiments/nemo_curator_comparison/anonlib/run_anonlib_with_openai_vision_endpoint.py\n M experiments/nemo_curator_comparison/inference/mock_openai_vlm_server.py\n D experiments/nemo_curator_comparison/nemo_curator/chartqa_custom.py\n M experiments/nemo_curator_comparison/nemo_curator/chartqa_pipeline.py\n M experiments/nemo_curator_comparison/nemo_curator/data_designer_config.yaml\n M experiments/nemo_curator_comparison/results/analysis/implementation_footprint.csv\n M experiments/nemo_curator_comparison/results/analysis/latex_table.tex\n M experiments/nemo_curator_comparison/results/analysis/output_validation.csv\n M experiments/nemo_curator_comparison/results/analysis/raw_results.csv\n M experiments/nemo_curator_comparison/results/analysis/summary.csv\n M experiments/nemo_curator_comparison/results/analysis/summary.json\n M experiments/nemo_curator_comparison/results/environment.json\n M experiments/nemo_curator_comparison/results/run_comparison_summary.json\n M experiments/nemo_curator_comparison/run_comparison.py\n?? MMIRAGE.pdf\n?? experiments/shard_recovery/\n?? experiments/single_node_h100_scaling/\n?? prompt_sglang.txt\n?? writeup_nemo.txt\n?? writeup_shard_fail.txt\n?? written_report.pdf\n"
   },
   "nvidia_smi": {
     "returncode": 0,

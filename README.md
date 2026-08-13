@@ -562,7 +562,7 @@ python3 scripts/run_nemo_curator_comparison.py \
   --image-base-path experiments/nemo_curator_comparison/workload/chartqa \
   --output-root experiments/nemo_curator_comparison/results \
   --model Qwen/Qwen2.5-VL-7B-Instruct --base-url http://127.0.0.1:30000/v1 \
-  --batch-size 64 --concurrency 64 --max-tokens 128 \
+  --batch-size 64 --concurrency 64 --max-tokens 256 \
   --anonlib-python .venv-anonlib/bin/python --nemo-python .venv-nemo/bin/python
 
 # Analyze + generate the paper-ready LaTeX table
@@ -570,12 +570,13 @@ python3 scripts/analyze_nemo_curator_comparison.py \
   --results-root experiments/nemo_curator_comparison/results
 ```
 
-#### Planned follow-up experiments
+The executed LLM-only variant materialized 1000/1000 schema-valid rows in all six runs.
+AnonLib averaged 142.66 +/- 0.56 s and NeMo 153.94 +/- 0.26 s. Exact LLM-produced
+normalization was imperfect, so `results/analysis/` reports consistency counts rather than
+claiming deterministic equivalence; see [`experiment_plan_llm_only.txt`](experiment_plan_llm_only.txt).
 
-- [`experiment_plan_llm_only.txt`](experiment_plan_llm_only.txt) — LLM-only variant: the
-  same transformation expressed with a single structured LLM call and no deterministic
-  Python normalization on either framework, so both sides execute identical per-row work and
-  the footprint comparison is fair.
+#### Planned follow-up experiment
+
 - [`experiment_plan_pr52_custom_processor.txt`](experiment_plan_pr52_custom_processor.txt) —
   post-PR #52 re-run: the full recipe re-expressed once MMIRAGE ships a native `custom`
   processor, so both frameworks execute the same user Python functions per sample as
