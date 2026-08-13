@@ -1,0 +1,10 @@
+# Install from the repo root with --extra-index-url https://pypi.nvidia.com.
+# nemo-curator pins jieba==0.42.1, which still builds with distutils (removed in
+# Python 3.12). Pin setuptools==75.8.0 and install with
+# SETUPTOOLS_USE_DISTUTILS=local --no-build-isolation (see README_REPRODUCE.md).
+nemo-curator[sdg_cpu]==1.3.0
+data-designer==0.5.5
+pandas>=2.1.0
+pyarrow
+openai>=1.0.0
+pillow
