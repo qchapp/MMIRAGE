@@ -496,7 +496,7 @@ The repository already contains the prepared 1,000-row workload under
 starting a model server:
 
 ```bash
-python scripts/benchmarks/run_sglang_overhead_benchmark.py \
+python experiments/raw_sglang_overhead/scripts/run.py \
   --workload-dir experiments/raw_sglang_overhead/workload \
   --output-dir /tmp/anonlib_overhead_dry_run \
   --repetitions 1 \
@@ -506,7 +506,7 @@ python scripts/benchmarks/run_sglang_overhead_benchmark.py \
 Then run three measured repetitions on one GPU:
 
 ```bash
-python scripts/benchmarks/run_sglang_overhead_benchmark.py \
+python experiments/raw_sglang_overhead/scripts/run.py \
   --workload-dir experiments/raw_sglang_overhead/workload \
   --output-dir /tmp/anonlib_overhead_results \
   --repetitions 3 \
