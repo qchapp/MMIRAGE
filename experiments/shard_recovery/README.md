@@ -36,7 +36,7 @@ For failure conditions, the controller terminates selected running pods with `SI
 - Shared `ReadWriteMany` PVC mounted at the same path in the controller container and shard pods.
 - H100 access. The default controller budget runs at most four one-GPU shard pods at once.
 
-Use these defaults unless your cluster requires different names:
+Use Bash for the commands below. Set these variables once, replacing only `IMAGE` unless your cluster requires different names:
 
 ```bash
 cd /workspace/ANONLIB
@@ -53,7 +53,20 @@ If your cluster uses an H100 node selector, also set:
 export GPU_PRODUCT_LABEL=NVIDIA-H100
 ```
 
-When `GPU_PRODUCT_LABEL` is unset, omit `--gpu-product-label` from commands.
+Build the reusable controller arguments after setting the variables:
+
+```bash
+COMMON_K8S_ARGS=(
+  --namespace "$NAMESPACE"
+  --pvc "$PVC_NAME"
+  --image "$IMAGE"
+  --shared-root "$ANONLIB_RECOVERY_ROOT"
+  --max-active-shards "$MAX_ACTIVE_SHARDS"
+)
+if [ -n "${GPU_PRODUCT_LABEL:-}" ]; then
+  COMMON_K8S_ARGS+=(--gpu-product-label "$GPU_PRODUCT_LABEL")
+fi
+```
 
 ## 1. Create Or Confirm The PVC
 
@@ -104,21 +117,13 @@ $ANONLIB_RECOVERY_ROOT/data/ultrachat_200k/manifest.json
 
 Run the baseline first. Later failure timings use the median baseline shard runtime when available.
 
-Without H100 node selector:
-
 ```bash
 python experiments/shard_recovery/scripts/run_k8s.py run-condition \
   --condition baseline \
   --rep 1 \
-  --namespace "$NAMESPACE" \
-  --pvc "$PVC_NAME" \
-  --image "$IMAGE" \
-  --shared-root "$ANONLIB_RECOVERY_ROOT" \
-  --max-active-shards "$MAX_ACTIVE_SHARDS" \
+  "${COMMON_K8S_ARGS[@]}" \
   --overwrite
 ```
-
-With H100 node selector, add `--gpu-product-label "$GPU_PRODUCT_LABEL"` to this and every later `run_k8s.py` command.
 
 Merge the baseline:
 
@@ -136,21 +141,13 @@ Run `fail_1`:
 python experiments/shard_recovery/scripts/run_k8s.py run-condition \
   --condition fail_1 \
   --rep 1 \
-  --namespace "$NAMESPACE" \
-  --pvc "$PVC_NAME" \
-  --image "$IMAGE" \
-  --shared-root "$ANONLIB_RECOVERY_ROOT" \
-  --max-active-shards "$MAX_ACTIVE_SHARDS" \
+  "${COMMON_K8S_ARGS[@]}" \
   --overwrite
 
 python experiments/shard_recovery/scripts/run_k8s.py retry \
   --condition fail_1 \
   --rep 1 \
-  --namespace "$NAMESPACE" \
-  --pvc "$PVC_NAME" \
-  --image "$IMAGE" \
-  --shared-root "$ANONLIB_RECOVERY_ROOT" \
-  --max-active-shards "$MAX_ACTIVE_SHARDS"
+  "${COMMON_K8S_ARGS[@]}"
 
 anonlib merge-dir \
   --input-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_1/rep_01/output" \
@@ -160,17 +157,39 @@ anonlib merge-dir \
 Run `fail_4`:
 
 ```bash
-python experiments/shard_recovery/scripts/run_k8s.py run-condition --condition fail_4 --rep 1 --namespace "$NAMESPACE" --pvc "$PVC_NAME" --image "$IMAGE" --shared-root "$ANONLIB_RECOVERY_ROOT" --max-active-shards "$MAX_ACTIVE_SHARDS" --overwrite
-python experiments/shard_recovery/scripts/run_k8s.py retry --condition fail_4 --rep 1 --namespace "$NAMESPACE" --pvc "$PVC_NAME" --image "$IMAGE" --shared-root "$ANONLIB_RECOVERY_ROOT" --max-active-shards "$MAX_ACTIVE_SHARDS"
-anonlib merge-dir --input-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_4/rep_01/output" --output-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_4/rep_01/merged"
+python experiments/shard_recovery/scripts/run_k8s.py run-condition \
+  --condition fail_4 \
+  --rep 1 \
+  "${COMMON_K8S_ARGS[@]}" \
+  --overwrite
+
+python experiments/shard_recovery/scripts/run_k8s.py retry \
+  --condition fail_4 \
+  --rep 1 \
+  "${COMMON_K8S_ARGS[@]}"
+
+anonlib merge-dir \
+  --input-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_4/rep_01/output" \
+  --output-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_4/rep_01/merged"
 ```
 
 Run `fail_8`:
 
 ```bash
-python experiments/shard_recovery/scripts/run_k8s.py run-condition --condition fail_8 --rep 1 --namespace "$NAMESPACE" --pvc "$PVC_NAME" --image "$IMAGE" --shared-root "$ANONLIB_RECOVERY_ROOT" --max-active-shards "$MAX_ACTIVE_SHARDS" --overwrite
-python experiments/shard_recovery/scripts/run_k8s.py retry --condition fail_8 --rep 1 --namespace "$NAMESPACE" --pvc "$PVC_NAME" --image "$IMAGE" --shared-root "$ANONLIB_RECOVERY_ROOT" --max-active-shards "$MAX_ACTIVE_SHARDS"
-anonlib merge-dir --input-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_8/rep_01/output" --output-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_8/rep_01/merged"
+python experiments/shard_recovery/scripts/run_k8s.py run-condition \
+  --condition fail_8 \
+  --rep 1 \
+  "${COMMON_K8S_ARGS[@]}" \
+  --overwrite
+
+python experiments/shard_recovery/scripts/run_k8s.py retry \
+  --condition fail_8 \
+  --rep 1 \
+  "${COMMON_K8S_ARGS[@]}"
+
+anonlib merge-dir \
+  --input-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_8/rep_01/output" \
+  --output-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_8/rep_01/merged"
 ```
 
 ## 5. Check Status
@@ -211,7 +230,7 @@ The extractor reports recomputed rows exactly. Token recomputation is reported a
 Do not overwrite successful runs when collecting repetitions. Increment `--rep` and keep all repetitions:
 
 ```bash
-python experiments/shard_recovery/scripts/run_k8s.py run-condition --condition baseline --rep 2 --namespace "$NAMESPACE" --pvc "$PVC_NAME" --image "$IMAGE" --shared-root "$ANONLIB_RECOVERY_ROOT" --max-active-shards "$MAX_ACTIVE_SHARDS" --overwrite
+python experiments/shard_recovery/scripts/run_k8s.py run-condition --condition baseline --rep 2 "${COMMON_K8S_ARGS[@]}" --overwrite
 ```
 
 Extract multiple repetitions with:
