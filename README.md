@@ -513,6 +513,15 @@ Inspect results:
 mmirage stats --config configs/config_benchmark_datatrove.yaml
 ```
 
+### Raw SGLang overhead benchmark
+
+To isolate MMIRAGE's throughput overhead relative to a raw SGLang baseline
+(independent of the chosen throughput benchmark), see the experiment in
+`experiments/raw_sglang_overhead/`. Its
+[`README`](experiments/raw_sglang_overhead/README.md) covers the rationale,
+metric definitions, dependency setup, and reproducible one-GPU run commands
+(validated on A100 and H100).
+
 ## Architecture
 
 MMIRAGE uses a modular architecture:
