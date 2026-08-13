@@ -27,7 +27,7 @@ The reported metrics are based on every repetition. The scripts do not select th
 ## Prerequisites
 
 - One available CUDA GPU with enough memory for `Qwen/Qwen3-4B`.
-- A free local TCP port, default `30000`.
+- A free local TCP port, default `30000`. If that port is busy, use the same alternate `--port` value for the command you run.
 - Python environment with AnonLib GPU dependencies and SGLang `0.5.10`.
 - Hugging Face access to `Qwen/Qwen3-4B` if the model is not already cached.
 
@@ -53,7 +53,7 @@ python experiments/raw_sglang_overhead/scripts/run.py \
   --dry-run
 ```
 
-Expected result: the command prints JSON with `"dry_run": true` and writes `/tmp/anonlib_overhead_dry_run/experiment_metadata.json`.
+Expected result: the command prints JSON with `"dry_run": true` and writes `/tmp/anonlib_overhead_dry_run/experiment_metadata.json`. Delete or change `/tmp/anonlib_overhead_dry_run` before repeating the smoke check if you want a clean output directory.
 
 ## 2. Choose The Workload
 
@@ -73,7 +73,7 @@ If you regenerate, replace `experiments/raw_sglang_overhead/workload` with `/tmp
 
 ## 3. Run The Full Experiment
 
-On a single-GPU machine, omit `--gpu-index`. On a multi-GPU machine, keep `--gpu-index 0` or replace `0` with the GPU to use.
+Use a fresh `--output-dir` for each full experiment run. On a single-GPU machine, omit `--gpu-index`. On a multi-GPU machine, keep `--gpu-index 0` or replace `0` with the GPU to use.
 
 ```bash
 python experiments/raw_sglang_overhead/scripts/run.py \
