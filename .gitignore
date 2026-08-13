@@ -182,3 +182,7 @@ experiments/raw_sglang_overhead/results_a100/
 experiments/raw_sglang_overhead/results_h100/
 experiments/raw_sglang_overhead/paper_evidence/
 experiments/**/*.zip
+
+# Shard-recovery benchmark: raw experiment data kept local
+# (regenerate with scripts/benchmarks/run_shard_recovery.py)
+experiments/shard_recovery/recovery_root/
