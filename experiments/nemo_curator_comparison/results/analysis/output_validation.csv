@@ -1,0 +1,7 @@
+duplicate_ids,framework,invalid_rows,missing_rows,rep,row_order_correct,schema_valid_rows
+0,anonlib,0,0,1,True,1000
+0,anonlib,0,0,2,True,1000
+0,anonlib,0,0,3,True,1000
+0,nemo,0,0,1,True,1000
+0,nemo,0,0,2,True,1000
+0,nemo,0,0,3,True,1000

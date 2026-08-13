@@ -1,0 +1,74 @@
+[
+  {
+    "framework": "anonlib",
+    "gpu_utilization": {
+      "max": 25.0,
+      "mean": 11.921875,
+      "min": 0.0,
+      "samples": 16
+    },
+    "launcher_wall_seconds": 78.68138747895136,
+    "rep": 1,
+    "returncode": 0
+  },
+  {
+    "framework": "nemo",
+    "gpu_utilization": {
+      "max": 25.0,
+      "mean": 17.79310344827586,
+      "min": 0.0,
+      "samples": 29
+    },
+    "launcher_wall_seconds": 143.1126102162525,
+    "rep": 1,
+    "returncode": 0
+  },
+  {
+    "framework": "nemo",
+    "gpu_utilization": {
+      "max": 25.0,
+      "mean": 17.625,
+      "min": 0.0,
+      "samples": 30
+    },
+    "launcher_wall_seconds": 148.85756360925734,
+    "rep": 2,
+    "returncode": 0
+  },
+  {
+    "framework": "anonlib",
+    "gpu_utilization": {
+      "max": 25.0,
+      "mean": 16.1875,
+      "min": 0.0,
+      "samples": 20
+    },
+    "launcher_wall_seconds": 97.2210969668813,
+    "rep": 2,
+    "returncode": 0
+  },
+  {
+    "framework": "anonlib",
+    "gpu_utilization": {
+      "max": 22.75,
+      "mean": 8.25,
+      "min": 0.0,
+      "samples": 11
+    },
+    "launcher_wall_seconds": 54.75544591201469,
+    "rep": 3,
+    "returncode": 0
+  },
+  {
+    "framework": "nemo",
+    "gpu_utilization": {
+      "max": 25.0,
+      "mean": 15.965909090909092,
+      "min": 0.0,
+      "samples": 22
+    },
+    "launcher_wall_seconds": 109.36002171970904,
+    "rep": 3,
+    "returncode": 0
+  }
+]

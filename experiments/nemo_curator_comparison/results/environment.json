@@ -1,0 +1,40 @@
+{
+  "args": {
+    "anonlib_python": ".venv/bin/python",
+    "anonlib_start_rep": 1,
+    "base_url": "http://127.0.0.1:30000/v1",
+    "batch_size": 64,
+    "concurrency": 64,
+    "dry_run": false,
+    "image_base_path": "experiments/nemo_curator_comparison/workload/chartqa",
+    "max_tokens": 128,
+    "mock": false,
+    "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+    "nemo_python": ".venv-nemo/bin/python",
+    "nemo_start_rep": 1,
+    "order": "anonlib,nemo,nemo,anonlib,anonlib,nemo",
+    "output_root": "experiments/nemo_curator_comparison/results",
+    "overwrite": true,
+    "repetitions": 3,
+    "rows": null,
+    "workload_jsonl": "experiments/nemo_curator_comparison/workload/chartqa/chartqa_subset.jsonl"
+  },
+  "cwd": "/lightscratch/users/nemo/utilities/MMIRAGE",
+  "git_head": {
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "3d156fac59b9f3145ed468d9c2783ab80d7dbd46\n"
+  },
+  "git_status": {
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "?? MMIRAGE.pdf\n?? experiments/nemo_curator_comparison/\n?? experiments/shard_recovery/\n?? experiments/single_node_h100_scaling/aggregate_throughput_vs_gpu.png\n?? experiments/single_node_h100_scaling/experiment_metadata.json\n?? experiments/single_node_h100_scaling/latex_table.txt\n?? experiments/single_node_h100_scaling/parallel_efficiency_vs_gpu.png\n?? experiments/single_node_h100_scaling/raw_results.csv\n?? experiments/single_node_h100_scaling/runs/\n?? experiments/single_node_h100_scaling/summary.csv\n?? experiments/single_node_h100_scaling/summary.json\n?? experiments/single_node_h100_scaling/workload/\n?? experiments/single_node_h100_scaling/write_up_gpu_scaling.txt\n?? prompt_sglang.txt\n?? scripts/analyze_nemo_curator_comparison.py\n?? scripts/measure_setup.py\n?? scripts/prepare_chartqa.py\n?? scripts/run_nemo_curator_comparison.py\n?? writeup_shard_fail.txt\n?? written_report.pdf\n"
+  },
+  "nvidia_smi": {
+    "returncode": 0,
+    "stderr": "",
+    "stdout": "name, driver_version, memory.total [MiB]\nNVIDIA H100 80GB HBM3, 580.159.04, 81559 MiB\nNVIDIA H100 80GB HBM3, 580.159.04, 81559 MiB\nNVIDIA H100 80GB HBM3, 580.159.04, 81559 MiB\nNVIDIA H100 80GB HBM3, 580.159.04, 81559 MiB\n"
+  },
+  "platform": "Linux-6.8.0-124-generic-x86_64-with-glibc2.35",
+  "python": "3.11.13 (main, Jun 26 2025, 21:19:53) [Clang 20.1.4 ]"
+}
