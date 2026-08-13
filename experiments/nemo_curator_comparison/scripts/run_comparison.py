@@ -17,6 +17,7 @@ from typing import Any
 
 DEFAULT_ORDER = ["anonlib", "nemo", "nemo", "anonlib", "anonlib", "nemo"]
 DEFAULT_MODEL = "Qwen/Qwen2.5-VL-7B-Instruct"
+EXPERIMENT_DIR = Path("experiments/nemo_curator_comparison")
 
 
 def parse_args() -> argparse.Namespace:
@@ -131,16 +132,16 @@ def framework_command(framework: str, rep: int, args: argparse.Namespace, run_di
     if framework == "anonlib":
         return [
             args.anonlib_python,
-            "experiments/nemo_curator_comparison/anonlib/run_anonlib_with_openai_vision_endpoint.py",
+            str(EXPERIMENT_DIR / "scripts/run_anonlib_with_openai_vision_endpoint.py"),
             "--config",
-            "experiments/nemo_curator_comparison/anonlib/chartqa_anonlib.yaml",
+            str(EXPERIMENT_DIR / "configs/anonlib_chartqa.yaml"),
             "--summary-json",
             str(run_dir / "run_summary.json"),
         ], env
     if framework == "nemo":
         return [
             args.nemo_python,
-            "experiments/nemo_curator_comparison/nemo_curator/chartqa_pipeline.py",
+            str(EXPERIMENT_DIR / "scripts/run_nemo_curator_pipeline.py"),
             "--input-jsonl",
             str(Path(args.workload_jsonl).resolve()),
             "--image-base-path",

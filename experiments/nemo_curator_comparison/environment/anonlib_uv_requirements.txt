@@ -1,5 +1,5 @@
 # Install from the repo root. sglang pins a flash-attn-4 pre-release, so uv
-# needs --prerelease=allow (see README_REPRODUCE.md).
+# needs --prerelease=allow (see README.md).
 -e .[gpu]
 datasets==4.8.5
 pillow==12.1.1

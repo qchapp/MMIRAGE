@@ -1,7 +1,7 @@
 {
   "footprint": [
     {
-      "counted_files": "experiments/nemo_curator_comparison/anonlib/chartqa_anonlib.yaml;experiments/nemo_curator_comparison/anonlib/run_anonlib_with_openai_vision_endpoint.py",
+      "counted_files": "experiments/nemo_curator_comparison/configs/anonlib_chartqa.yaml;experiments/nemo_curator_comparison/scripts/run_anonlib_with_openai_vision_endpoint.py",
       "declarative_loc": 81,
       "framework": "anonlib",
       "glue_python_loc": 158,
@@ -9,7 +9,7 @@
       "user_authored_files": 2
     },
     {
-      "counted_files": "experiments/nemo_curator_comparison/nemo_curator/chartqa_pipeline.py;experiments/nemo_curator_comparison/nemo_curator/data_designer_config.yaml",
+      "counted_files": "experiments/nemo_curator_comparison/scripts/run_nemo_curator_pipeline.py;experiments/nemo_curator_comparison/configs/nemo_data_designer.yaml",
       "declarative_loc": 45,
       "framework": "nemo",
       "glue_python_loc": 180,

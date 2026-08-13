@@ -13,12 +13,12 @@ from typing import Any
 
 FRAMEWORK_FILES = {
     "anonlib": [
-        "experiments/nemo_curator_comparison/anonlib/chartqa_anonlib.yaml",
-        "experiments/nemo_curator_comparison/anonlib/run_anonlib_with_openai_vision_endpoint.py",
+        "experiments/nemo_curator_comparison/configs/anonlib_chartqa.yaml",
+        "experiments/nemo_curator_comparison/scripts/run_anonlib_with_openai_vision_endpoint.py",
     ],
     "nemo": [
-        "experiments/nemo_curator_comparison/nemo_curator/chartqa_pipeline.py",
-        "experiments/nemo_curator_comparison/nemo_curator/data_designer_config.yaml",
+        "experiments/nemo_curator_comparison/scripts/run_nemo_curator_pipeline.py",
+        "experiments/nemo_curator_comparison/configs/nemo_data_designer.yaml",
     ],
 }
 

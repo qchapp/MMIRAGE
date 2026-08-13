@@ -77,4 +77,4 @@ framework machinery on both frameworks. This closes the fairness gap that motiva
 2. Apply recipe edits; pin mmirage commit in VERSIONS.md; reinstall venv.
 3. Smoke-test with the mock server (inference/mock_openai_vlm_server.py).
 4. Full balanced 3-rep run + analyze + regenerate latex_table.tex; commit evidence.
-5. Update README_REPRODUCE.md, writeup_nemo.txt, and the paper.
+5. Update README.md, notes/writeup_nemo.md, and the paper.

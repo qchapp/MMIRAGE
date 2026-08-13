@@ -1,0 +1,407 @@
+# AnonLib vs NeMo Curator Comparison
+
+This experiment compares AnonLib with NVIDIA NeMo Curator plus its integrated Data Designer on one LLM-only multimodal ChartQA transformation. Both frameworks read the same pinned ChartQA subset, call the same externally managed OpenAI-compatible SGLang VLM endpoint, and materialize the same nested training-data schema.
+
+Run all commands from the repository root.
+
+## What It Measures
+
+The comparison asks: given the same heterogeneous multimodal source dataset and nested target schema, what framework-specific machinery is required to express and execute the transformation, and what runtime overhead appears under an as-matched-as-possible inference path?
+
+Primary metrics:
+
+- `full_end_to_end_wall_seconds`: framework-internal runtime for each repetition.
+- `rows_s`: materialized ChartQA rows per second.
+- `schema_valid_rows`: rows matching the target nested output schema.
+- `query_normalization_consistent_rows`: rows where the model-produced user query equals source query with whitespace collapsed.
+- `answer_normalization_consistent_rows`: rows where the model-produced normalized answer equals lowercase whitespace-collapsed answer text.
+- `tok_s_gpu`: AnonLib output-token throughput from AnonLib status files. NeMo/Data Designer does not expose equivalent token accounting in this harness.
+- `declarative_loc` and `glue_python_loc`: nonblank, noncomment lines in the counted framework-specific files.
+- `setup_seconds`: warm-cache fresh-venv install time measured with `uv`.
+
+This is not a ChartQA accuracy evaluation, a VLM quality evaluation, a multi-GPU scaling experiment, or a claim that LLM prompting is a reliable substitute for deterministic preprocessing. The LLM-only recipe is structurally matched but not mechanically equivalent to deterministic normalization.
+
+## Files
+
+| Path | Purpose |
+|---|---|
+| `configs/anonlib_chartqa.yaml` | AnonLib ChartQA transformation recipe. |
+| `configs/nemo_data_designer.yaml` | Inspectable Data Designer column graph equivalent to the NeMo runner. |
+| `configs/sglang_server.json` | Recorded shared-server settings to reproduce. |
+| `scripts/prepare_workload.py` | Downloads the pinned ChartQA subset, image assets, manifest, and checksums. |
+| `scripts/run_comparison.py` | Balanced repetition runner for AnonLib and NeMo. |
+| `scripts/run_anonlib_with_openai_vision_endpoint.py` | Benchmark adapter that forwards AnonLib SGLang calls to an external OpenAI-compatible VLM endpoint without changing `src/`. |
+| `scripts/run_nemo_curator_pipeline.py` | NeMo Curator/Data Designer pipeline plus final nested-record renderer. |
+| `scripts/analyze_results.py` | Validates outputs, computes summaries, counts footprint, reads setup timings, and writes paper-ready files. |
+| `scripts/measure_setup.py` | Times fresh environment creation and dependency installation per framework. |
+| `scripts/launch_sglang_server.sh` | Shared SGLang server launcher. |
+| `scripts/mock_openai_vlm_server.py` | Tiny OpenAI-compatible mock for schema and command smoke checks. |
+| `environment/` | Isolated dependency pins for AnonLib and NeMo/Data Designer. |
+| `results/analysis/` | Committed condensed evidence from the recorded run. |
+| `setup_times/` | Committed setup-time measurements used by analysis. |
+| `notes/` | Executed-plan notes, follow-up plan, and paper handoff notes. |
+| `VERSIONS.md` | Version pins and interpretation guardrails. |
+
+## Prerequisites
+
+- `uv` for isolated Python environments and setup-time measurement.
+- Python `3.12` available to `uv`.
+- Hugging Face access to `HuggingFaceM4/ChartQA` and `Qwen/Qwen2.5-VL-7B-Instruct` if not cached.
+- One H100-80GB or equivalent GPU for the full shared SGLang run.
+- A free local TCP port, default `30000`, for the shared SGLang server.
+
+Create separate environments. Do not install NeMo Curator into the AnonLib environment.
+
+AnonLib environment:
+
+```bash
+uv venv .venv-anonlib --python 3.12
+source .venv-anonlib/bin/activate
+uv pip install --prerelease=allow \
+  -r experiments/nemo_curator_comparison/environment/anonlib_uv_requirements.txt
+python3 -c "import anonlib, sglang; print('anonlib/sglang ok')"
+deactivate
+```
+
+NeMo Curator/Data Designer environment:
+
+```bash
+uv venv .venv-nemo --python 3.12
+source .venv-nemo/bin/activate
+uv pip install setuptools==75.8.0
+SETUPTOOLS_USE_DISTUTILS=local uv pip install \
+  --no-build-isolation \
+  --extra-index-url https://pypi.nvidia.com \
+  -r experiments/nemo_curator_comparison/environment/nemo_curator_uv_requirements.txt
+python3 -c "import nemo_curator, data_designer; print(nemo_curator.__version__)"
+deactivate
+```
+
+Optional separate SGLang environment:
+
+```bash
+uv venv .venv-sglang --python 3.12
+source .venv-sglang/bin/activate
+uv pip install 'sglang==0.5.10' 'transformers==5.3.0' pillow
+deactivate
+```
+
+## 1. Measure Setup Time
+
+This creates a throwaway venv per framework, times creation and install, writes `setup_times/<framework>.json`, then deletes the throwaway venv unless `--keep-venv` is passed. The measurements are warm-cache fresh-venv installs.
+
+```bash
+source .venv-anonlib/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/measure_setup.py --framework anonlib --overwrite
+python3 experiments/nemo_curator_comparison/scripts/measure_setup.py --framework nemo --overwrite
+deactivate
+```
+
+## 2. Prepare ChartQA
+
+Use the pinned ChartQA revision recorded in `scripts/prepare_workload.py`:
+
+```bash
+source .venv-anonlib/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/prepare_workload.py \
+  --output-dir experiments/nemo_curator_comparison/workload/chartqa \
+  --num-rows 1000 \
+  --seed 20260813 \
+  --image-format path
+deactivate
+```
+
+Expected files:
+
+```text
+experiments/nemo_curator_comparison/workload/chartqa/chartqa_subset.jsonl
+experiments/nemo_curator_comparison/workload/chartqa/manifest.json
+experiments/nemo_curator_comparison/workload/chartqa/images/
+```
+
+For a small smoke workload:
+
+```bash
+source .venv-anonlib/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/prepare_workload.py \
+  --output-dir experiments/nemo_curator_comparison/workload/chartqa_smoke \
+  --num-rows 8 \
+  --seed 20260813 \
+  --image-format path
+deactivate
+```
+
+## 3. Smoke Check Without GPU
+
+Use the mock server only for schema and command validation. It is not a benchmark. The AnonLib path still constructs tokenizer/chat-template machinery, so use a reachable Hugging Face model ID for `--model`; the adapter does not load model weights.
+
+Terminal 1:
+
+```bash
+python3 experiments/nemo_curator_comparison/scripts/mock_openai_vlm_server.py --port 30080
+```
+
+Terminal 2, AnonLib smoke:
+
+```bash
+source .venv-anonlib/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/run_comparison.py \
+  --workload-jsonl experiments/nemo_curator_comparison/workload/chartqa_smoke/chartqa_subset.jsonl \
+  --image-base-path experiments/nemo_curator_comparison/workload/chartqa_smoke \
+  --output-root experiments/nemo_curator_comparison/results_smoke_anonlib \
+  --order anonlib \
+  --repetitions 1 \
+  --model Qwen/Qwen2.5-VL-7B-Instruct \
+  --base-url http://127.0.0.1:30080/v1 \
+  --batch-size 4 \
+  --concurrency 4 \
+  --max-tokens 256 \
+  --overwrite
+deactivate
+```
+
+Terminal 2, NeMo smoke:
+
+```bash
+source .venv-nemo/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/run_comparison.py \
+  --workload-jsonl experiments/nemo_curator_comparison/workload/chartqa_smoke/chartqa_subset.jsonl \
+  --image-base-path experiments/nemo_curator_comparison/workload/chartqa_smoke \
+  --output-root experiments/nemo_curator_comparison/results_smoke_nemo \
+  --order nemo \
+  --repetitions 1 \
+  --model mock-chartqa-vlm \
+  --base-url http://127.0.0.1:30080/v1 \
+  --batch-size 4 \
+  --concurrency 4 \
+  --max-tokens 256 \
+  --overwrite
+deactivate
+```
+
+Analyze each smoke output:
+
+```bash
+source .venv-anonlib/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/analyze_results.py \
+  --results-root experiments/nemo_curator_comparison/results_smoke_anonlib \
+  --expected-input-jsonl experiments/nemo_curator_comparison/workload/chartqa_smoke/chartqa_subset.jsonl \
+  --output-dir experiments/nemo_curator_comparison/results_smoke_anonlib/analysis
+deactivate
+```
+
+Run the same analysis command with `results_smoke_nemo` after the NeMo smoke run.
+
+## 4. Start Shared Inference Server
+
+Recommended one-H100-80GB server:
+
+```bash
+source .venv-sglang/bin/activate
+export CHARTQA_MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct
+export CHARTQA_SGLANG_PORT=30000
+export CHARTQA_TP_SIZE=1
+export CHARTQA_DTYPE=bfloat16
+bash experiments/nemo_curator_comparison/scripts/launch_sglang_server.sh
+```
+
+Record the exact model revision before full runs:
+
+```bash
+huggingface-cli model-info Qwen/Qwen2.5-VL-7B-Instruct --revision main
+```
+
+If both clients cannot use the same shared endpoint, record the mismatch and do not report throughput as pure framework overhead.
+
+## 5. Run The Full Comparison
+
+Run frameworks serially on the same one-H100 pod with the shared SGLang endpoint already running. If both stacks are installed in separate environments, one balanced command can drive both frameworks through explicit interpreter paths:
+
+```bash
+python3 experiments/nemo_curator_comparison/scripts/run_comparison.py \
+  --order anonlib,nemo,nemo,anonlib,anonlib,nemo \
+  --repetitions 3 \
+  --workload-jsonl experiments/nemo_curator_comparison/workload/chartqa/chartqa_subset.jsonl \
+  --image-base-path experiments/nemo_curator_comparison/workload/chartqa \
+  --output-root experiments/nemo_curator_comparison/results \
+  --model Qwen/Qwen2.5-VL-7B-Instruct \
+  --base-url http://127.0.0.1:30000/v1 \
+  --batch-size 64 \
+  --concurrency 64 \
+  --max-tokens 256 \
+  --anonlib-python .venv-anonlib/bin/python \
+  --nemo-python .venv-nemo/bin/python
+```
+
+If the two environments cannot be driven from one process, preserve the same balanced order manually:
+
+```bash
+source .venv-anonlib/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/run_comparison.py \
+  --order anonlib \
+  --repetitions 1 \
+  --output-root experiments/nemo_curator_comparison/results \
+  --model Qwen/Qwen2.5-VL-7B-Instruct \
+  --base-url http://127.0.0.1:30000/v1
+deactivate
+
+source .venv-nemo/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/run_comparison.py \
+  --order nemo,nemo \
+  --repetitions 2 \
+  --nemo-start-rep 1 \
+  --output-root experiments/nemo_curator_comparison/results \
+  --model Qwen/Qwen2.5-VL-7B-Instruct \
+  --base-url http://127.0.0.1:30000/v1
+deactivate
+
+source .venv-anonlib/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/run_comparison.py \
+  --order anonlib,anonlib \
+  --repetitions 2 \
+  --anonlib-start-rep 2 \
+  --output-root experiments/nemo_curator_comparison/results \
+  --model Qwen/Qwen2.5-VL-7B-Instruct \
+  --base-url http://127.0.0.1:30000/v1
+deactivate
+
+source .venv-nemo/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/run_comparison.py \
+  --order nemo \
+  --repetitions 1 \
+  --nemo-start-rep 3 \
+  --output-root experiments/nemo_curator_comparison/results \
+  --model Qwen/Qwen2.5-VL-7B-Instruct \
+  --base-url http://127.0.0.1:30000/v1
+deactivate
+```
+
+Use a fresh `results/` directory for a clean rerun. Pass `--overwrite` only when replacing existing per-framework repetition directories intentionally. `--dry-run` prints planned commands without running frameworks; it still records `environment.json` and `run_comparison_summary.json` under the output root.
+
+## 6. Analyze Results
+
+```bash
+source .venv-anonlib/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/analyze_results.py \
+  --results-root experiments/nemo_curator_comparison/results \
+  --expected-input-jsonl experiments/nemo_curator_comparison/workload/chartqa/chartqa_subset.jsonl \
+  --output-dir experiments/nemo_curator_comparison/results/analysis
+deactivate
+```
+
+Expected output tree after a full run and analysis:
+
+```text
+experiments/nemo_curator_comparison/
+  workload/
+    chartqa/
+      chartqa_subset.jsonl
+      manifest.json
+      images/
+  results/
+    environment.json
+    run_comparison_summary.json
+    anonlib_rep1/
+      command.json
+      launcher_summary.json
+      run_summary.json
+      stdout.log
+      stderr.log
+      output/
+      state/
+      reports/
+    anonlib_rep2/
+    anonlib_rep3/
+    nemo_rep1/
+      command.json
+      launcher_summary.json
+      run_summary.json
+      stdout.log
+      stderr.log
+      output/
+    nemo_rep2/
+    nemo_rep3/
+    analysis/
+      raw_results.csv
+      summary.csv
+      summary.json
+      implementation_footprint.csv
+      output_validation.csv
+      latex_table.tex
+  setup_times/
+    anonlib.json
+    nemo.json
+```
+
+The condensed analysis under `results/analysis/` is committed as experiment evidence. The workload and raw per-repetition outputs are regenerated and kept local.
+
+## Common Failures
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| NeMo install fails while building `jieba` | Curator's pinned dependency still needs the `distutils` shim. | Install `setuptools==75.8.0` and use `SETUPTOOLS_USE_DISTUTILS=local` with `--no-build-isolation`. |
+| AnonLib smoke downloads model files | The adapter still loads tokenizer/chat-template metadata. | Use a reachable Hugging Face model ID; it should not load model weights. |
+| Client cannot reach the endpoint | `--base-url` or port does not match the mock/SGLang server. | Check `/v1/models`, server logs, and the `CHARTQA_SGLANG_PORT` value. |
+| A rerun refuses to start | Existing `results/<framework>_rep<N>/` directory is present. | Use a fresh output root or pass `--overwrite` intentionally. |
+| NeMo drops rows at `max_tokens=128` | Prompted fenced JSON can be truncated before all required fields. | Use the recorded final setting `--max-tokens 256`. |
+| Analysis reports low normalization consistency | LLM-generated normalization changed wording, case, punctuation, symbols, or number forms. | Report it as the measured negative result; do not claim deterministic equivalence. |
+| Token throughput is `N/A` for NeMo | Data Designer does not expose equivalent token accounting in this harness. | Compare rows/s and end-to-end time as primary framework metrics. |
+
+## Reproducibility Metadata
+
+Keep these with any reported result:
+
+- Git commit from `results/environment.json` field `git_head`.
+- Full `git status --short` captured in `results/environment.json`.
+- `workload/chartqa/manifest.json`, including dataset revision, seed, row count, and checksums.
+- Shared server settings from `configs/sglang_server.json` plus actual model revision from `huggingface-cli model-info`.
+- Environment pins under `environment/` and version notes in `VERSIONS.md`.
+- Per-repetition `command.json`, `launcher_summary.json`, `run_summary.json`, stdout/stderr logs, and output/state directories.
+- Setup-time records under `setup_times/`.
+- Analysis files under `results/analysis/`.
+
+## Paper Artifact Mapping
+
+Use these generated files for paper artifacts:
+
+| Paper artifact | Source file |
+|---|---|
+| Per-repetition measurements | `results/analysis/raw_results.csv` |
+| Aggregate runtime/setup/validity metrics | `results/analysis/summary.csv` and `summary.json` |
+| Output validity and normalization consistency | `results/analysis/output_validation.csv` |
+| Implementation footprint table | `results/analysis/implementation_footprint.csv` |
+| Paper table fragment | `results/analysis/latex_table.tex` |
+| Paper handoff notes | `notes/writeup_nemo.md` |
+| Follow-up custom-processor plan | `notes/experiment_plan_pr52_custom_processor.md` |
+
+Fill in the final paper figure or table number here after manuscript numbering is fixed.
+
+## Results Archival
+
+Raw per-repetition outputs are gitignored. Before distributing or writing up the experiment, archive them alongside the analysis and workload manifest:
+
+```bash
+cd experiments/nemo_curator_comparison
+python3 -m zipfile -c nemo_curator_comparison_results.zip \
+  results/analysis results/environment.json results/run_comparison_summary.json \
+  setup_times
+python3 -m zipfile -c nemo_curator_comparison_results_full.zip \
+  results results_smoke_anonlib results_smoke_nemo setup_times
+```
+
+The first bundle is enough for paper tables. The second also carries full raw run artifacts.
+
+## Recorded Reference Results
+
+The final matched run used `Qwen/Qwen2.5-VL-7B-Instruct`, 1,000 ChartQA rows, `max_tokens=256`, concurrency 64, and three balanced repetitions per framework on one H100-80GB.
+
+| Framework | Valid rows | End-to-end wall (s) | Rows/s | Output tok/s/GPU | Setup (s) | Declarative LOC | Glue Python LOC |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| AnonLib | 1000/1000 | 142.66 +/- 0.56 | 7.01 +/- 0.03 | 564.99 +/- 2.39 | 120.82 | 81 | 158 |
+| NeMo Curator + Data Designer | 1000/1000 | 153.94 +/- 0.26 | 6.50 +/- 0.01 | N/A | 34.62 | 45 | 180 |
+
+Exact LLM-produced normalization was imperfect. Query whitespace-normalization matched for `168/1000` AnonLib rows and `296.67 +/- 3.79/1000` NeMo rows. Lowercase answer normalization matched for `983/1000` AnonLib rows and `966.67 +/- 1.53/1000` NeMo rows. Treat those as measured semantic-consistency outcomes, not deterministic preprocessing.
+
+## Interpretation Boundary
+
+This experiment supports a controlled LLM-only framework comparison for one ChartQA transformation. It should not be generalized to all NeMo Curator or AnonLib workloads, and it should not be used as evidence that either framework is globally faster or more expressive.
