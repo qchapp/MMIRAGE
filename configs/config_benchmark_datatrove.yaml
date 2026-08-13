@@ -1,4 +1,4 @@
-# MMIRAGE — DataTrove-compatible throughput benchmark
+# AnonLib — DataTrove-compatible throughput benchmark
 # See README.md for setup instructions and benchmark details.
 
 processors:
@@ -49,15 +49,15 @@ execution_params:
   retry: false
   merge: false
   max_retries: 3
-  account: a127
-  job_name: mmirage-sharded
+  account: my_account
+  job_name: anonlib-sharded
   nodes: 1
   ntasks_per_node: 1
   gpus: 1
   cpus_per_task: 288
   time_limit: "11:59:59"
-  report_dir: "/users/${USER}/reports"
-  hf_home: "/capstor/store/cscs/swissai/a127/homes/${USER}/hf"
-  edf_env: "/users/${USER}/.edf/mmirage.toml"
+  report_dir: "~/reports"
+  hf_home: "~/hf"
+  edf_env: ""
   poll_interval_seconds: 30
   settle_time_seconds: 60

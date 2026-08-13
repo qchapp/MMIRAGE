@@ -1,18 +1,13 @@
-<h1 align="center">
-
-![image](https://raw.githubusercontent.com/LiGHTers-playground/MMIRAGE/main/mmirage_logo_with_text.png)
-
-</h1>
-
 <p align="center">
-  <a href="https://github.com/LiGHTers-playground/MMIRAGE/actions/workflows/ruff.yml"><img src="https://github.com/LiGHTers-playground/MMIRAGE/actions/workflows/ruff.yml/badge.svg" alt="Lint"></a>
-  <a href="https://github.com/LiGHTers-playground/MMIRAGE/actions/workflows/tests.yml"><img src="https://github.com/LiGHTers-playground/MMIRAGE/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
+  <img src="docs/_static/logo.svg" alt="AnonLib" width="480">
 </p>
 
-# MMIRAGE
+# AnonLib
 
-MMIRAGE, which stands for **M**odular **M**ultimodal **I**ntelligent **R**eformatting and **A**ugmentation **G**eneration **E**ngine, is an advanced platform designed to streamline the processing of datasets using generative models, including vision-language models (VLMs). It is engineered to handle large-scale data reformatting and augmentation tasks with efficiency and precision. By leveraging state-of-the-art generative models, MMIRAGE enables users to perform complex dataset transformations, ensuring compatibility across various formats and schemas. Its multi-node support and parallel processing capabilities make it an ideal choice for scenarios demanding substantial computational power, such as distributed training and inference workflows. MMIRAGE not only simplifies the integration of powerful language models but also provides a customizable framework for diverse use cases, from reformatting conversational datasets to generating Q/A pairs from plain text.
+AnonLib is a framework for large-scale dataset reformatting and augmentation with
+language, vision-language, and image-generation models. It provides declarative
+YAML pipelines, sharded local and SLURM execution, resumable processing, and
+structured output rendering.
 
 ## How to install
 
@@ -23,14 +18,14 @@ To install the library, clone it from GitHub and install it with pip.
 The base install does **not** include the local SGLang runtime:
 
 ```bash
-git clone git@github.com:EPFLiGHT/MMIRAGE.git
-cd MMIRAGE
+git clone <anonymous-repository-url> AnonLib
+cd AnonLib
 pip install -e .
 ```
 
 ### GPU install (SGLang-backed `llm` processor)
 
-MMIRAGE requires a **CUDA-enabled PyTorch installation** before installing the GPU extra.
+AnonLib requires a **CUDA-enabled PyTorch installation** before installing the GPU extra.
 
 Install a PyTorch build matching your CUDA runtime (example for CUDA 12.9):
 
@@ -51,13 +46,13 @@ Expected output should include:
 - `12.9`
 - `True` (when run on a GPU node)
 
-Then install MMIRAGE GPU support:
+Then install AnonLib GPU support:
 
 ```bash
 pip install -e ".[gpu]"
 ```
 
-Install the SGLang diffusion extra when MMIRAGE should launch an image-generation server:
+Install the SGLang diffusion extra when AnonLib should launch an image-generation server:
 
 ```bash
 pip install -e ".[image_gen]"
@@ -73,28 +68,22 @@ For testing and scripts that make use of the library, it is advised to create a 
 ./scripts/generate_env.sh
 ```
 
-## Docker
+## Local documentation
 
-The `docker-compose.yml` defines two services, `mmirage` (GPU) and `mmirage-cpu`.
-
-### Prebuilt images
-
-Prebuilt images are published to GHCR for each push to `main`:
-
-- `ghcr.io/epflight/mmirage:latest-gpu` (linux/amd64)
-- `ghcr.io/epflight/mmirage:latest-cpu` (linux/amd64, linux/arm64)
-
-How to use them:
+The Sphinx documentation is built and viewed locally; no automated deployment
+is included.
 
 ```bash
-# GPU
-docker pull ghcr.io/epflight/mmirage:latest-gpu
-docker run --rm -it --gpus all ghcr.io/epflight/mmirage:latest-gpu
-
-# CPU
-docker pull ghcr.io/epflight/mmirage:latest-cpu
-docker run --rm -it ghcr.io/epflight/mmirage:latest-cpu
+python -m pip install -r docs/requirements.txt
+python -m pip install --no-deps -e .
+python -m sphinx -b html -j auto docs docs/_build/html --keep-going
 ```
+
+Open `docs/_build/html/index.html` in a browser after the build completes.
+
+## Docker
+
+The `docker-compose.yml` defines two services, `anonlib` (GPU) and `anonlib-cpu`.
 
 ### GPU
 
@@ -107,24 +96,24 @@ Commands:
 
 ```bash
 # Build
-docker compose build mmirage
+docker compose build anonlib
 
 # Run
-docker compose run --rm -it mmirage
+docker compose run --rm -it anonlib
 ```
 
 ### CPU-only
 
-The CPU image installs MMIRAGE without the GPU extra. It is suitable for workflows that do not instantiate the SGLang-backed `llm` processor, and is intended to support API-backed processors once they are available. No CPU-ready configuration files are provided yet.
+The CPU image installs AnonLib without the GPU extra. It is suitable for workflows that do not instantiate the SGLang-backed `llm` processor, and is intended to support API-backed processors once they are available. No CPU-ready configuration files are provided yet.
 
 Commands:
 
 ```bash
 # Build
-docker compose build mmirage-cpu
+docker compose build anonlib-cpu
 
 # Run
-docker compose run --rm -it mmirage-cpu
+docker compose run --rm -it anonlib-cpu
 ```
 
 ## Key features
@@ -152,45 +141,45 @@ Run the pipeline via the CLI. Retry behavior is driven by your YAML config:
 - `execution_params.merge: true` → after a successful run, automatically merges shard outputs
 
 ```bash
-mmirage run --config configs/config_mock.yaml
+anonlib run --config configs/config_mock.yaml
 ```
 
 To check status only:
 
 ```bash
-mmirage check --config configs/config_mock.yaml
+anonlib check --config configs/config_mock.yaml
 ```
 
 To check status and submit retries for failed shards:
 
 ```bash
-mmirage check --config configs/config_mock.yaml --retry
+anonlib check --config configs/config_mock.yaml --retry
 ```
 
 To merge shards from the CLI directly:
 
 ```bash
-mmirage merge --config configs/config_mock.yaml
+anonlib merge --config configs/config_mock.yaml
 ```
 
 To merge shards without a config file (input directory + output directory only):
 
 ```bash
-mmirage merge-dir --input-dir /path/to/shards --output-dir /path/to/merged
+anonlib merge-dir --input-dir /path/to/shards --output-dir /path/to/merged
 ```
 
 `--input-dir` can point either to a single dataset directory that contains `shard_*`
 folders, or to a parent directory containing multiple dataset subdirectories.
-If `shard_*` folders are present directly in `--input-dir`, MMIRAGE merges that
+If `shard_*` folders are present directly in `--input-dir`, AnonLib merges that
 root dataset directly and ignores nested internal folders.
 
 For multiple datasets, you can also choose a shared merge root:
 
 ```bash
-mmirage merge --config configs/config_mock.yaml --output-root /path/to/merged
+anonlib merge --config configs/config_mock.yaml --output-root /path/to/merged
 ```
 
-MMIRAGE still keeps datasets separate by creating one subdirectory per dataset under the root.
+AnonLib still keeps datasets separate by creating one subdirectory per dataset under the root.
 
 ### Text-only: Reformatting dataset
 
@@ -203,7 +192,7 @@ Suppose you have a dataset with samples of the following format
 }
 ```
 
-The dataset contains assistant answers that are badly formatted. The goal would be to use a LLM to format our answer in Markdown. With MMIRAGE, it would be as simple as defining a YAML configuration file:
+The dataset contains assistant answers that are badly formatted. The goal would be to use a LLM to format our answer in Markdown. With AnonLib, it would be as simple as defining a YAML configuration file:
 
 ```yaml
 processors:
@@ -263,7 +252,7 @@ Configuration explanation:
 
 - `processors`: List of processor configurations. Supports `llm` (text/VLM generation) and `image_gen` (text-to-image generation).
 - `loading_params`: Parameters for loading and sharding datasets.
-  - `state_dir`: Optional shared directory for shard status/retry state. Defaults to `~/.cache/MMIRAGE/state_dir`.
+  - `state_dir`: Optional shared directory for shard status/retry state. Defaults to `~/.cache/AnonLib/state_dir`.
   - `datasets`: List of dataset configurations with path, type, and output directory.
 - `processing_params`:
   - `inputs`: Variables extracted from the input dataset using JMESPath queries.
@@ -271,8 +260,8 @@ Configuration explanation:
   - `output_schema`: Defines the structure of output samples.
 - `execution_params`:
   - `mode`: "local" to run shard processing in the current Python environment or "slurm" to run through SLURM by submitting an sbatch array job.
-  - `retry`: If true, MMIRAGE automatically retries failed shards until they succeed or `max_retries` is reached. If false, the pipeline runs/submits once, and retries can be triggered later via the check/retry CLI commands.
-  - `merge`: If true, MMIRAGE merges shard outputs after a successful `run`. Merged datasets are written under each dataset `output_dir` in a `merged` subdirectory.
+  - `retry`: If true, AnonLib automatically retries failed shards until they succeed or `max_retries` is reached. If false, the pipeline runs/submits once, and retries can be triggered later via the check/retry CLI commands.
+  - `merge`: If true, AnonLib merges shard outputs after a successful `run`. Merged datasets are written under each dataset `output_dir` in a `merged` subdirectory.
 
 Merge output behavior with multiple datasets:
 - Default (`run` with `execution_params.merge: true`, or `merge` without `--output-root`): each dataset is merged to its own `<dataset.output_dir>/merged`.
@@ -280,7 +269,7 @@ Merge output behavior with multiple datasets:
 
 ### Multimodal: Processing images with VLMs
 
-MMIRAGE supports multimodal processing with vision-language models:
+AnonLib supports multimodal processing with vision-language models:
 
 ```yaml
 processors:
@@ -336,7 +325,7 @@ execution_params:
 
 ### Image generation: Text-to-image pipeline
 
-MMIRAGE supports image generation through an already-running HTTP server:
+AnonLib supports image generation through an already-running HTTP server:
 
 ```yaml
 processors:
@@ -409,14 +398,14 @@ avoid unnecessary overhead.
 
 ```bash
 # Local run with stats collection
-mmirage run --config configs/config_mock.yaml --stats
+anonlib run --config configs/config_mock.yaml --stats
 
 ```
 
 After the run completes, inspect the results with:
 
 ```bash
-mmirage stats --config configs/config_mock.yaml
+anonlib stats --config configs/config_mock.yaml
 ```
 
 This prints a JSON report with per-shard details and an aggregate summary:
@@ -504,18 +493,18 @@ ds.save_to_disk("data/s1K-1.1")
 Then run with stats collection enabled:
 
 ```bash
-mmirage run --config configs/config_benchmark_datatrove.yaml --stats
+anonlib run --config configs/config_benchmark_datatrove.yaml --stats
 ```
 
 Inspect results:
 
 ```bash
-mmirage stats --config configs/config_benchmark_datatrove.yaml
+anonlib stats --config configs/config_benchmark_datatrove.yaml
 ```
 
 ### Raw SGLang overhead benchmark
 
-To isolate MMIRAGE's throughput overhead relative to a raw SGLang baseline
+To isolate AnonLib's throughput overhead relative to a raw SGLang baseline
 (independent of the chosen throughput benchmark), see the experiment in
 `experiments/raw_sglang_overhead/`. Its
 [`README`](experiments/raw_sglang_overhead/README.md) covers the rationale,
@@ -524,10 +513,10 @@ metric definitions, dependency setup, and reproducible one-GPU run commands
 
 ## Architecture
 
-MMIRAGE uses a modular architecture:
+AnonLib uses a modular architecture:
 
 ```
-mmirage/
+anonlib/
 ├── config/           # Configuration loading and validation
 ├── core/
 │   ├── loader/       # Dataset loaders (JSONL, HuggingFace)

@@ -4,16 +4,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from mmirage.config.batch_provider import BatchProviderConfig
-from mmirage.core.process.base import ProcessorRegistry
-from mmirage.core.process.batch.adapter import (
+from anonlib.config.batch_provider import BatchProviderConfig
+from anonlib.core.process.base import ProcessorRegistry
+from anonlib.core.process.batch.adapter import (
     BatchSubmissionAdapter,
     BatchSubmissionResult,
 )
-from mmirage.core.process.batch.provider_resolution import BatchProviderConfigRegistry
-from mmirage.core.process.batch.registry import BatchAdapterRegistry
-from mmirage.core.process.processors.llm import llm_processor
-from mmirage.core.process.processors.llm.config import SGLangLLMConfig, SGLangServerArgs
+from anonlib.core.process.batch.provider_resolution import BatchProviderConfigRegistry
+from anonlib.core.process.batch.registry import BatchAdapterRegistry
+from anonlib.core.process.processors.llm import llm_processor
+from anonlib.core.process.processors.llm.config import SGLangLLMConfig, SGLangServerArgs
 
 
 class RecordingAdapter(BatchSubmissionAdapter):
@@ -65,7 +65,7 @@ def clear_batch_registries():
 def test_orchestrator_buffers_across_iterations_and_avoids_tiny_midstream_flush(
     tmp_path,
 ):
-    from mmirage.core.process.batch.orchestrator import BatchSubmissionOrchestrator
+    from anonlib.core.process.batch.orchestrator import BatchSubmissionOrchestrator
 
     adapter = RecordingAdapter()
     config = BatchProviderConfig(
@@ -98,7 +98,7 @@ def test_orchestrator_buffers_across_iterations_and_avoids_tiny_midstream_flush(
 
 
 def test_orchestrator_writes_provider_neutral_metadata_with_flush_reason(tmp_path):
-    from mmirage.core.process.batch.orchestrator import BatchSubmissionOrchestrator
+    from anonlib.core.process.batch.orchestrator import BatchSubmissionOrchestrator
 
     metadata_path = tmp_path / "batch_metadata.jsonl"
     adapter = RecordingAdapter()
@@ -190,7 +190,7 @@ def test_llm_processor_skips_batch_setup_when_disabled(monkeypatch):
         llm_processor, "sgl", SimpleNamespace(Engine=FakeEngine), raising=False
     )
     monkeypatch.setattr(
-        "mmirage.core.process.processors.llm.llm_processor.AutoTokenizer.from_pretrained",
+        "anonlib.core.process.processors.llm.llm_processor.AutoTokenizer.from_pretrained",
         lambda *args, **kwargs: FakeTokenizer(),
     )
 
@@ -228,7 +228,7 @@ def test_llm_processor_uses_sync_runtime_when_batch_provider_omitted(monkeypatch
         llm_processor, "sgl", SimpleNamespace(Engine=FakeEngine), raising=False
     )
     monkeypatch.setattr(
-        "mmirage.core.process.processors.llm.llm_processor.AutoTokenizer.from_pretrained",
+        "anonlib.core.process.processors.llm.llm_processor.AutoTokenizer.from_pretrained",
         lambda *args, **kwargs: FakeTokenizer(),
     )
 

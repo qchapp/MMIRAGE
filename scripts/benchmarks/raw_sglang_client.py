@@ -88,7 +88,9 @@ def main() -> None:
     if args.top_p is not None:
         request_params["top_p"] = args.top_p
 
-    def failure(index: int, row: Dict[str, Any], started: float, error: str) -> Dict[str, Any]:
+    def failure(
+        index: int, row: Dict[str, Any], started: float, error: str
+    ) -> Dict[str, Any]:
         return {
             "index": index,
             "source_index": row.get("source_index"),
@@ -160,8 +162,12 @@ def main() -> None:
         "success_count": success_count,
         "total_output_tokens": total_output_tokens,
         "generation_wall_seconds": round(wall_seconds, 6),
-        "rows_per_second": round(len(results) / wall_seconds, 6) if wall_seconds > 0 else None,
-        "output_tokens_per_second_per_gpu": round(total_output_tokens / (wall_seconds * args.gpu_count), 6)
+        "rows_per_second": round(len(results) / wall_seconds, 6)
+        if wall_seconds > 0
+        else None,
+        "output_tokens_per_second_per_gpu": round(
+            total_output_tokens / (wall_seconds * args.gpu_count), 6
+        )
         if wall_seconds > 0 and args.gpu_count > 0
         else None,
         "gpu_count": args.gpu_count,

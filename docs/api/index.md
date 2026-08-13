@@ -1,6 +1,6 @@
 # API Reference
 
-Auto-generated documentation for all public modules in MMIRAGE.
+Auto-generated documentation for all public modules in AnonLib.
 
 ```{toctree}
 :maxdepth: 2

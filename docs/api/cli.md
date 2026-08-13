@@ -1,7 +1,7 @@
-# `mmirage.cli` — Command-Line Interface
+# `anonlib.cli` — Command-Line Interface
 
 ```{eval-rst}
-.. automodule:: mmirage.cli
+.. automodule:: anonlib.cli
    :members:
    :undoc-members:
    :show-inheritance:

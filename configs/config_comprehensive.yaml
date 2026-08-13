@@ -1,4 +1,4 @@
-# MMIRAGE Configuration with all parameters
+# AnonLib Configuration with all parameters
 #
 # This is a comprehensive example showing all available configuration options.
 # You can copy and modify this file for your specific use case.
@@ -132,13 +132,13 @@ execution_params:
   # ==========================================================================
 
   # HPC account/partition to charge jobs to (REQUIRED for SLURM mode)
-  account: a127
+  account: my_account
 
-  # SLURM job name (default: "mmirage-sharded")
-  job_name: mmirage-sharded
+  # SLURM job name (default: "anonlib-sharded")
+  job_name: anonlib-sharded
 
   # Optional SLURM reservation name (leave blank or omit to not use)
-  # reservation: "sai-a127"
+  # reservation: "my_reservation"
 
   # Number of nodes (default: 1)
   nodes: 1
@@ -165,13 +165,13 @@ execution_params:
   # project_root: "/path/to/project"
 
   # Directory for SLURM output and error files (default: ~/reports)
-  report_dir: "/users/${USER}/reports"
+  report_dir: "~/reports"
 
   # HuggingFace cache directory (default: ~/hf)
-  hf_home: "/capstor/store/cscs/swissai/a127/homes/${USER}/hf"
+  hf_home: "~/hf"
 
   # EDF environment file path for cluster-specific setup
-  edf_env: "/users/${USER}/.edf/mmirage.toml"
+  edf_env: ""
 
   # ==========================================================================
   # JOB MONITORING (for "submit" and retry orchestration)
@@ -190,16 +190,16 @@ execution_params:
 # ============================================================================
 #
 # 1. Canonical entrypoint (local or SLURM; retry controlled by config):
-#    python -m mmirage.cli run --config config.yaml
+#    python -m anonlib.cli run --config config.yaml
 #
 # 2. Submit job to SLURM with wait for completion:
-#    python -m mmirage.cli submit --config config.yaml --wait
+#    python -m anonlib.cli submit --config config.yaml --wait
 #
 # 3. Submit job and get job ID back (for scripting):
-#    JOB_ID=$(python -m mmirage.cli submit --config config.yaml)
+#    JOB_ID=$(python -m anonlib.cli submit --config config.yaml)
 #
 # 4. Run a single shard locally:
-#    python -m mmirage.cli run --config config.yaml --shard-id 0
+#    python -m anonlib.cli run --config config.yaml --shard-id 0
 #
 # 5. Check status of all shards (and optionally submit retries):
-#    python -m mmirage.cli check --config config.yaml
+#    python -m anonlib.cli check --config config.yaml

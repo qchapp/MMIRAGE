@@ -1,20 +1,20 @@
-# MMIRAGE Documentation
+# AnonLib Documentation
 
 ```{image} _static/logo.svg
-:alt: MMIRAGE logo
+:alt: AnonLib logo
 :align: center
 :width: 480px
 ```
 
-MMIRAGE is an open-source platform for large-scale dataset processing using large language models (LLMs) and vision-language models (VLMs).
+AnonLib is an open-source platform for large-scale dataset processing using large language models (LLMs) and vision-language models (VLMs).
 
 It provides a declarative, YAML-driven pipeline to extract variables from data samples, construct prompts, run model inference, render structured outputs, and distribute the work across shards — locally or on HPC clusters via SLURM.
 
 ---
 
-## What is MMIRAGE?
+## What is AnonLib?
 
-MMIRAGE (**M**odular **M**ultimodal **I**ntelligent **R**eformatting and **A**ugmentation **G**eneration **E**ngine) lets you transform large datasets using generative models by:
+AnonLib lets you transform large datasets using generative models by:
 
 - extracting named variables from each sample with JMESPath queries
 - constructing prompts with Jinja2 templates
@@ -30,7 +30,7 @@ It natively supports text and image inputs, SLURM-based cluster execution, throu
 
 Depending on what you want to do, start in different places:
 
-- to install MMIRAGE, read [Installation](installation.md)
+- to install AnonLib, read [Installation](installation.md)
 - to run a first pipeline end to end, read [Quickstart](quickstart.md)
 - to understand core concepts and terminology, read [Concepts](concepts.md)
 - to understand the full pipeline data flow, read [Pipeline](pipeline.md)
@@ -40,7 +40,7 @@ Depending on what you want to do, start in different places:
 - to use the OpenAI Batch API, read [Batch API](batch_api.md)
 - to measure throughput and GPU efficiency, read [Benchmarking](benchmarking.md)
 - to configure every parameter, read [Configuration Reference](configuration.md)
-- to contribute to the codebase, read [Developer Guide](developer.md)
+- to work on the codebase locally, read [Developer Guide](developer.md)
 
 ---
 
@@ -52,7 +52,7 @@ Depending on what you want to do, start in different places:
 :::{grid-item-card} 📦 Installation
 :link: installation
 :link-type: doc
-Set up MMIRAGE and prepare your environment.
+Set up AnonLib and prepare your environment.
 :::
 
 :::{grid-item-card} 🚀 Quickstart
@@ -70,7 +70,7 @@ Core vocabulary: shards, variables, schemas, execution modes.
 :::{grid-item-card} 🔄 Pipeline
 :link: pipeline
 :link-type: doc
-Step-by-step walkthrough of what MMIRAGE does with your data.
+Step-by-step walkthrough of what AnonLib does with your data.
 :::
 
 :::{grid-item-card} 🖼️ Multimodal Processing
@@ -112,7 +112,7 @@ Full YAML parameter reference for every section.
 :::{grid-item-card} 💻 CLI Reference
 :link: cli
 :link-type: doc
-All `mmirage` subcommands, flags, and examples.
+All `anonlib` subcommands, flags, and examples.
 :::
 
 :::{grid-item-card} 🏗️ Architecture
@@ -124,7 +124,7 @@ Internal module layout and design decisions.
 :::{grid-item-card} 🔧 Developer Guide
 :link: developer
 :link-type: doc
-Testing, code style, extending MMIRAGE, and debugging.
+Testing, code style, extending AnonLib, and debugging.
 :::
 
 ::::
@@ -133,7 +133,7 @@ Testing, code style, extending MMIRAGE, and debugging.
 
 ## Page guide
 
-- [Installation](installation.md): set up MMIRAGE and prepare your environment
+- [Installation](installation.md): set up AnonLib and prepare your environment
 - [Quickstart](quickstart.md): run a first minimal pipeline from scratch
 - [Concepts](concepts.md): learn the vocabulary used throughout the documentation
 - [Pipeline](pipeline.md): understand what happens at each stage of the pipeline
@@ -145,7 +145,7 @@ Testing, code style, extending MMIRAGE, and debugging.
 - [Configuration Reference](configuration.md): complete reference for every YAML parameter
 - [CLI Reference](cli.md): all subcommands, flags, and their behaviour
 - [Architecture](architecture.md): internal package layout and key design decisions
-- [Developer Guide](developer.md): contribute code, run tests, add loaders or processors
+- [Developer Guide](developer.md): run tests and add loaders or processors locally
 
 ```{toctree}
 :maxdepth: 1

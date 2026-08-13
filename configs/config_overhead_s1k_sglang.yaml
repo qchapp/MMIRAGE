@@ -1,11 +1,11 @@
-# MMIRAGE-over-SGLang overhead benchmark config.
-# This file is used by scripts/benchmarks/run_mmirage_with_sglang_endpoint.py,
-# which patches sglang.Engine at runtime without modifying MMIRAGE source code.
+# AnonLib-over-SGLang overhead benchmark config.
+# This file is used by scripts/benchmarks/run_anonlib_with_sglang_endpoint.py,
+# which patches sglang.Engine at runtime without modifying AnonLib source code.
 
 processors:
   - type: llm
     server_args:
-      model_path: ${MMIRAGE_OVERHEAD_MODEL_PATH}
+      model_path: ${ANONLIB_OVERHEAD_MODEL_PATH}
       tp_size: 1
       trust_remote_code: true
       disable_custom_all_reduce: true
@@ -16,11 +16,11 @@ processors:
       max_tokens: 1024
 
 loading_params:
-  state_dir: ${MMIRAGE_OVERHEAD_STATE_DIR}
+  state_dir: ${ANONLIB_OVERHEAD_STATE_DIR}
   datasets:
-    - path: ${MMIRAGE_OVERHEAD_PROMPTS_JSONL}
+    - path: ${ANONLIB_OVERHEAD_PROMPTS_JSONL}
       type: JSONL
-      output_dir: ${MMIRAGE_OVERHEAD_OUTPUT_DIR}
+      output_dir: ${ANONLIB_OVERHEAD_OUTPUT_DIR}
   num_shards: 1
   shard_id: 0
   batch_size: 1000

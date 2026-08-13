@@ -15,7 +15,7 @@ a PIL image. It supports two backend modes:
 | Backend | Server lifecycle |
 |---|---|
 | `external` | You start and stop the HTTP server and provide its URL |
-| `sglang` | MMIRAGE starts one shared SGLang Diffusion server for the run, waits for it to become ready, and stops it afterward |
+| `sglang` | AnonLib starts one shared SGLang Diffusion server for the run, waits for it to become ready, and stops it afterward |
 
 Both modes send requests to the OpenAI-compatible
 `POST /v1/images/generations` endpoint and expect a base64 image in
@@ -25,10 +25,10 @@ Both modes send requests to the OpenAI-compatible
 
 ## Installation
 
-The base MMIRAGE installation contains the HTTP client and image-processing
+The base AnonLib installation contains the HTTP client and image-processing
 dependencies needed to use an external server.
 
-To let MMIRAGE launch SGLang Diffusion itself, install the image-generation
+To let AnonLib launch SGLang Diffusion itself, install the image-generation
 extra:
 
 ```bash
@@ -100,7 +100,7 @@ execution_params:
 Run it with:
 
 ```bash
-mmirage run --config /path/to/config.yaml
+anonlib run --config /path/to/config.yaml
 ```
 
 A runnable configuration with the same structure is available at
@@ -108,9 +108,9 @@ A runnable configuration with the same structure is available at
 
 ---
 
-## MMIRAGE-managed SGLang server
+## AnonLib-managed SGLang server
 
-Use `backend: sglang` when MMIRAGE should manage the server process:
+Use `backend: sglang` when AnonLib should manage the server process:
 
 ```yaml
 processors:
@@ -132,7 +132,7 @@ processors:
     file_format: png
 ```
 
-MMIRAGE selects an available localhost port, starting at `30010` unless `port`
+AnonLib selects an available localhost port, starting at `30010` unless `port`
 is configured. It launches `sglang serve`, waits for a health or models endpoint,
 shares the resolved URL with shard workers, and stops the process when the run
 ends. In SLURM mode, the shard workers in the job share that server. A config may
@@ -166,7 +166,7 @@ These fields apply to both backend modes:
 | `default_sampling_params` | `dict` | `{}` | Default parameters included in every generation request |
 | `parallel_inference` | `bool` | `true` | Try each multi-sample chunk through the backend's batch interface |
 | `parallel_chunk_size` | `int` or `null` | `4` | Samples per chunk; `null` uses the full mapper batch |
-| `output_dir` | `str` | `~/.cache/MMIRAGE/generated_images` | Directory used by outputs with `output_mode: path` |
+| `output_dir` | `str` | `~/.cache/AnonLib/generated_images` | Directory used by outputs with `output_mode: path` |
 | `file_format` | `str` | `png` | Extension and PIL save format for generated files |
 
 For `backend: external`, configure these client fields:
@@ -231,19 +231,19 @@ variables:
 
 Rendered stems are restricted to letters, digits, `.`, `_`, and `-`; other
 character runs become `_`. Include `__shard_id` when multiple shards write to
-the same image directory. If a target path already exists, MMIRAGE preserves it
+the same image directory. If a target path already exists, AnonLib preserves it
 and adds a hostname, process ID, and run token to the new filename.
 
 ---
 
 ## Stored image representation
 
-With `output_mode: path`, MMIRAGE saves each image atomically under the
+With `output_mode: path`, AnonLib saves each image atomically under the
 processor's `output_dir` and initially places its absolute path in the generated
 variable.
 
 By default, `processing_params.cast_images` is `true`. When an `output_schema`
-field is a direct reference such as `image: "{{ generated_image }}"`, MMIRAGE
+field is a direct reference such as `image: "{{ generated_image }}"`, AnonLib
 casts that path column to the Hugging Face `Image` feature before saving the
 dataset shard. Hugging Face then embeds the image bytes in the Arrow shard. Set
 `cast_images: false` to retain plain path strings:
@@ -268,10 +268,10 @@ and no separate file is written by the processor.
 ## Parallel requests and failures
 
 When `parallel_inference` is enabled for a batch containing more than one
-sample, MMIRAGE splits it into chunks of `parallel_chunk_size`. Within a chunk,
+sample, AnonLib splits it into chunks of `parallel_chunk_size`. Within a chunk,
 the HTTP backend sends up to `max_concurrent_requests` requests concurrently.
 
-If a chunk-level call fails, MMIRAGE retries only that chunk one sample at a
+If a chunk-level call fails, AnonLib retries only that chunk one sample at a
 time. An individual sample that still fails receives `None` as its generated
 value, while processing continues for the other samples. Setting
 `parallel_inference: false` uses the per-sample path from the start.

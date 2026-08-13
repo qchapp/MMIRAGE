@@ -7,9 +7,9 @@ import pytest
 from PIL import Image
 
 _SRC = Path(__file__).resolve().parents[2] / "src"
-_PKG = types.ModuleType("mmirage")
-_PKG.__path__ = [str(_SRC / "mmirage")]
-sys.modules.setdefault("mmirage", _PKG)
+_PKG = types.ModuleType("anonlib")
+_PKG.__path__ = [str(_SRC / "anonlib")]
+sys.modules.setdefault("anonlib", _PKG)
 
 _JMESPATH = types.ModuleType("jmespath")
 _JMESPATH.compile = lambda key: None
@@ -17,16 +17,16 @@ _JMESPATH.search = lambda key, sample: sample.get(key)
 _JMESPATH.parser = types.SimpleNamespace(ParsedResult=object)
 sys.modules.setdefault("jmespath", _JMESPATH)
 
-from mmirage.core.process.processors.image_gen.config import (  # noqa: E402
+from anonlib.core.process.processors.image_gen.config import (  # noqa: E402
     ExternalImageBackendConfig,
     ImageGenConfig,
     ImageGenOutputVar,
     ImageOutputMode,
 )
-from mmirage.core.process.processors.image_gen.image_gen_processor import (  # noqa: E402
+from anonlib.core.process.processors.image_gen.image_gen_processor import (  # noqa: E402
     ImageGenProcessor,
 )
-from mmirage.core.process.variables import VariableEnvironment  # noqa: E402
+from anonlib.core.process.variables import VariableEnvironment  # noqa: E402
 
 
 class InMemoryBackend:
@@ -58,7 +58,7 @@ class InMemoryBackend:
 
 def _processor(monkeypatch, tmp_path, backend):
     monkeypatch.setattr(
-        "mmirage.core.process.processors.image_gen.image_gen_processor._create_backend",
+        "anonlib.core.process.processors.image_gen.image_gen_processor._create_backend",
         lambda config: backend,
     )
     config = ImageGenConfig(
@@ -110,7 +110,7 @@ def test_save_image_cleanup_does_not_mask_original_interrupt_like_error(
         raise OSError("cleanup failed")
 
     monkeypatch.setattr(
-        "mmirage.core.process.processors.image_gen.image_gen_processor.os.unlink",
+        "anonlib.core.process.processors.image_gen.image_gen_processor.os.unlink",
         fail_cleanup,
     )
 

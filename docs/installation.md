@@ -11,8 +11,8 @@
 Clone the repository, create a virtual environment with [uv](https://docs.astral.sh/uv/), and install the base package:
 
 ```bash
-git clone git@github.com:EPFLiGHT/MMIRAGE.git
-cd MMIRAGE
+git clone <anonymous-repository-url> AnonLib
+cd AnonLib
 uv venv
 source .venv/bin/activate
 uv pip install -e .
@@ -32,38 +32,26 @@ This installs `sglang`, `sgl_kernel`, `xgrammar`, and `compressed_tensors`.
 
 ## Docker
 
-Prebuilt images are published to GHCR for every push to `main`.
-
 ### GPU image
-
-```bash
-docker pull ghcr.io/epflight/mmirage:latest-gpu
-docker run --rm -it --gpus all ghcr.io/epflight/mmirage:latest-gpu
-```
 
 The host must have NVIDIA GPU drivers, the NVIDIA Container Toolkit, and a recent Docker Engine with GPU support.
 
 To build locally:
 
 ```bash
-docker compose build mmirage
-docker compose run --rm -it mmirage
+docker compose build anonlib
+docker compose run --rm -it anonlib
 ```
 
 ### CPU image
 
-Suitable for workflows that do not require a local GPU (e.g. OpenAI Batch API mode):
-
-```bash
-docker pull ghcr.io/epflight/mmirage:latest-cpu
-docker run --rm -it ghcr.io/epflight/mmirage:latest-cpu
-```
+Suitable for workflows that do not require a local GPU (e.g. OpenAI Batch API mode).
 
 To build locally:
 
 ```bash
-docker compose build mmirage-cpu
-docker compose run --rm -it mmirage-cpu
+docker compose build anonlib-cpu
+docker compose run --rm -it anonlib-cpu
 ```
 
 ## Environment Variables
@@ -82,7 +70,7 @@ Key variables:
 | `HF_HOME` | HuggingFace cache directory (default: `~/hf`) |
 | `SLURM_ARRAY_TASK_ID` | Shard ID injected automatically in SLURM array jobs |
 | `SLURM_GPUS_ON_NODE` | Used to auto-detect `tp_size` for SGLang |
-| `MMIRAGE_COLLECT_STATS` | Set to `1` to enable GPU/throughput benchmarking |
+| `ANONLIB_COLLECT_STATS` | Set to `1` to enable GPU/throughput benchmarking |
 
 ## Development Setup
 
@@ -98,7 +86,7 @@ Run the test suite:
 pytest tests/
 ```
 
-Lint and format the codebase with Ruff (via pre-commit, same as CI):
+Lint and format the codebase with Ruff via pre-commit:
 
 ```bash
 pre-commit run --all-files
@@ -114,5 +102,5 @@ ruff format .
 ## Verifying the Installation
 
 ```bash
-mmirage --help
+anonlib --help
 ```

@@ -10,7 +10,7 @@ from PIL import Image
 
 _BACKEND_PATH = (
     Path(__file__).resolve().parents[2]
-    / "src/mmirage/core/process/processors/image_gen/backends/sglang_backend.py"
+    / "src/anonlib/core/process/processors/image_gen/backends/sglang_backend.py"
 )
 _SPEC = importlib.util.spec_from_file_location("sglang_backend", _BACKEND_PATH)
 sglang_backend = importlib.util.module_from_spec(_SPEC)

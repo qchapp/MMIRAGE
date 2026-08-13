@@ -12,7 +12,6 @@ from typing import Any, Dict, Iterable, Optional
 from datasets import load_dataset
 from transformers import AutoTokenizer
 
-
 DEFAULT_DATASET = "simplescaling/s1K-1.1"
 DEFAULT_SPLIT = "train"
 DEFAULT_MODEL = "Qwen/Qwen3-4B"
@@ -36,11 +35,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def resolved_revision(repo_id: str, repo_type: str, revision: Optional[str]) -> Optional[str]:
+def resolved_revision(
+    repo_id: str, repo_type: str, revision: Optional[str]
+) -> Optional[str]:
     try:
         from huggingface_hub import HfApi
 
-        info = HfApi().repo_info(repo_id=repo_id, repo_type=repo_type, revision=revision)
+        info = HfApi().repo_info(
+            repo_id=repo_id, repo_type=repo_type, revision=revision
+        )
         return getattr(info, "sha", None)
     except Exception:
         return revision
@@ -114,16 +117,20 @@ def main() -> None:
         "dataset": args.dataset,
         "split": args.split,
         "dataset_revision_requested": args.dataset_revision,
-        "dataset_revision_resolved": resolved_revision(args.dataset, "dataset", args.dataset_revision),
+        "dataset_revision_resolved": resolved_revision(
+            args.dataset, "dataset", args.dataset_revision
+        ),
         "model_path": args.model_path,
         "model_revision_requested": args.model_revision,
-        "model_revision_resolved": resolved_revision(args.model_path, "model", args.model_revision),
+        "model_revision_resolved": resolved_revision(
+            args.model_path, "model", args.model_revision
+        ),
         "start_index": args.start_index,
         "num_rows": args.num_rows,
         "warmup_rows": args.warmup_rows,
         "warmup_rows_reused_from_measured": warmup_reused_from_measured,
         "prompt_text_template": DEFAULT_PROMPT_TEXT_TEMPLATE,
-        "prompt_construction": "MMIRAGE LLMProcessor behavior: Jinja prompt_text, then tokenizer.apply_chat_template(..., add_generation_prompt=True). Raw client uses the resulting prompt field.",
+        "prompt_construction": "AnonLib LLMProcessor behavior: Jinja prompt_text, then tokenizer.apply_chat_template(..., add_generation_prompt=True). Raw client uses the resulting prompt field.",
         "measured_prompts_jsonl": str(output_dir / "prompts.jsonl"),
         "warmup_prompts_jsonl": str(output_dir / "warmup_prompts.jsonl"),
     }

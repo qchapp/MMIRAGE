@@ -6,15 +6,15 @@ from types import SimpleNamespace
 
 import pytest
 
-import mmirage.core.process.processors.llm.llm_processor as llm_processor_module
-from mmirage.core.process.processors.llm.config import (
+import anonlib.core.process.processors.llm.llm_processor as llm_processor_module
+from anonlib.core.process.processors.llm.config import (
     LLMOutputVar,
     LLMSchemaField,
     SGLangLLMConfig,
     SGLangServerArgs,
 )
-from mmirage.core.process.processors.llm.llm_processor import LLMProcessor
-from mmirage.core.process.variables import VariableEnvironment
+from anonlib.core.process.processors.llm.llm_processor import LLMProcessor
+from anonlib.core.process.variables import VariableEnvironment
 
 FIELDS = ["relevance", "clarity", "fluency"]
 

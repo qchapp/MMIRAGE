@@ -1,9 +1,9 @@
-# `mmirage.core.loader` — Data Loaders
+# `anonlib.core.loader` — Data Loaders
 
 ## Base classes
 
 ```{eval-rst}
-.. automodule:: mmirage.core.loader.base
+.. automodule:: anonlib.core.loader.base
    :members:
    :undoc-members:
    :show-inheritance:
@@ -12,7 +12,7 @@
 ## JSONL loader
 
 ```{eval-rst}
-.. automodule:: mmirage.core.loader.jsonl
+.. automodule:: anonlib.core.loader.jsonl
    :members:
    :undoc-members:
    :show-inheritance:
@@ -21,7 +21,7 @@
 ## HuggingFace local loader
 
 ```{eval-rst}
-.. automodule:: mmirage.core.loader.local_hf
+.. automodule:: anonlib.core.loader.local_hf
    :members:
    :undoc-members:
    :show-inheritance:
@@ -30,7 +30,7 @@
 ## Loader utilities
 
 ```{eval-rst}
-.. automodule:: mmirage.core.loader.utils
+.. automodule:: anonlib.core.loader.utils
    :members:
    :undoc-members:
    :show-inheritance:

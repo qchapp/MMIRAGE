@@ -1,5 +1,5 @@
 # External HTTP image generation server example
-# The server is already running; MMIRAGE only sends image-generation requests.
+# The server is already running; AnonLib only sends image-generation requests.
 
 processors:
   - type: image_gen
@@ -68,13 +68,13 @@ execution_params:
   # ==========================================================================
 
   # HPC account/partition to charge jobs to (REQUIRED for SLURM mode)
-  account: a127
+  account: my_account
 
-  # SLURM job name (default: "mmirage-sharded")
-  job_name: mmirage-sharded
+  # SLURM job name (default: "anonlib-sharded")
+  job_name: anonlib-sharded
 
   # Optional SLURM reservation name (leave blank or omit to not use)
-  # reservation: "sai-a127"
+  # reservation: "my_reservation"
 
   # Number of nodes (default: 1)
   nodes: 1
@@ -101,13 +101,13 @@ execution_params:
   # project_root: "/path/to/project"
 
   # Directory for SLURM output and error files (default: ~/reports)
-  report_dir: "/users/${USER}/reports"
+  report_dir: "~/reports"
 
   # HuggingFace cache directory (default: ~/hf)
-  hf_home: "/capstor/store/cscs/swissai/a127/homes/${USER}/hf"
+  hf_home: "~/hf"
 
   # EDF environment file path for cluster-specific setup
-  edf_env: "/users/${USER}/.edf/mmirage_gen.toml"
+  edf_env: ""
 
   # ==========================================================================
   # JOB MONITORING (for "submit" and retry orchestration)

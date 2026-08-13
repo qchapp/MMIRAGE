@@ -1,6 +1,6 @@
 # 🔀 SLURM & Cluster Deployment
 
-This page explains how to run MMIRAGE pipelines on HPC clusters using SLURM.
+This page explains how to run AnonLib pipelines on HPC clusters using SLURM.
 
 For background on sharding and execution modes, see [Concepts](concepts.md).
 
@@ -8,7 +8,7 @@ For background on sharding and execution modes, see [Concepts](concepts.md).
 
 ## Overview
 
-MMIRAGE has native SLURM support.
+AnonLib has native SLURM support.
 When `execution_params.mode` is set to `slurm`, the CLI generates and submits
 an `sbatch` array job where each array task processes one shard.
 
@@ -21,7 +21,7 @@ retries failed shards (if configured), and optionally merges outputs.
 
 - SLURM must be available on your cluster (`sbatch`, `squeue`, `srun` in `$PATH`).
 - Your cluster nodes must have access to the model weights and dataset paths.
-- MMIRAGE and its dependencies (`gpu` extra) must be installed on the nodes.
+- AnonLib and its dependencies (`gpu` extra) must be installed on the nodes.
 
 To prepare a portable environment for cluster nodes, use the helper script:
 
@@ -42,7 +42,7 @@ Set `execution_params.mode: slurm` and fill in the SLURM-specific fields:
 execution_params:
   mode: slurm
   account: my_account           # SLURM account / allocation
-  job_name: mmirage-pipeline    # Job name shown in squeue
+  job_name: anonlib-pipeline    # Job name shown in squeue
   nodes: 1                      # Nodes per shard task
   ntasks_per_node: 1            # Tasks per node
   gpus: 4                       # GPUs per task (= tp_size)
@@ -64,16 +64,16 @@ SGLang engine uses all GPUs allocated to the task.
 ### 1. Submit
 
 ```bash
-mmirage run --config configs/slurm_config.yaml
+anonlib run --config configs/slurm_config.yaml
 ```
 
 This generates an `sbatch` script, submits it as a job array, and enters a
 polling loop until all shards finish.
 
-To submit without waiting, use `mmirage submit`:
+To submit without waiting, use `anonlib submit`:
 
 ```bash
-mmirage submit --config configs/slurm_config.yaml
+anonlib submit --config configs/slurm_config.yaml
 ```
 
 ### 2. Monitor
@@ -81,7 +81,7 @@ mmirage submit --config configs/slurm_config.yaml
 Check which shards have succeeded, are pending, or have failed:
 
 ```bash
-mmirage check --config configs/slurm_config.yaml
+anonlib check --config configs/slurm_config.yaml
 ```
 
 This reads the state directory and prints a per-shard status table.
@@ -91,7 +91,7 @@ This reads the state directory and prints a per-shard status table.
 Resubmit only the shards that failed:
 
 ```bash
-mmirage retry --config configs/slurm_config.yaml
+anonlib retry --config configs/slurm_config.yaml
 ```
 
 Retry respects `max_retries`: shards that have already been retried the
@@ -102,7 +102,7 @@ maximum number of times are skipped and reported as exhausted.
 Once all shards succeed, merge their outputs into a single dataset:
 
 ```bash
-mmirage merge --config configs/slurm_config.yaml
+anonlib merge --config configs/slurm_config.yaml
 ```
 
 This combines all `shard_<id>/` directories under `output_dir` into
@@ -120,7 +120,7 @@ loading_params:
   shard_id: "$SLURM_ARRAY_TASK_ID"
 ```
 
-MMIRAGE resolves `$SLURM_ARRAY_TASK_ID` from the environment at config load
+AnonLib resolves `$SLURM_ARRAY_TASK_ID` from the environment at config load
 time, so each array task automatically processes the correct slice of the data.
 
 ---
@@ -129,7 +129,7 @@ time, so each array task automatically processes the correct slice of the data.
 
 **Shared filesystem writes:**
 
-MMIRAGE uses atomic temp-then-rename writes to avoid partial files on shared
+AnonLib uses atomic temp-then-rename writes to avoid partial files on shared
 filesystems. No extra configuration is needed.
 
 **Tensor parallelism:**
@@ -148,7 +148,7 @@ If your cluster uses modules, activate them before submitting:
 
 ```bash
 module load python/3.12 cuda/12.4
-mmirage run --config configs/slurm_config.yaml
+anonlib run --config configs/slurm_config.yaml
 ```
 
 ---

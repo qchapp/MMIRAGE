@@ -1,23 +1,23 @@
 # Raw SGLang Overhead Benchmark
 
-This experiment estimates how much raw SGLang throughput MMIRAGE retains while adding dataset loading, declarative field mapping, output rendering, state tracking, and statistics.
+This experiment estimates how much raw SGLang throughput AnonLib retains while adding dataset loading, declarative field mapping, output rendering, state tracking, and statistics.
 
-It directly addresses the current paper's stated RQ3 gap: the existing DataTrove-style result shows that MMIRAGE can drive a high-throughput SGLang path, but it does not isolate MMIRAGE overhead under a like-for-like raw SGLang baseline.
+It directly addresses the current paper's stated RQ3 gap: the existing DataTrove-style result shows that AnonLib can drive a high-throughput SGLang path, but it does not isolate AnonLib overhead under a like-for-like raw SGLang baseline.
 
 This is an end-to-end empirical overhead estimate, not a pure CPU orchestration microbenchmark.
 
 Definitions:
 
-- `MMIRAGE throughput retention = mean(MMIRAGE tok/s) / mean(raw SGLang tok/s)`
+- `AnonLib throughput retention = mean(AnonLib tok/s) / mean(raw SGLang tok/s)`
 - `relative orchestration overhead = 1 - throughput_retention`
 
 The scripts report mean +/- standard deviation across all repetitions. They never select the best run.
 
 Important implementation constraint:
 
-- Stock MMIRAGE text generation constructs an in-process `sgl.Engine` rather than connecting to an OpenAI-compatible HTTP endpoint.
-- To keep MMIRAGE source unchanged while satisfying same-endpoint parity, `scripts/benchmarks/run_mmirage_with_sglang_endpoint.py` patches `sglang.Engine` only inside the benchmark subprocess and forwards MMIRAGE generation calls to the same external SGLang `/v1/completions` endpoint used by the raw client.
-- This wrapper is benchmark scaffolding, not a MMIRAGE feature change.
+- Stock AnonLib text generation constructs an in-process `sgl.Engine` rather than connecting to an OpenAI-compatible HTTP endpoint.
+- To keep AnonLib source unchanged while satisfying same-endpoint parity, `scripts/benchmarks/run_anonlib_with_sglang_endpoint.py` patches `sglang.Engine` only inside the benchmark subprocess and forwards AnonLib generation calls to the same external SGLang `/v1/completions` endpoint used by the raw client.
+- This wrapper is benchmark scaffolding, not a AnonLib feature change.
 
 PDF discrepancy to preserve:
 
@@ -39,8 +39,8 @@ Dependencies / setup:
 Tiny validation without GPU benchmark execution:
 
 ```bash
-python scripts/benchmarks/prepare_s1k_overhead_workload.py --output-dir /tmp/mmirage_overhead_tiny --num-rows 2 --warmup-rows 1
-python scripts/benchmarks/run_sglang_overhead_benchmark.py --workload-dir /tmp/mmirage_overhead_tiny --output-dir /tmp/mmirage_overhead_tiny_results --repetitions 1 --dry-run
+python scripts/benchmarks/prepare_s1k_overhead_workload.py --output-dir /tmp/anonlib_overhead_tiny --num-rows 2 --warmup-rows 1
+python scripts/benchmarks/run_sglang_overhead_benchmark.py --workload-dir /tmp/anonlib_overhead_tiny --output-dir /tmp/anonlib_overhead_tiny_results --repetitions 1 --dry-run
 ```
 
 Full one-GPU experiment on A100 (`results_a100/`):
@@ -83,14 +83,14 @@ Expected outputs:
 Both runs completed with `1000/1000` rows succeeding in every repetition (3 reps
 each). Results are kept under `results_a100/` and `results_h100/`; a merged,
 paper-ready evidence package is in `paper_evidence/` (with a zip archive
-`mmirage_vs_sglang_evidence.zip`).
+`anonlib_vs_sglang_evidence.zip`).
 
 | GPU | Path | Output tok/s/GPU | Rows/s | Gen. wall (s) | Success |
 |---|---|---|---|---|---|
 | A100 | Raw SGLang 0.5.10 | 5187.44 +/- 2.08 | 5.09 +/- 0.00 | 196.65 +/- 0.10 | 1000/1000 |
-| A100 | MMIRAGE over SGLang | 5026.21 +/- 4.98 | 4.92 +/- 0.01 | 203.00 +/- 0.14 | 1000/1000 |
+| A100 | AnonLib over SGLang | 5026.21 +/- 4.98 | 4.92 +/- 0.01 | 203.00 +/- 0.14 | 1000/1000 |
 | H100 | Raw SGLang 0.5.10 | 8781.55 +/- 3.16 | 8.60 +/- 0.00 | 116.28 +/- 0.04 | 1000/1000 |
-| H100 | MMIRAGE over SGLang | 8376.01 +/- 3.36 | 8.20 +/- 0.01 | 121.92 +/- 0.05 | 1000/1000 |
+| H100 | AnonLib over SGLang | 8376.01 +/- 3.36 | 8.20 +/- 0.01 | 121.92 +/- 0.05 | 1000/1000 |
 
 Throughput retention: **0.96892** (A100, 3.1% overhead) and **0.95382** (H100,
 4.6% overhead). H100 is ~1.7x faster in absolute token throughput, but the

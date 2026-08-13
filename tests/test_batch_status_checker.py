@@ -1,11 +1,11 @@
 from types import SimpleNamespace
 
-from mmirage.config.openai_batch import OpenAIBatchConfig
-from mmirage.core.process.batch.adapter import BatchSubmissionResult
+from anonlib.config.openai_batch import OpenAIBatchConfig
+from anonlib.core.process.batch.adapter import BatchSubmissionResult
 
 
 def test_extract_unique_provider_batches_handles_malformed_and_duplicates(tmp_path):
-    from mmirage.core.process.batch.status_checker import (
+    from anonlib.core.process.batch.status_checker import (
         _read_metadata_records,
         extract_unique_provider_batches,
     )
@@ -33,7 +33,7 @@ def test_extract_unique_provider_batches_handles_malformed_and_duplicates(tmp_pa
 def test_run_status_checker_prints_summary_with_factory_dispatch(tmp_path, monkeypatch):
     from unittest.mock import patch
 
-    from mmirage.core.process.batch.status_checker import (
+    from anonlib.core.process.batch.status_checker import (
         _read_metadata_records,
         run_status_checker,
     )
@@ -66,7 +66,7 @@ def test_run_status_checker_prints_summary_with_factory_dispatch(tmp_path, monke
     fake_adapter = FakeAdapter()
 
     monkeypatch.setattr(
-        "mmirage.core.process.batch.status_checker.BatchAdapterFactory.from_config",
+        "anonlib.core.process.batch.status_checker.BatchAdapterFactory.from_config",
         lambda config: fake_adapter,
     )
 
@@ -75,7 +75,7 @@ def test_run_status_checker_prints_summary_with_factory_dispatch(tmp_path, monke
     }
     records = _read_metadata_records(str(metadata_path))
 
-    with patch("mmirage.core.process.batch.status_checker.logger") as mock_logger:
+    with patch("anonlib.core.process.batch.status_checker.logger") as mock_logger:
         results = run_status_checker(
             metadata_records=records,
             provider_configs=config_map,
@@ -101,7 +101,7 @@ def test_run_status_checker_prints_summary_with_factory_dispatch(tmp_path, monke
 
 
 def test_status_checker_main_uses_config_and_runs(tmp_path, monkeypatch):
-    from mmirage.core.process.batch import status_checker
+    from anonlib.core.process.batch import status_checker
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -114,7 +114,7 @@ def test_status_checker_main_uses_config_and_runs(tmp_path, monkeypatch):
     cfg = SimpleNamespace(
         processors=[SimpleNamespace(batch_provider={"provider": "openai"})]
     )
-    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+    monkeypatch.setattr("anonlib.config.utils.load_anonlib_config", lambda path: cfg)
 
     called = {}
 
@@ -124,7 +124,7 @@ def test_status_checker_main_uses_config_and_runs(tmp_path, monkeypatch):
         return []
 
     monkeypatch.setattr(
-        "mmirage.core.process.batch.status_checker.run_status_checker",
+        "anonlib.core.process.batch.status_checker.run_status_checker",
         _fake_run_status_checker,
     )
 
@@ -148,7 +148,7 @@ def test_status_checker_main_returns_error_when_metadata_provider_missing_in_con
 ):
     from unittest.mock import patch
 
-    from mmirage.core.process.batch import status_checker
+    from anonlib.core.process.batch import status_checker
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -162,9 +162,9 @@ def test_status_checker_main_returns_error_when_metadata_provider_missing_in_con
     cfg = SimpleNamespace(
         processors=[SimpleNamespace(batch_provider={"provider": "openai"})]
     )
-    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+    monkeypatch.setattr("anonlib.config.utils.load_anonlib_config", lambda path: cfg)
 
-    with patch("mmirage.core.process.batch.status_checker.logger") as mock_logger:
+    with patch("anonlib.core.process.batch.status_checker.logger") as mock_logger:
         rc = status_checker.main(
             [
                 "--metadata-path",
@@ -183,7 +183,7 @@ def test_status_checker_main_returns_error_when_credentials_missing(
 ):
     from unittest.mock import patch
 
-    from mmirage.core.process.batch import status_checker
+    from anonlib.core.process.batch import status_checker
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -198,10 +198,10 @@ def test_status_checker_main_returns_error_when_credentials_missing(
             SimpleNamespace(batch_provider={"provider": "openai", "credentials": {}})
         ]
     )
-    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+    monkeypatch.setattr("anonlib.config.utils.load_anonlib_config", lambda path: cfg)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-    with patch("mmirage.core.process.batch.status_checker.logger") as mock_logger:
+    with patch("anonlib.core.process.batch.status_checker.logger") as mock_logger:
         rc = status_checker.main(
             [
                 "--metadata-path",
@@ -218,7 +218,7 @@ def test_status_checker_main_returns_error_when_credentials_missing(
 def test_status_checker_main_uses_config_metadata_path_when_missing_cli_arg(
     tmp_path, monkeypatch
 ):
-    from mmirage.core.process.batch import status_checker
+    from anonlib.core.process.batch import status_checker
 
     metadata_base = tmp_path / "batch_metadata.jsonl"
     metadata_path = tmp_path / "batch_metadata.text.abc123.jsonl"
@@ -239,7 +239,7 @@ def test_status_checker_main_uses_config_metadata_path_when_missing_cli_arg(
             )
         ]
     )
-    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+    monkeypatch.setattr("anonlib.config.utils.load_anonlib_config", lambda path: cfg)
 
     called = {}
 
@@ -249,7 +249,7 @@ def test_status_checker_main_uses_config_metadata_path_when_missing_cli_arg(
         return []
 
     monkeypatch.setattr(
-        "mmirage.core.process.batch.status_checker.run_status_checker",
+        "anonlib.core.process.batch.status_checker.run_status_checker",
         _fake_run_status_checker,
     )
 
@@ -266,7 +266,7 @@ def test_status_checker_main_returns_error_when_config_metadata_paths_missing(
 ):
     from unittest.mock import patch
 
-    from mmirage.core.process.batch import status_checker
+    from anonlib.core.process.batch import status_checker
 
     metadata_base = tmp_path / "batch_metadata.jsonl"
     config_path = tmp_path / "dummy.yaml"
@@ -282,9 +282,9 @@ def test_status_checker_main_returns_error_when_config_metadata_paths_missing(
             )
         ]
     )
-    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+    monkeypatch.setattr("anonlib.config.utils.load_anonlib_config", lambda path: cfg)
 
-    with patch("mmirage.core.process.batch.status_checker.logger") as mock_logger:
+    with patch("anonlib.core.process.batch.status_checker.logger") as mock_logger:
         rc = status_checker.main(["--config", str(config_path)])
 
     assert rc == 1

@@ -1,13 +1,13 @@
 import json
 from types import SimpleNamespace
 
-from mmirage.config.openai_batch import OpenAIBatchConfig
+from anonlib.config.openai_batch import OpenAIBatchConfig
 
 
 def test_collect_and_merge_reconstructs_rows_deterministically(
     tmp_path, monkeypatch, caplog
 ):
-    from mmirage.core.process.batch.collector import (
+    from anonlib.core.process.batch.collector import (
         _read_metadata_records,
         collect_and_merge,
     )
@@ -71,7 +71,7 @@ def test_collect_and_merge_reconstructs_rows_deterministically(
 
     fake_adapter = FakeAdapter()
     monkeypatch.setattr(
-        "mmirage.core.process.batch.collector.BatchAdapterFactory.from_config",
+        "anonlib.core.process.batch.collector.BatchAdapterFactory.from_config",
         lambda config: fake_adapter,
     )
 
@@ -99,7 +99,7 @@ def test_collect_and_merge_reconstructs_rows_deterministically(
 
 
 def test_collect_and_merge_raises_for_missing_provider_config(tmp_path):
-    from mmirage.core.process.batch.collector import (
+    from anonlib.core.process.batch.collector import (
         _read_metadata_records,
         collect_and_merge,
     )
@@ -132,7 +132,7 @@ def test_collect_and_merge_raises_for_missing_provider_config(tmp_path):
 def test_collect_and_merge_outputs_caption_for_plain_text_content(
     tmp_path, monkeypatch
 ):
-    from mmirage.core.process.batch.collector import (
+    from anonlib.core.process.batch.collector import (
         _read_metadata_records,
         collect_and_merge,
     )
@@ -162,7 +162,7 @@ def test_collect_and_merge_outputs_caption_for_plain_text_content(
             ]
 
     monkeypatch.setattr(
-        "mmirage.core.process.batch.collector.BatchAdapterFactory.from_config",
+        "anonlib.core.process.batch.collector.BatchAdapterFactory.from_config",
         lambda config: FakeAdapter(),
     )
 
@@ -185,7 +185,7 @@ def test_collect_and_merge_outputs_caption_for_plain_text_content(
 def test_collect_and_merge_keeps_rows_with_duplicate_custom_ids_across_batches(
     tmp_path, monkeypatch
 ):
-    from mmirage.core.process.batch.collector import (
+    from anonlib.core.process.batch.collector import (
         _read_metadata_records,
         collect_and_merge,
     )
@@ -230,7 +230,7 @@ def test_collect_and_merge_keeps_rows_with_duplicate_custom_ids_across_batches(
     }
 
     monkeypatch.setattr(
-        "mmirage.core.process.batch.collector.BatchAdapterFactory.from_config",
+        "anonlib.core.process.batch.collector.BatchAdapterFactory.from_config",
         lambda config: adapters[config.provider],
     )
 
@@ -256,11 +256,11 @@ def test_collect_and_merge_keeps_rows_with_duplicate_custom_ids_across_batches(
 
 
 def test_collect_and_merge_uses_openai_adapter_generated_text(tmp_path, monkeypatch):
-    from mmirage.core.process.batch.collector import (
+    from anonlib.core.process.batch.collector import (
         _read_metadata_records,
         collect_and_merge,
     )
-    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -299,11 +299,11 @@ def test_collect_and_merge_uses_openai_adapter_generated_text(tmp_path, monkeypa
             self.files = FakeFiles()
 
     monkeypatch.setattr(
-        "mmirage.core.process.batch.openai_adapter.OpenAI",
+        "anonlib.core.process.batch.openai_adapter.OpenAI",
         FakeClient,
     )
     monkeypatch.setattr(
-        "mmirage.core.process.batch.collector.BatchAdapterFactory.from_config",
+        "anonlib.core.process.batch.collector.BatchAdapterFactory.from_config",
         lambda config: OpenAIBatchAdapter(),
     )
 
@@ -333,7 +333,7 @@ def test_collect_and_merge_uses_openai_adapter_generated_text(tmp_path, monkeypa
 
 
 def test_collector_main_uses_config_and_records(tmp_path, monkeypatch):
-    from mmirage.core.process.batch import collector
+    from anonlib.core.process.batch import collector
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -356,7 +356,7 @@ def test_collector_main_uses_config_and_records(tmp_path, monkeypatch):
     )
     captured = {}
 
-    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+    monkeypatch.setattr("anonlib.config.utils.load_anonlib_config", lambda path: cfg)
 
     def _fake_collect_and_merge(records, provider_configs, output_path_arg):
         captured["records"] = records
@@ -365,7 +365,7 @@ def test_collector_main_uses_config_and_records(tmp_path, monkeypatch):
         return [{"source_index": 0, "custom_id": "c1", "caption": "ok"}]
 
     monkeypatch.setattr(
-        "mmirage.core.process.batch.collector.collect_and_merge",
+        "anonlib.core.process.batch.collector.collect_and_merge",
         _fake_collect_and_merge,
     )
 
@@ -390,7 +390,7 @@ def test_collector_main_uses_config_and_records(tmp_path, monkeypatch):
 def test_collector_main_uses_config_metadata_path_when_missing_cli_arg(
     tmp_path, monkeypatch
 ):
-    from mmirage.core.process.batch import collector
+    from anonlib.core.process.batch import collector
 
     metadata_base = tmp_path / "batch_metadata.jsonl"
     metadata_path = tmp_path / "batch_metadata.text.abc123.jsonl"
@@ -421,7 +421,7 @@ def test_collector_main_uses_config_metadata_path_when_missing_cli_arg(
     )
     captured = {}
 
-    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+    monkeypatch.setattr("anonlib.config.utils.load_anonlib_config", lambda path: cfg)
 
     def _fake_collect_and_merge(records, provider_configs, output_path_arg):
         captured["records"] = records
@@ -430,7 +430,7 @@ def test_collector_main_uses_config_metadata_path_when_missing_cli_arg(
         return [{"source_index": 0, "custom_id": "c1", "caption": "ok"}]
 
     monkeypatch.setattr(
-        "mmirage.core.process.batch.collector.collect_and_merge",
+        "anonlib.core.process.batch.collector.collect_and_merge",
         _fake_collect_and_merge,
     )
 
@@ -453,7 +453,7 @@ def test_collector_main_uses_config_metadata_path_when_missing_cli_arg(
 def test_collector_main_raises_when_config_metadata_paths_missing(
     tmp_path, monkeypatch, caplog
 ):
-    from mmirage.core.process.batch import collector
+    from anonlib.core.process.batch import collector
 
     metadata_base = tmp_path / "batch_metadata.jsonl"
     output_path = tmp_path / "out.jsonl"
@@ -470,7 +470,7 @@ def test_collector_main_raises_when_config_metadata_paths_missing(
             )
         ]
     )
-    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+    monkeypatch.setattr("anonlib.config.utils.load_anonlib_config", lambda path: cfg)
 
     rc = collector.main(
         [
@@ -490,7 +490,7 @@ def test_collector_main_raises_when_config_metadata_paths_missing(
 def test_collector_main_raises_when_metadata_provider_missing_in_config(
     tmp_path, monkeypatch, caplog
 ):
-    from mmirage.core.process.batch import collector
+    from anonlib.core.process.batch import collector
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -512,7 +512,7 @@ def test_collector_main_raises_when_metadata_provider_missing_in_config(
     cfg = SimpleNamespace(
         processors=[SimpleNamespace(batch_provider={"provider": "openai"})]
     )
-    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+    monkeypatch.setattr("anonlib.config.utils.load_anonlib_config", lambda path: cfg)
 
     rc = collector.main(
         [
@@ -529,11 +529,11 @@ def test_collector_main_raises_when_metadata_provider_missing_in_config(
 
 
 def test_collect_and_merge_routes_multiple_providers(tmp_path, monkeypatch):
-    from mmirage.core.process.batch.collector import (
+    from anonlib.core.process.batch.collector import (
         _read_metadata_records,
         collect_and_merge,
     )
-    from mmirage.core.process.batch.provider_resolution import resolve_provider_configs
+    from anonlib.core.process.batch.provider_resolution import resolve_provider_configs
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -593,7 +593,7 @@ def test_collect_and_merge_routes_multiple_providers(tmp_path, monkeypatch):
     }
 
     monkeypatch.setattr(
-        "mmirage.core.process.batch.collector.BatchAdapterFactory.from_config",
+        "anonlib.core.process.batch.collector.BatchAdapterFactory.from_config",
         lambda config: adapters[config.provider],
     )
 
@@ -613,7 +613,7 @@ def test_collect_and_merge_routes_multiple_providers(tmp_path, monkeypatch):
 def test_collector_main_raises_for_invalid_batch_provider_config(
     tmp_path, monkeypatch, caplog
 ):
-    from mmirage.core.process.batch import collector
+    from anonlib.core.process.batch import collector
 
     metadata_path = tmp_path / "receipts.jsonl"
     metadata_path.write_text(
@@ -638,7 +638,7 @@ def test_collector_main_raises_for_invalid_batch_provider_config(
             )
         ]
     )
-    monkeypatch.setattr("mmirage.config.utils.load_mmirage_config", lambda path: cfg)
+    monkeypatch.setattr("anonlib.config.utils.load_anonlib_config", lambda path: cfg)
 
     rc = collector.main(
         [
@@ -655,7 +655,7 @@ def test_collector_main_raises_for_invalid_batch_provider_config(
 
 
 def test_collect_and_merge_tiebreaker_secondary_sort_key(tmp_path, monkeypatch):
-    from mmirage.core.process.batch.collector import (
+    from anonlib.core.process.batch.collector import (
         _read_metadata_records,
         collect_and_merge,
     )
@@ -686,7 +686,7 @@ def test_collect_and_merge_tiebreaker_secondary_sort_key(tmp_path, monkeypatch):
             ]
 
     monkeypatch.setattr(
-        "mmirage.core.process.batch.collector.BatchAdapterFactory.from_config",
+        "anonlib.core.process.batch.collector.BatchAdapterFactory.from_config",
         lambda config: FakeAdapter(),
     )
 
@@ -701,7 +701,7 @@ def test_collect_and_merge_tiebreaker_secondary_sort_key(tmp_path, monkeypatch):
 
 
 def test_build_output_payload_logs_malformed_json(caplog):
-    from mmirage.core.process.batch.collector import _build_output_payload
+    from anonlib.core.process.batch.collector import _build_output_payload
 
     malformed_json = '{"question": "incomplete'
     result_row = {
@@ -719,7 +719,7 @@ def test_build_output_payload_logs_malformed_json(caplog):
 
 
 def test_build_output_payload_keeps_plain_text_silent(caplog):
-    from mmirage.core.process.batch.collector import _build_output_payload
+    from anonlib.core.process.batch.collector import _build_output_payload
 
     result_row = {
         "custom_id": "caption:multimodal:1",
@@ -736,7 +736,7 @@ def test_build_output_payload_keeps_plain_text_silent(caplog):
 
 
 def test_build_output_payload_preserves_provider_error_status():
-    from mmirage.core.process.batch.collector import _build_output_payload
+    from anonlib.core.process.batch.collector import _build_output_payload
 
     result_row = {
         "custom_id": "formatted_answer:text:50",

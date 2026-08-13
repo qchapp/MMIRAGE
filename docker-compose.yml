@@ -1,5 +1,5 @@
 services:
-  mmirage:
+  anonlib:
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -11,7 +11,7 @@ services:
               count: all
               capabilities: [gpu]
 
-  mmirage-cpu:
+  anonlib-cpu:
     build:
       context: .
       dockerfile: docker/Dockerfile.cpu

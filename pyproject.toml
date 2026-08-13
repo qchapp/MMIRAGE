@@ -3,12 +3,11 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mmirage"
+name = "anonlib"
 version = "0.1.4"
-description = "Modular Multimodal Intelligent Reformatting and Augmentation Generation Engine - Advanced platform for processing datasets using generative models including vision-language models."
+description = "Declarative, distributed dataset processing with generative models."
 readme = "README.md"
 requires-python = ">=3.12"
-authors = [{ name = "Meditron team" }]
 
 dependencies = [
   "transformers==5.3.0",
@@ -57,13 +56,13 @@ image_gen = [
 ]
 
 [project.scripts]
-mmirage = "mmirage.cli:main"
+anonlib = "anonlib.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/mmirage"]
+packages = ["src/anonlib"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/mmirage/**", "pyproject.toml", "README.md"]
+include = ["src/anonlib/**", "pyproject.toml", "README.md"]
 
 [tool.ruff]
 src = ["src"]

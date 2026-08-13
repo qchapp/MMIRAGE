@@ -4,16 +4,16 @@ from types import SimpleNamespace
 
 from datasets import load_dataset
 
-from mmirage.config.openai_batch import OpenAIBatchConfig
-from mmirage.core.process.mapper import MMIRAGEMapper
-from mmirage.core.process.processors.llm import llm_processor
-from mmirage.core.process.processors.llm.config import (
+from anonlib.config.openai_batch import OpenAIBatchConfig
+from anonlib.core.process.mapper import AnonLibMapper
+from anonlib.core.process.processors.llm import llm_processor
+from anonlib.core.process.processors.llm.config import (
     LLMOutputVar,
     SGLangLLMConfig,
     SGLangServerArgs,
 )
-from mmirage.core.process.variables import InputVar
-from mmirage.core.writer.renderer import TemplateRenderer
+from anonlib.core.process.variables import InputVar
+from anonlib.core.writer.renderer import TemplateRenderer
 
 
 def test_integration_batch_pipeline_with_stateful_accumulator(monkeypatch, tmp_path):
@@ -77,7 +77,7 @@ def test_integration_batch_pipeline_with_stateful_accumulator(monkeypatch, tmp_p
             return user_prompt[0]["content"]
 
     monkeypatch.setattr(
-        "mmirage.core.process.batch.openai_adapter.OpenAI",
+        "anonlib.core.process.batch.openai_adapter.OpenAI",
         FakeOpenAIClient,
     )
     monkeypatch.setattr(llm_processor, "SGLANG_AVAILABLE", True)
@@ -85,7 +85,7 @@ def test_integration_batch_pipeline_with_stateful_accumulator(monkeypatch, tmp_p
         llm_processor, "sgl", SimpleNamespace(Engine=FakeEngine), raising=False
     )
     monkeypatch.setattr(
-        "mmirage.core.process.processors.llm.llm_processor.AutoTokenizer.from_pretrained",
+        "anonlib.core.process.processors.llm.llm_processor.AutoTokenizer.from_pretrained",
         lambda *args, **kwargs: FakeTokenizer(),
     )
 
@@ -104,7 +104,7 @@ def test_integration_batch_pipeline_with_stateful_accumulator(monkeypatch, tmp_p
         ),
     )
 
-    mapper = MMIRAGEMapper(
+    mapper = AnonLibMapper(
         processor_configs=[llm_cfg],
         input_vars=[InputVar(name="text", key="text")],
         output_vars=[

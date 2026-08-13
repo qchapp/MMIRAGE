@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python3.12 -m venv /opt/venv
 RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel
 
-WORKDIR /workspace/MMIRAGE
+WORKDIR /workspace/AnonLib
 
 COPY pyproject.toml README.md ./
 

@@ -1,6 +1,6 @@
 # Quick Start
 
-This page walks through the most common MMIRAGE workflows step by step.
+This page walks through the most common AnonLib workflows step by step.
 
 ## Text-Only: Reformatting a Dataset
 
@@ -75,7 +75,7 @@ execution_params:
 Then run:
 
 ```bash
-mmirage run --config configs/my_config.yaml
+anonlib run --config configs/my_config.yaml
 ```
 
 ## Multimodal: Processing Images with a VLM
@@ -139,7 +139,7 @@ Set `execution_params.mode: slurm` and provide SLURM-specific parameters:
 execution_params:
   mode: slurm
   account: my_account
-  job_name: mmirage-job
+  job_name: anonlib-job
   nodes: 1
   ntasks_per_node: 1
   gpus: 4
@@ -153,7 +153,7 @@ execution_params:
 Then submit:
 
 ```bash
-mmirage run --config configs/slurm_config.yaml
+anonlib run --config configs/slurm_config.yaml
 ```
 
 ---
@@ -161,7 +161,7 @@ mmirage run --config configs/slurm_config.yaml
 ## See also
 
 - [Concepts](concepts.md) — understand shards, variables, output schemas, and execution modes
-- [Pipeline](pipeline.md) — step-by-step walkthrough of what MMIRAGE does with your data
+- [Pipeline](pipeline.md) — step-by-step walkthrough of what AnonLib does with your data
 - [Multimodal Processing](multimodal.md) — image inputs and VLM chat templates
 - [SLURM & Cluster Deployment](slurm.md) — running at scale on HPC clusters
 - [Configuration Reference](configuration.md) — full parameter reference

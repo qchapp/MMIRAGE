@@ -1,21 +1,21 @@
 #!/bin/bash
-#SBATCH --job-name=mmirage-example
-#SBATCH --chdir=$MMIRAGE_PATH/src/mmirage
-#SBATCH --output=/users/$USER/reports/R-%x.%A_%a.out
-#SBATCH --error=/users/$USER/reports/R-%x.%A_%a.err
+#SBATCH --job-name=anonlib-example
+#SBATCH --chdir=$ANONLIB_PATH/src/anonlib
+#SBATCH --output=reports/R-%x.%A_%a.out
+#SBATCH --error=reports/R-%x.%A_%a.err
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=288
 #SBATCH --time=11:59:59
-#SBATCH -A a127
+#SBATCH -A my_account
 #SBATCH --array=0-3
 
 # --- outputs & config ---
-export ROOT=$SCRATCH/mmirage_example
+export ROOT=$SCRATCH/anonlib_example
 export SHARDS_ROOT="$ROOT/shards"
 export MERGED_DIR="$ROOT/merged"
-export CFG=$MMIRAGE_PATH/configs/config_mock.yaml
+export CFG=$ANONLIB_PATH/configs/config_mock.yaml
 
 # HF cache/home
 export HF_HOME=$SCRATCH/hf
@@ -23,15 +23,12 @@ export HF_HOME=$SCRATCH/hf
 mkdir -p "$SHARDS_ROOT"
 mkdir -p "$MERGED_DIR"
 
-export CMD="python $MMIRAGE_PATH/src/mmirage/shard_process.py --config $CFG"
+export CMD="python $ANONLIB_PATH/src/anonlib/shard_process.py --config $CFG"
 
 SRUN_ARGS=" \
   --cpus-per-task $SLURM_CPUS_PER_TASK \
   --jobid $SLURM_JOB_ID \
-  --wait 60 \
-  -A a127 \
-  --reservation sai-a127 \
-  --environment /users/$USER/.edf/mmirage.toml
+  --wait 60
   "
 # bash -c is needed for the delayed interpolation of env vars to work
 srun $SRUN_ARGS bash -c "$CMD"
