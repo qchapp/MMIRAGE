@@ -390,10 +390,10 @@ Key multimodal features:
 - `image_base_path`: Base directory for resolving relative image paths
 - Supports PIL Images, URLs, and file paths
 
-## Running the benchmarks and experiments
+## Running Benchmarks And Experiments
 
-Run all commands in this section from the repository root. Both experiments use
-`Qwen/Qwen3-4B` and require the GPU extra:
+Run all commands in this section from the repository root. Install the GPU extra
+before running any SGLang-backed benchmark or experiment:
 
 ```bash
 python -m pip install -e '.[gpu]'
@@ -402,6 +402,37 @@ python -c "import sglang; print(sglang.__version__)"
 
 The expected SGLang version is `0.5.10`. The first run may download the model,
 so ensure the machine can access Hugging Face and has sufficient cache space.
+
+### Experiment runbooks
+
+The reproducible paper experiments live under `experiments/<name>/`. The root
+README is only an index; use the experiment README as the source of truth for
+commands, output directories, expected files, common failures, and metadata to
+archive.
+
+| Experiment | Hardware or service needed | Safe preflight | Full rerun instructions |
+|---|---|---|---|
+| Raw SGLang overhead | One CUDA GPU for `Qwen/Qwen3-4B`; H100 command documented separately. | `python experiments/raw_sglang_overhead/scripts/run.py --workload-dir experiments/raw_sglang_overhead/workload --output-dir /tmp/anonlib_overhead_dry_run --repetitions 1 --dry-run` | [`experiments/raw_sglang_overhead/README.md`](experiments/raw_sglang_overhead/README.md) |
+| Shard recovery | Kubernetes or Run:ai namespace, H100 access, `kubectl`, and a shared ReadWriteMany PVC. | Prepare workload and use `run_k8s.py status` after runs; there is no no-op Kubernetes dry-run. | Companion experiment PR. |
+| Single-node H100 scaling | One node or pod with four visible H100 GPUs. | Dry-run wrapper documented in the companion experiment PR. | Companion experiment PR. |
+
+Use fresh output directories for reruns unless the experiment README explicitly
+tells you to pass `--overwrite`. Generated experiment outputs are intentionally
+not committed.
+
+To check a freshly cloned repository without launching inference, Kubernetes
+pods, or GPU benchmarks, run:
+
+```bash
+python -m py_compile experiments/_shared/*.py \
+  experiments/raw_sglang_overhead/scripts/*.py
+```
+
+After merging the companion shard-recovery and H100-scaling experiment PRs, also
+compile their scripts and run `bash -n` on the scaling wrappers.
+
+For the global experiment layout policy, see
+[`experiments/README.md`](experiments/README.md).
 
 ### Collecting statistics for any pipeline
 
@@ -431,7 +462,7 @@ Key metrics:
 - **`gpu_days_per_billion_tokens`**: total GPU-days consumed to generate 1 billion output tokens — useful for cost and scaling comparisons across different hardware configurations.
 - Token metrics are `null` when no LLM processor was active, and GPU stats are `null` when `nvidia-smi` is unavailable or `--stats` was not passed.
 
-### Experiment 1: DataTrove-compatible throughput
+### DataTrove-Compatible Throughput Benchmark
 
 The config `configs/config_benchmark_datatrove.yaml` mirrors the DataTrove inference benchmark conditions:
 
@@ -483,56 +514,6 @@ This experiment measures AnonLib throughput under DataTrove-compatible settings;
 it does not provide a same-server raw SGLang comparison.
 
 Reference: [DataTrove inference benchmark](https://github.com/huggingface/datatrove/tree/main/examples/inference/benchmark).
-
-### Experiment 2: raw SGLang overhead
-
-This experiment compares two paths against the same one-GPU SGLang HTTP server:
-
-1. a raw `/v1/completions` client;
-2. the full AnonLib loading, mapping, rendering, state, and statistics path.
-
-The repository already contains the prepared 1,000-row workload under
-`experiments/raw_sglang_overhead/workload/`. First validate the commands without
-starting a model server:
-
-```bash
-python experiments/raw_sglang_overhead/scripts/run.py \
-  --workload-dir experiments/raw_sglang_overhead/workload \
-  --output-dir /tmp/anonlib_overhead_dry_run \
-  --repetitions 1 \
-  --dry-run
-```
-
-Then run three measured repetitions on one GPU:
-
-```bash
-python experiments/raw_sglang_overhead/scripts/run.py \
-  --workload-dir experiments/raw_sglang_overhead/workload \
-  --output-dir /tmp/anonlib_overhead_results \
-  --repetitions 3 \
-  --gpu-count 1 \
-  --gpu-index 0 \
-  --concurrency 64 \
-  --port 30000 \
-  --model-path Qwen/Qwen3-4B
-```
-
-Omit `--gpu-index` on a single-GPU machine. The selected port must be free. Each
-repetition starts a fresh SGLang server for the raw path and another for the
-AnonLib path, so the full experiment loads the model six times.
-
-The output directory contains:
-
-- `raw_results.csv`: one row per repetition and execution path;
-- `summary.json`: aggregate metrics, throughput retention, and relative overhead;
-- `summary.csv`: the aggregate metrics in tabular form;
-- `table.tex`: a paper-ready LaTeX table;
-- `plot_throughput.py`: a script that generates a throughput box plot;
-- `rep_*/`: per-run outputs and SGLang server logs.
-
-See [`experiments/raw_sglang_overhead/README.md`](experiments/raw_sglang_overhead/README.md)
-for workload regeneration, hardware-specific SGLang arguments, metric
-definitions, and the recorded reference results.
 
 ## Architecture
 
