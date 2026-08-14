@@ -163,7 +163,7 @@ python3 experiments/nemo_curator_comparison/scripts/run_datatrove_pipeline.py \
 deactivate
 ```
 
-The materialized output must pass the existing analyzer checks for row count, IDs, duplicates, order, and schema validity (see the `output_contract`/`validation` keys in `run_summary.json`). After the DataTrove repetitions complete, include DataTrove in the full balanced order rather than comparing it against stale AnonLib/NeMo runs.
+The materialized output must pass the existing analyzer checks for row count, IDs, duplicates, order, and schema validity (see the `output_contract`/`validation` keys in `run_summary.json`). After the DataTrove repetitions complete, include DataTrove in the full balanced order rather than comparing it against stale MMIRAGE/NeMo runs.
 
 The DataTrove ChartQA path was smoke-verified end-to-end on one H100 (2 rows, `execution_status: completed`, validation passed).
 

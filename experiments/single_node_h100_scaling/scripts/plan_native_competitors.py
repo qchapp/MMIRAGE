@@ -11,7 +11,6 @@ from typing import Any
 
 import yaml
 
-
 EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = EXPERIMENT_DIR / "configs" / "native_competitors.yaml"
 

@@ -3,7 +3,7 @@
 
 Equivalent of ``run_local.py`` for the native framework baselines. Logical
 shards are local worker subprocesses pinned to GPUs via ``CUDA_VISIBLE_DEVICES``;
-the deliberate ANONLIB pod termination is emulated with ``SIGTERM`` to the
+the deliberate MMIRAGE pod termination is emulated with ``SIGTERM`` to the
 designated failure shards after they report running. Shards without a valid
 completion marker are relaunched in retry rounds, outputs are merged in the
 expected id order, and the recovery output contract is validated.
@@ -84,7 +84,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--framework", choices=sorted(FRAMEWORKS), required=True)
     parser.add_argument("--condition", choices=sorted(CONDITION_FAILURE_SHARDS), required=True)
     parser.add_argument("--rep", type=int, default=1)
-    parser.add_argument("--shared-root", default="/workspace/anonlib-recovery")
+    parser.add_argument("--shared-root", default="/workspace/mmirage-recovery")
     parser.add_argument("--gpu-ids", default="0,1,2,3")
     parser.add_argument("--max-active-shards", type=int, default=4)
     parser.add_argument("--model", default="Qwen/Qwen3-4B")
@@ -101,7 +101,7 @@ def parse_args() -> argparse.Namespace:
 def output_contract() -> Dict[str, Any]:
     return {
         "final_row_order": "must_match_expected_id_order",
-        "required_fields": ["anonlib_id", "prompt_text", "answer"],
+        "required_fields": ["mmirage_id", "prompt_text", "answer"],
         "validation": [
             "no_missing_ids",
             "no_duplicate_ids",
@@ -163,7 +163,7 @@ def shard_complete(args: argparse.Namespace, shard_id: int, expected_ids: List[s
         return False
     if not output_path.exists():
         return False
-    output_ids = [str(row.get("anonlib_id")) for row in read_jsonl(output_path)]
+    output_ids = [str(row.get("mmirage_id")) for row in read_jsonl(output_path)]
     return len(output_ids) == len(expected_ids) and set(output_ids) == set(expected_ids)
 
 
@@ -205,7 +205,7 @@ def launch_worker(
         "--prompt-style",
         "raw",
         "--id-field",
-        "anonlib_id",
+        "mmirage_id",
         "--gpu-id",
         str(gpu_id),
     ]
@@ -353,7 +353,7 @@ def main() -> int:
     except Exception as exc:
         raise SystemExit(f"Failed to read recovery workload under --shared-root: {exc}")
 
-    expected_ids = [str(row["anonlib_id"]) for row in sorted(order_rows, key=lambda row: int(row["order_index"]))]
+    expected_ids = [str(row["mmirage_id"]) for row in sorted(order_rows, key=lambda row: int(row["order_index"]))]
     if len(rows) != len(expected_ids):
         raise SystemExit(f"Workload rows ({len(rows)}) do not match id_order rows ({len(expected_ids)})")
     expected_by_shard: Dict[int, List[str]] = {}
@@ -390,15 +390,15 @@ def main() -> int:
         output_path = args.state_dir / f"shard_{shard_id}" / "output.jsonl"
         if output_path.exists():
             merged_rows.extend(read_jsonl(output_path))
-    order_by_id = {str(row["anonlib_id"]): int(row["order_index"]) for row in order_rows}
-    merged_rows.sort(key=lambda row: order_by_id.get(str(row["anonlib_id"]), 1 << 60))
+    order_by_id = {str(row["mmirage_id"]): int(row["order_index"]) for row in order_rows}
+    merged_rows.sort(key=lambda row: order_by_id.get(str(row["mmirage_id"]), 1 << 60))
     merged_path = args.run_root / "merged" / "merged.jsonl"
     merged_path.parent.mkdir(parents=True, exist_ok=True)
     with merged_path.open("w", encoding="utf-8") as handle:
         for row in merged_rows:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    merged_ids = [str(row.get("anonlib_id")) for row in merged_rows]
+    merged_ids = [str(row.get("mmirage_id")) for row in merged_rows]
     missing = sorted(set(expected_ids) - set(merged_ids))
     unexpected = sorted(set(merged_ids) - set(expected_ids))
     duplicates = sorted({item for item in merged_ids if merged_ids.count(item) > 1})

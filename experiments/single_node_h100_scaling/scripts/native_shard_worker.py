@@ -4,7 +4,7 @@
 Runs one framework-native generation pass over an input shard and writes:
 
 * the contract JSONL (``--output-jsonl``), one row per input row, in input order
-* a status JSON (``--status-json``) in the ANONLIB shard schema so the existing
+* a status JSON (``--status-json``) in the MMIRAGE shard schema so the existing
   scaling aggregator can consume it unchanged
 
 The worker is expected to be launched with ``CUDA_VISIBLE_DEVICES=<gpu>`` set by

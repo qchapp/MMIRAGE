@@ -41,7 +41,7 @@ This experiment does not measure multi-node scaling, tensor parallelism, Kuberne
 | `scripts/run_2gpu.sh` | Wrapper for the 2-GPU point. |
 | `scripts/run_4gpu.sh` | Wrapper for the 4-GPU point. |
 | `scripts/run_native_text_competitor.py` | Native-mode orchestrator: shards the workload, launches one worker per GPU, merges, validates, and aggregates. |
-| `scripts/native_shard_worker.py` | Native-mode per-GPU worker subprocess that runs one framework backend and writes ANONLIB-compatible status files. |
+| `scripts/native_shard_worker.py` | Native-mode per-GPU worker subprocess that runs one framework backend and writes MMIRAGE-compatible status files. |
 | `scripts/run_datatrove_scaling.py` | Wrapper that runs the DataTrove native baseline (see section 6). |
 | `scripts/run_nemo_curator_scaling.py` | Wrapper that runs the NeMo Curator native baseline (see section 6). |
 | `scripts/run_distilabel_scaling.py` | Wrapper that runs the Distilabel native baseline (see section 6). |
@@ -213,7 +213,7 @@ Important metrics:
 
 ## 6. Native Competitor Baselines
 
-The native baselines answer the same strong-scaling question using each framework's own inference stack instead of AnonLib. They reuse the same workload, prompt template, model, GPU points, shard split, and output contract. Each framework runs in its own Python environment; nothing here imports or executes AnonLib.
+The native baselines answer the same strong-scaling question using each framework's own inference stack instead of MMIRAGE. They reuse the same workload, prompt template, model, GPU points, shard split, and output contract. Each framework runs in its own Python environment; nothing here imports or executes MMIRAGE.
 
 ### 6.1 What runs where
 
@@ -227,7 +227,7 @@ The native baselines answer the same strong-scaling question using each framewor
 
 All five share the same plumbing:
 
-- `scripts/native_shard_worker.py` runs the framework backend for one shard and writes ANONLIB-compatible `running.json`/`status.json` plus the contract output.
+- `scripts/native_shard_worker.py` runs the framework backend for one shard and writes MMIRAGE-compatible `running.json`/`status.json` plus the contract output.
 - `scripts/run_native_text_competitor.py` splits the workload into one contiguous shard per visible GPU, launches one worker subprocess per GPU pinned with `CUDA_VISIBLE_DEVICES`, merges shard outputs in input order, validates the contract, and reuses `run.py` for aggregation.
 - `experiments/_shared/native_frameworks.py` holds the `run_<framework>(...)` implementations, the vLLM server helpers, and the contract validator.
 
@@ -245,7 +245,7 @@ Repeat for `distilabel`, `nemo_curator`, `ray_data_llm`, and `raw_sglang` using 
 
 | Environment | Key packages |
 |---|---|
-| `.venv-anonlib` | sglang 0.5.10 |
+| `.venv-mmirage` | sglang 0.5.10 |
 | `.venv-datatrove` | datatrove 0.9.0, vllm 0.23.0, setuptools 75.9.1 |
 | `.venv-distilabel` | distilabel 1.5.3, vllm 0.27.1 |
 | `.venv-ray` | ray 2.57.0, vllm 0.27.1 |
@@ -272,7 +272,7 @@ Run each point with that framework's venv python so the shard workers inherit th
   --model Qwen/Qwen3-4B
 ```
 
-Swap `run_datatrove_scaling.py` for `run_nemo_curator_scaling.py`, `run_distilabel_scaling.py`, `run_ray_data_llm_scaling.py`, or `run_raw_sglang_scaling.py` (and the venv) for the other frameworks. Alternatively keep the orchestrator in `.venv-anonlib` and pass `--worker-python .venv-datatrove/bin/python`.
+Swap `run_datatrove_scaling.py` for `run_nemo_curator_scaling.py`, `run_distilabel_scaling.py`, `run_ray_data_llm_scaling.py`, or `run_raw_sglang_scaling.py` (and the venv) for the other frameworks. Alternatively keep the orchestrator in `.venv-mmirage` and pass `--worker-python .venv-datatrove/bin/python`.
 
 Useful flags:
 
@@ -292,7 +292,7 @@ python experiments/single_node_h100_scaling/scripts/plan_native_competitors.py \
 
 ### 6.4 Output contract and validation
 
-Each repetition writes per shard under `runs/gpu_<N>/rep_<R>/state/shard_<i>/`: `input.jsonl`, `output.jsonl`, `running.json`, `status.json`, and `worker.log` (plus `worker.vllm.log` where a vLLM server is spawned). The orchestrator merges shard outputs in input order into `runs/gpu_<N>/rep_<R>/output/native_competitor_output.jsonl`, writes `validation.json`, and produces the same ANONLIB repetition summary and `summary.csv`/`summary.json` outputs as the AnonLib run.
+Each repetition writes per shard under `runs/gpu_<N>/rep_<R>/state/shard_<i>/`: `input.jsonl`, `output.jsonl`, `running.json`, `status.json`, and `worker.log` (plus `worker.vllm.log` where a vLLM server is spawned). The orchestrator merges shard outputs in input order into `runs/gpu_<N>/rep_<R>/output/native_competitor_output.jsonl`, writes `validation.json`, and produces the same MMIRAGE repetition summary and `summary.csv`/`summary.json` outputs as the MMIRAGE run.
 
 Output rows are one JSON line per workload row with the contract fields `stable_id`, `source_index`, `prompt_sha256`, `prompt_text`, `answer`. Validation checks that the row count, id set, row order, and prompt hashes match the input (`processed_rows_equals_input_rows`, `stable_id_set_matches_input`, `no_duplicate_stable_ids`, `prompt_sha256_preserved`, `schema_valid_for_every_row`, plus `row_order_matches_input`). Decoding is greedy (`temperature=0.0`, `max_new_tokens=256`), so generation is deterministic per model and framework. Each repetition prints `validation=PASS|FAIL`.
 

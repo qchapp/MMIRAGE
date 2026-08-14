@@ -3,7 +3,7 @@
 
 Splits the workload into one contiguous shard per visible GPU, launches one
 framework-native worker subprocess per GPU (pinned via ``CUDA_VISIBLE_DEVICES``),
-then aggregates every repetition with the ANONLIB aggregator and validates the
+then aggregates every repetition with the MMIRAGE aggregator and validates the
 output contract.
 
 Usage mirrors the pre-existing wrapper contract; each framework wrapper

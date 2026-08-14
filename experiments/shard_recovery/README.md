@@ -117,7 +117,7 @@ The comparison uses a benchmark-level equivalence contract:
 - preserve completed shard output hashes across retry
 - merge outputs in original input order
 
-The worker itself is the scaling experiment's `experiments/single_node_h100_scaling/scripts/native_shard_worker.py` invoked with `--prompt-style raw --id-field anonlib_id`.
+The worker itself is the scaling experiment's `experiments/single_node_h100_scaling/scripts/native_shard_worker.py` invoked with `--prompt-style raw --id-field mmirage_id`.
 
 Report Ray task retry, DataTrove checkpointing, NeMo pipeline retry, and Distilabel pipeline retry separately from the normalized benchmark shard retry. Do not claim any competitor has native MMIRAGE-equivalent shard state unless the final implementation uses that competitor's own public API to expose it.
 
@@ -142,7 +142,7 @@ or
 ```bash
 .venv-datatrove/bin/python experiments/shard_recovery/scripts/run_native_recovery_competitor.py \
   --framework datatrove --condition fail_4 --rep 1 \
-  --shared-root "$ANONLIB_RECOVERY_ROOT" --gpu-ids 0,1,2,3 --dry-run
+  --shared-root "$MMIRAGE_RECOVERY_ROOT" --gpu-ids 0,1,2,3 --dry-run
 ```
 
 ### Run a condition
@@ -154,14 +154,14 @@ Prepare the workload first (section 2), then run a condition with the framework 
   --framework datatrove \
   --condition fail_4 \
   --rep 1 \
-  --shared-root "$ANONLIB_RECOVERY_ROOT" \
+  --shared-root "$MMIRAGE_RECOVERY_ROOT" \
   --gpu-ids 0,1,2,3
 ```
 
 Run each framework with its own venv (`nemo_curator`, `distilabel`, `ray_data_llm`) and each condition (`baseline`, `fail_1`, `fail_4`, `fail_8`) and repetition. The controller runs the initial phase, snapshots completed shard outputs, retries incomplete shards in rounds (up to `--max-rounds`, default 3), merges in expected ID order, and writes:
 
 ```text
-$ANONLIB_RECOVERY_ROOT/native_competitors/<framework>/<condition>/rep_<R>/
+$MMIRAGE_RECOVERY_ROOT/native_competitors/<framework>/<condition>/rep_<R>/
   controller/run_manifest.json
   controller/phase_initial.json
   controller/phase_retry_<N>.json

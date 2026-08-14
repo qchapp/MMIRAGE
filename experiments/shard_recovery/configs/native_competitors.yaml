@@ -4,9 +4,9 @@
 
 task:
   name: ultrachat_shard_recovery
-  source_workload: /workspace/anonlib-recovery/data/ultrachat_200k/subset.jsonl
-  expected_id_order: /workspace/anonlib-recovery/data/ultrachat_200k/id_order.jsonl
-  mmirage_recipe: experiments/shard_recovery/configs/anonlib_recovery.yaml
+  source_workload: /workspace/mmirage-recovery/data/ultrachat_200k/subset.jsonl
+  expected_id_order: /workspace/mmirage-recovery/data/ultrachat_200k/id_order.jsonl
+  mmirage_recipe: experiments/shard_recovery/configs/mmirage_recovery.yaml
   model: Qwen/Qwen3-4B
   total_shards: 16
   max_active_shards: 4
@@ -16,7 +16,7 @@ task:
   output_contract:
     final_row_order: must_match_expected_id_order
     required_fields:
-      - anonlib_id
+      - mmirage_id
       - prompt_text
       - answer
     validation:
@@ -34,8 +34,8 @@ conditions:
 
 execution:
   native_mode: true
-  shared_root: /workspace/anonlib-recovery
-  output_root: /workspace/anonlib-recovery/native_competitors
+  shared_root: /workspace/mmirage-recovery
+  output_root: /workspace/mmirage-recovery/native_competitors
   retry_policy: relaunch_shards_without_valid_completion_marker
   artifact_policy: generated_outputs_are_ignored_and_not_committed
   command_template: >-

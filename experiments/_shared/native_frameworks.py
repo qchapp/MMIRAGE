@@ -3,7 +3,7 @@
 Each ``run_<framework>(...)`` function consumes the same list of workload rows
 and writes the same contract JSONL (one line per row, in input order) with the
 required fields filled in. Statistics are returned in a dict matching the
-ANONLIB shard status schema so existing aggregators can consume them.
+MMIRAGE shard status schema so existing aggregators can consume them.
 
 The DataTrove, Distilabel, Ray Data LLM, and raw SGLang paths execute the
 framework's own inference machinery (a framework-managed vLLM/SGLang engine per
@@ -73,7 +73,7 @@ def _ordered_contract_rows(rows: list[dict[str, Any]], answers: dict[str, str], 
 
 
 def _runner_stats(rows: list[dict[str, Any]], input_tokens: int, output_tokens: int, model_load_seconds: float, runtime_seconds: float) -> dict[str, Any]:
-    """Build the ANONLIB-compatible shard status ``stats`` dict."""
+    """Build the MMIRAGE-compatible shard status ``stats`` dict."""
     return {
         "rows_processed": len(rows),
         "input_tokens": input_tokens,
