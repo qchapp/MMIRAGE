@@ -25,6 +25,6 @@ This experiment was prepared against the current public documentation and source
 - Current standalone Data Designer `v0.9.1` expands multimodal context to image/audio/video. Curator's officially pinned `data-designer==0.5.5` supports image context relevant to ChartQA.
 - Data Designer structured generation produces structured column values, but Curator's integrated path naturally returns an enriched dataframe. Rendering an arbitrary nested training-data JSONL record is therefore implemented as a small Curator `ProcessingStage` after `DataDesignerStage`, rather than claiming Data Designer alone is a final nested-schema renderer.
 
-## Scientific Interpretation Guardrail
+## Scope of Interpretation
 
-Do not claim that NeMo Curator/Data Designer cannot perform declarative multimodal transformation. The meaningful comparison here is the amount of framework-specific machinery needed to express and execute this particular source-field mapping, dependent custom processing, VLM generation, post-processing, nested record rendering, materialization, and instrumentation workload.
+NeMo Curator/Data Designer supports declarative multimodal transformation. This comparison measures the framework-specific machinery required for one defined workload: source-field mapping, dependent custom processing, VLM generation, post-processing, nested record rendering, materialization, and instrumentation. Its results do not establish a general expressiveness difference between the frameworks.

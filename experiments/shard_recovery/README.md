@@ -310,8 +310,6 @@ Use these generated files for paper artifacts:
 | Audit trail for failure timing and pod termination | `$ANONLIB_RECOVERY_ROOT/runs/<condition>/rep_<NN>/controller/phase_*.json` |
 | Raw Kubernetes logs for appendix/debugging | `$ANONLIB_RECOVERY_ROOT/runs/<condition>/rep_<NN>/raw_logs/` |
 
-Fill in the final paper figure or table number here after manuscript numbering is fixed.
-
 ## Repetitions
 
 Do not overwrite successful runs when collecting repetitions. Increment `--rep` and keep all repetitions:

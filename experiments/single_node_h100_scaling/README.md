@@ -219,8 +219,6 @@ Use these generated files for paper artifacts:
 | Throughput-vs-GPU figure | `experiments/single_node_h100_scaling/results/aggregate_throughput_vs_gpu.png` |
 | Parallel-efficiency figure | `experiments/single_node_h100_scaling/results/parallel_efficiency_vs_gpu.png` |
 
-Fill in the final paper figure or table number here after manuscript numbering is fixed.
-
 ## Interpretation Boundary
 
 This experiment supports a controlled single-node multi-GPU scaling claim. It does not resolve or depend on historical MedTrinity allocation discrepancies, and it does not measure multi-node cluster scaling.

@@ -193,8 +193,6 @@ Use these generated files for paper artifacts:
 | Paper table fragment | `table.tex` |
 | Optional throughput plot | Run `python plot_throughput.py` inside the output directory to create `throughput_boxplot.png`. |
 
-Fill in the final paper figure or table number here after manuscript numbering is fixed.
-
 ## Recorded Reference Results
 
 Both reference runs completed with `1000/1000` rows succeeding in every repetition.
