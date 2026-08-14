@@ -45,6 +45,8 @@ This experiment does not measure multi-node scaling, tensor parallelism, Kuberne
 
 - One terminal inside a pod or job with 4 visible H100 GPUs for the full run. The 1-GPU and 2-GPU commands use subsets of those visible devices.
 - Python environment with AnonLib GPU dependencies, SGLang, CUDA-compatible PyTorch, `datasets`, and `matplotlib`.
+  `matplotlib` is not part of any AnonLib extra and must be installed separately. Without it a run
+  still writes every summary, but no plot files are produced.
 - Hugging Face access to `HuggingFaceH4/ultrachat_200k` and `Qwen/Qwen3-4B` if they are not cached.
 - Enough local or shared storage for the workload, model cache, and result directories.
 
@@ -52,6 +54,7 @@ Check the environment:
 
 ```bash
 python -m pip install -e '.[gpu]'
+python -m pip install matplotlib
 python -c "import anonlib, sglang, torch; print('anonlib/sglang/torch ok', torch.cuda.device_count())"
 nvidia-smi
 ```

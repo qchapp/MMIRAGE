@@ -91,12 +91,13 @@ python3 -c "import nemo_curator, data_designer; print(nemo_curator.__version__)"
 deactivate
 ```
 
-Optional separate SGLang environment:
+Separate SGLang environment, used by the shared server in step 4. Skip it only if you already have an
+environment with `sglang==0.5.10` and `transformers==5.3.0`, and activate that one in step 4 instead:
 
 ```bash
 uv venv .venv-sglang --python 3.12
 source .venv-sglang/bin/activate
-uv pip install 'sglang==0.5.10' 'transformers==5.3.0' pillow
+uv pip install --prerelease=allow 'sglang==0.5.10' 'transformers==5.3.0' pillow
 deactivate
 ```
 
@@ -222,7 +223,7 @@ bash experiments/nemo_curator_comparison/scripts/launch_sglang_server.sh
 Record the exact model revision before full runs:
 
 ```bash
-huggingface-cli model-info Qwen/Qwen2.5-VL-7B-Instruct --revision main
+hf models info Qwen/Qwen2.5-VL-7B-Instruct --revision main
 ```
 
 If both clients cannot use the same shared endpoint, record the mismatch and do not report throughput as pure framework overhead.
@@ -368,7 +369,7 @@ Keep these with any reported result:
 - Git commit from `results/environment.json` field `git_head`.
 - Full `git status --short` captured in `results/environment.json`.
 - `workload/chartqa/manifest.json`, including dataset revision, seed, row count, and checksums.
-- Shared server settings from `configs/sglang_server.json` plus actual model revision from `huggingface-cli model-info`.
+- Shared server settings from `configs/sglang_server.json` plus actual model revision from `hf models info`.
 - Environment pins under `environment/` and version notes in `VERSIONS.md`.
 - Per-repetition `command.json`, `launcher_summary.json`, `run_summary.json`, stdout/stderr logs, and output/state directories.
 - Setup-time records under `setup_times/`.

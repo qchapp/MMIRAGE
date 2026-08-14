@@ -52,6 +52,15 @@ Then install AnonLib GPU support:
 pip install -e ".[gpu]"
 ```
 
+`sglang` does not put an upper bound on `flash-attn-4` or `nvidia-cutlass-dsl`, so a fresh install can
+resolve a combination that fails at H100 attention-backend initialization with
+`AttributeError: module 'cutlass._mlir.dialects.nvvm' has no attribute 'RoundingModeKind'`. If the GPU
+experiments fail that way, pin the versions recorded in `requirements-hpc-lock.txt`:
+
+```bash
+pip install flash-attn-4==4.0.0b15 nvidia-cutlass-dsl==4.5.2 apache-tvm-ffi==0.1.11
+```
+
 Install the SGLang diffusion extra when AnonLib should launch an image-generation server:
 
 ```bash
@@ -381,7 +390,7 @@ execution_params:
 Install optional image generation dependencies before running this config:
 
 ```bash
-pip install -e .[image_gen]
+pip install -e ".[image_gen]"
 ```
 
 Key multimodal features:

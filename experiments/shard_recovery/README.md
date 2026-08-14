@@ -42,7 +42,8 @@ This experiment does not measure native Kubernetes fault tolerance, scheduler qu
 
 ## Prerequisites
 
-- Repository available inside the container at `/workspace/ANONLIB`.
+- Repository available inside the container. Set `ANONLIB_REPO` below to its path; the images built
+  from `docker/` place it at `/workspace/AnonLib`.
 - Python environment with AnonLib GPU dependencies, `sglang==0.5.10`, CUDA-compatible PyTorch, `datasets`, and `kubectl`.
 - Kubernetes or Run:ai namespace where the controller can create pods and run `kubectl exec` in them.
 - Shared `ReadWriteMany` PVC mounted at the same path in the controller container and shard pods.
@@ -51,7 +52,8 @@ This experiment does not measure native Kubernetes fault tolerance, scheduler qu
 Use Bash for the commands below. Set these variables once, replacing only `IMAGE` unless your cluster requires different names:
 
 ```bash
-cd /workspace/ANONLIB
+export ANONLIB_REPO=/workspace/AnonLib
+cd "$ANONLIB_REPO"
 export NAMESPACE=anonlib-recovery
 export PVC_NAME=anonlib-recovery-pvc
 export IMAGE=<your-anonlib-gpu-image>
@@ -65,6 +67,19 @@ If your cluster uses an H100 node selector, also set:
 export GPU_PRODUCT_LABEL=NVIDIA-H100
 ```
 
+Confirm the namespace grants pod permissions before preparing any data. The controller creates one
+bare `Pod` per shard, `exec`s into it to send `SIGTERM`, and reads its logs:
+
+```bash
+kubectl auth can-i create pods -n "$NAMESPACE"
+kubectl auth can-i create pods/exec -n "$NAMESPACE"
+kubectl auth can-i get pods/log -n "$NAMESPACE"
+```
+
+If any prints `no`, use the Local Fallback at the end of this document. It runs the same 16-shard
+experiment with local `SIGTERM` signals, needs no cluster permissions, and writes the layout
+`extract_results.py` reads.
+
 Build the reusable controller arguments after setting the variables:
 
 ```bash
@@ -74,6 +89,9 @@ COMMON_K8S_ARGS=(
   --image "$IMAGE"
   --shared-root "$ANONLIB_RECOVERY_ROOT"
   --max-active-shards "$MAX_ACTIVE_SHARDS"
+  --config "$ANONLIB_REPO/experiments/shard_recovery/configs/anonlib_recovery.yaml"
+  --config-in-container "$ANONLIB_REPO/experiments/shard_recovery/configs/anonlib_recovery.yaml"
+  --repo-dir-in-container "$ANONLIB_REPO"
 )
 if [ -n "${GPU_PRODUCT_LABEL:-}" ]; then
   COMMON_K8S_ARGS+=(--gpu-product-label "$GPU_PRODUCT_LABEL")
@@ -225,7 +243,8 @@ Run this after every completed condition has been merged:
 python experiments/shard_recovery/scripts/extract_results.py \
   --shared-root "$ANONLIB_RECOVERY_ROOT" \
   --conditions baseline,fail_1,fail_4,fail_8 \
-  --reps 1
+  --reps 1 \
+  --config "$ANONLIB_REPO/experiments/shard_recovery/configs/anonlib_recovery.yaml"
 ```
 
 Expected outputs:
@@ -326,7 +345,8 @@ Extract multiple repetitions with:
 python experiments/shard_recovery/scripts/extract_results.py \
   --shared-root "$ANONLIB_RECOVERY_ROOT" \
   --conditions baseline,fail_1,fail_4,fail_8 \
-  --reps 1,2,3
+  --reps 1,2,3 \
+  --config "$ANONLIB_REPO/experiments/shard_recovery/configs/anonlib_recovery.yaml"
 ```
 
 ## Local Fallback
@@ -344,6 +364,8 @@ python experiments/shard_recovery/scripts/run_local.py run-condition \
 ```
 
 Use the same `run-condition`, `retry`, `merge-dir`, and `extract_results.py` sequence as the Kubernetes run, replacing `run_k8s.py` with `run_local.py`.
+
+Pass `--config` to `extract_results.py` as shown in step 6.
 
 ## Interpretation Boundary
 
