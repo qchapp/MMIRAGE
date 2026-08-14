@@ -16,7 +16,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from transformers import AutoTokenizer
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 SRC_DIR = PROJECT_ROOT / "src"
 if SRC_DIR.exists():
     sys.path.insert(0, str(SRC_DIR))

@@ -1,5 +1,5 @@
 # AnonLib-over-SGLang overhead benchmark config.
-# This file is used by scripts/benchmarks/run_anonlib_with_sglang_endpoint.py,
+# This file is used by experiments/raw_sglang_overhead/scripts/run_anonlib_with_sglang_endpoint.py,
 # which patches sglang.Engine at runtime without modifying AnonLib source code.
 
 processors:
