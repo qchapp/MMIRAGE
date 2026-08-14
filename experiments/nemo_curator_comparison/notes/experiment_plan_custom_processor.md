@@ -1,11 +1,9 @@
-EXPERIMENT PLAN (Plan B) — Re-run after PR #52: native custom processor
-========================================================================
+EXPERIMENT PLAN (Plan B) — Re-run with the native custom processor
+==================================================================
 Status: DOCUMENTED ONLY — not yet executed. Refer back to this file to run it later.
 
 ## Context
-PR #52 "Feature: Introduce Custom Processor for User Python Script Execution"
-(https://github.com/LiGHTers-playground/MMIRAGE/pull/52, branch feature/custom_function)
-adds a native `custom` processor to the MMIRAGE/AnonLib core:
+AnonLib now includes a native `custom` processor:
 - YAML-configurable: type: custom, script_path, function_name, max_workers, start_method
   (spawn default), timeout_ms, max_timeouts, max_errors, fallback_value
 - pebble ProcessPool with spawn isolation; strict order preservation; soft-fail fallback
@@ -27,10 +25,9 @@ framework machinery on both frameworks. This closes the fairness gap that motiva
 (the ~100-line benchmark-harness CustomProcessor shim in the AnonLib adapter disappears).
 
 ## Prerequisites
-1. PR #52 merged into upstream LiGHTers-playground/MMIRAGE main.
-2. Rebase/update the fork; create branch experiment/nemo-curator-comparison-pr52 off updated
-   main.
-3. Reinstall the AnonLib venv from the merged main; pin the mmirage commit in VERSIONS.md.
+1. Use an AnonLib revision that includes the native custom processor.
+2. Reinstall the AnonLib environment from that revision and record the anonymous
+   repository revision in `VERSIONS.md`.
 4. Smoke-test: run normalize_query and normalize_generated_answer through the native custom
    processor on a few rows (dict return pickling under spawn; timeout_ms is None by default
    in the merged PR -> set explicitly).
@@ -73,8 +70,7 @@ framework machinery on both frameworks. This closes the fairness gap that motiva
   max_errors for 1000 rows, not per batch.
 
 ## Execution steps (when authorized)
-1. Branch experiment/nemo-curator-comparison-pr52 off updated main.
-2. Apply recipe edits; pin mmirage commit in VERSIONS.md; reinstall venv.
-3. Smoke-test with scripts/mock_openai_vlm_server.py.
-4. Full balanced 3-rep run + analyze + regenerate latex_table.tex locally.
-5. Archive generated evidence outside git and update the paper separately.
+1. Apply the recipe edits, record the AnonLib revision in `VERSIONS.md`, and reinstall the environment.
+2. Smoke-test with `scripts/mock_openai_vlm_server.py`.
+3. Run the full balanced three-repetition comparison, analyze it, and regenerate `latex_table.tex` locally.
+4. Archive generated evidence outside git and update the paper separately.

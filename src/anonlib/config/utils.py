@@ -13,6 +13,8 @@ from dacite import Config, from_dict
 # processor implementations (e.g. torch/transformers).
 import anonlib.core.loader.jsonl  # noqa: F401
 import anonlib.core.loader.local_hf  # noqa: F401
+import anonlib.core.process.processors.batch_api.config  # noqa: F401
+import anonlib.core.process.processors.custom.config  # noqa: F401
 import anonlib.core.process.processors.image_gen.config  # noqa: F401
 import anonlib.core.process.processors.llm.config  # noqa: F401
 from anonlib.config.batch_provider import BatchProviderConfig
@@ -61,6 +63,9 @@ def load_anonlib_config(config_path: str) -> AnonLibConfig:
 
     def processor_config_hook(data: Dict[str, Any]) -> BaseProcessorConfig:
         clz = ProcessorRegistry.get_config_cls(data["type"])
+        from_raw = getattr(clz, "from_raw", None)
+        if from_raw is not None:
+            return from_raw(data)
         return from_dict(clz, data, config=config)
 
     def loader_config_hook(data: Dict[str, Any]) -> BaseDataLoaderConfig:

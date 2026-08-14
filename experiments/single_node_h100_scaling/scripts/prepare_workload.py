@@ -12,7 +12,6 @@ from typing import Any, Dict, Iterable, Optional
 
 from datasets import load_dataset
 
-
 DEFAULT_DATASET = "HuggingFaceH4/ultrachat_200k"
 DEFAULT_SPLIT = "train_sft"
 DEFAULT_MODEL = "Qwen/Qwen3-4B"

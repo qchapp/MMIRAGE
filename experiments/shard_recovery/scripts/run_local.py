@@ -24,9 +24,8 @@ import signal
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -34,11 +33,9 @@ from run_k8s import (  # noqa: E402
     CONDITION_FAILURE_SHARDS,
     baseline_kill_after,
     chunked,
-    dir_sha256,
     load_cfg,
     pod_name,
     run_dir,
-    run_label,
     runtime_env,
     snapshot_completed,
     utc_now,
@@ -55,7 +52,6 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from anonlib.cli_utils.status import check_failed_shards, status_exit_code  # noqa: E402
 from anonlib.config.utils import load_anonlib_config  # noqa: E402
 from anonlib.shard_utils import read_status, shard_state_dir  # noqa: E402
-
 
 POD_ENTRYPOINT = EXPERIMENT_DIR / "scripts" / "run_pod.py"
 
@@ -351,7 +347,6 @@ def handle_retry(args: argparse.Namespace) -> int:
     os.environ.update(env)
     try:
         cfg = load_anonlib_config(args.config)
-        rd = run_dir(args.shared_root, args.condition, args.rep)
         for round_idx in range(1, args.max_rounds + 1):
             failed, summary = check_failed_shards(cfg)
             if status_exit_code(failed, summary) == 0:

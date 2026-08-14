@@ -85,9 +85,16 @@ src/anonlib/
     │   ├── base.py          BaseProcessor, ProcessorRegistry, TokenCounts
     │   ├── mapper.py        AnonLibMapper — orchestrates variables through processors
     │   ├── processors/
-    │   │   └── llm/
-    │   │       ├── config.py         SGLangLLMConfig, SGLangServerArgs, LLMOutputVar
-    │   │       └── llm_processor.py  LLMProcessor — SGLang engine wrapper
+    │   │   ├── llm/
+    │   │   │   ├── config.py              SGLangLLMConfig, SGLangServerArgs, LLMOutputVar
+    │   │   │   └── llm_processor.py       LLMProcessor — SGLang engine wrapper
+    │   │   ├── custom/
+    │   │   │   ├── config.py              CustomProcessorConfig, CustomOutputVar
+    │   │   │   ├── custom_processor.py    CustomProcessor — pebble pool, circuit breaker
+    │   │   │   └── worker.py              Spawned-worker script loading and execution
+    │   │   └── batch_api/
+    │   │       ├── config.py              BatchApiProcessorConfig
+    │   │       └── batch_api_processor.py BatchApiProcessor — provider batch submission
     │   └── batch/           Async/batch inference subsystem
     │       ├── orchestrator.py       End-to-end batch pipeline
     │       ├── adapter.py            Provider-neutral batch adapter interface
@@ -124,7 +131,7 @@ src/anonlib/
 
 ### Batch API mode (OpenAI)
 
-When `batch_provider` is configured, the `LLMProcessor` delegates request submission to the batch orchestrator:
+The `BatchApiProcessor` delegates request submission to the batch orchestrator:
 1. Requests are serialized to JSONL chunks respecting `max_chunk_bytes` / `max_requests_per_chunk`.
 2. Each chunk is uploaded/submitted and a metadata receipt is written.
 3. The mapper writes `__BATCH_SUBMITTED__:<custom_id>` placeholders into the output shards.

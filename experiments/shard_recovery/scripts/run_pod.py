@@ -21,7 +21,11 @@ def repo_root() -> Path:
 sys.path.insert(0, str(repo_root() / "src"))
 
 from anonlib.config.utils import load_anonlib_config  # noqa: E402
-from anonlib.shard_utils import _mark_failure, read_status, shard_state_dir  # noqa: E402
+from anonlib.shard_utils import (  # noqa: E402
+    _mark_failure,
+    read_status,
+    shard_state_dir,
+)
 
 
 def parse_args() -> argparse.Namespace:

@@ -16,7 +16,6 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 import yaml
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONTAINER_REPO = Path("/workspace/ANONLIB")
@@ -26,7 +25,6 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from anonlib.cli_utils.status import check_failed_shards, status_exit_code  # noqa: E402
 from anonlib.config.utils import load_anonlib_config  # noqa: E402
 from anonlib.shard_utils import read_status, shard_state_dir  # noqa: E402
-
 
 CONDITION_FAILURE_SHARDS = {
     "baseline": [],
@@ -453,7 +451,6 @@ def handle_retry(args: argparse.Namespace) -> int:
     os.environ.update(env)
     try:
         cfg = load_anonlib_config(args.config)
-        rd = run_dir(args.shared_root, args.condition, args.rep)
         for round_idx in range(1, args.max_rounds + 1):
             failed, summary = check_failed_shards(cfg)
             if status_exit_code(failed, summary) == 0:

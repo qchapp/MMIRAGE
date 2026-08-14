@@ -104,7 +104,7 @@ docker compose run --rm -it anonlib
 
 ### CPU-only
 
-The CPU image installs AnonLib without the GPU extra. It is suitable for workflows that do not instantiate the SGLang-backed `llm` processor, and is intended to support API-backed processors once they are available. No CPU-ready configuration files are provided yet.
+The CPU image installs AnonLib without the GPU extra. It supports workflows that do not instantiate the SGLang-backed `llm` processor, including `custom` and `batch_api` pipelines. Use `configs/config_mock_custom_module.yaml` as a local custom-processor example or one of the `config_mock_openai_batch*.yaml` files with the corresponding API credentials.
 
 Commands:
 
@@ -129,6 +129,8 @@ docker compose run --rm -it anonlib-cpu
 - Support any dataset schemas (configurable with the YAML format)
 - The ability to either output a JSON (or any other structured format) or plain text
 - Modular architecture with pluggable processors, loaders, and writers
+- Custom Python processors executed in isolated worker pools
+- Asynchronous provider batch submission through the `batch_api` processor
 
 ## Example usage
 
@@ -250,7 +252,11 @@ execution_params:
 
 Configuration explanation:
 
-- `processors`: List of processor configurations. Supports `llm` (text/VLM generation) and `image_gen` (text-to-image generation).
+- `processors`: List of processor configurations. Currently supports :
+  - `llm` (text/VLM generation, run locally with SGLang).
+  - `batch_api` (text/VLM generation submitted to a provider batch API, see [Batch API](docs/batch_api.md)).
+  - `image_gen` (text-to-image generation).
+  - `custom` (a user-provided Python function, see [Custom Module](docs/custom_module.md)).
 - `loading_params`: Parameters for loading and sharding datasets.
   - `state_dir`: Optional shared directory for shard status/retry state. Defaults to `~/.cache/AnonLib/state_dir`.
   - `datasets`: List of dataset configurations with path, type, and output directory.
@@ -413,9 +419,9 @@ archive.
 | Experiment | Hardware or service needed | Safe preflight | Full rerun instructions |
 |---|---|---|---|
 | Raw SGLang overhead | One CUDA GPU for `Qwen/Qwen3-4B`; H100 command documented separately. | `python experiments/raw_sglang_overhead/scripts/run.py --workload-dir experiments/raw_sglang_overhead/workload --output-dir /tmp/anonlib_overhead_dry_run --repetitions 1 --dry-run` | [`experiments/raw_sglang_overhead/README.md`](experiments/raw_sglang_overhead/README.md) |
-| Shard recovery | Kubernetes or Run:ai namespace, H100 access, `kubectl`, and a shared ReadWriteMany PVC. | Prepare workload and use `run_k8s.py status` after runs; there is no no-op Kubernetes dry-run. | Companion experiment PR. |
-| Single-node H100 scaling | One node or pod with four visible H100 GPUs. | Dry-run wrapper documented in the companion experiment PR. | Companion experiment PR. |
-| AnonLib vs NeMo Curator comparison | One H100-80GB for the full shared-SGLang ChartQA run, plus isolated AnonLib and NeMo Python environments. | Mock OpenAI-compatible VLM server and small ChartQA smoke workload documented in the companion experiment PR. | Companion experiment PR. |
+| Shard recovery | Kubernetes or Run:ai namespace, H100 access, `kubectl`, and a shared ReadWriteMany PVC. A local signal-based fallback is also provided. | `python experiments/shard_recovery/scripts/run_k8s.py --help` and `python experiments/shard_recovery/scripts/run_local.py --help` | [`experiments/shard_recovery/README.md`](experiments/shard_recovery/README.md) |
+| Single-node H100 scaling | One node or pod with four visible H100 GPUs. | `bash experiments/single_node_h100_scaling/scripts/run_4gpu.sh --dry-run` | [`experiments/single_node_h100_scaling/README.md`](experiments/single_node_h100_scaling/README.md) |
+| AnonLib vs NeMo Curator comparison | One H100-80GB for the full shared-SGLang ChartQA run, plus isolated AnonLib and NeMo Python environments. | Follow the mock-server smoke check in the runbook; `run_comparison.py --dry-run` validates planned commands without running either framework. | [`experiments/nemo_curator_comparison/README.md`](experiments/nemo_curator_comparison/README.md) |
 
 Use fresh output directories for reruns unless the experiment README explicitly
 tells you to pass `--overwrite`. Generated experiment outputs are intentionally
@@ -426,11 +432,13 @@ pods, or GPU benchmarks, run:
 
 ```bash
 python -m py_compile experiments/_shared/*.py \
-  experiments/raw_sglang_overhead/scripts/*.py
+  experiments/raw_sglang_overhead/scripts/*.py \
+  experiments/shard_recovery/scripts/*.py \
+  experiments/single_node_h100_scaling/scripts/*.py \
+  experiments/nemo_curator_comparison/scripts/*.py
 ```
 
-After merging companion experiment PRs, also compile their scripts and run any
-shell syntax checks documented in their runbooks.
+Then run the dry-run or smoke-check command in each experiment's own README.
 
 For the global experiment layout policy, see
 [`experiments/README.md`](experiments/README.md).

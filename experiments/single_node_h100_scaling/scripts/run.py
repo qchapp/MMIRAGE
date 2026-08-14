@@ -19,7 +19,6 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import yaml
 
-
 SCRIPTS_DIR = Path(__file__).resolve().parent
 EXPERIMENT_DIR = SCRIPTS_DIR.parent
 PROJECT_ROOT = EXPERIMENT_DIR.parents[1]
