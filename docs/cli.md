@@ -1,31 +1,31 @@
 # 💻 CLI Reference
 
-This page documents every `anonlib` subcommand and its flags.
+This page documents every `mmirage` subcommand and its flags.
 
 For background on what each command does in the context of the pipeline,
 see [Pipeline](pipeline.md) and [SLURM & Cluster Deployment](slurm.md).
 
-All AnonLib commands share the pattern:
+All MMIRAGE commands share the pattern:
 
 ```
-anonlib <subcommand> [flags]
+mmirage <subcommand> [flags]
 ```
 
 Common flags available on most subcommands:
 
 | Flag | Description |
 |---|---|
-| `--config PATH` | Path to an AnonLib YAML config file (**required**) |
+| `--config PATH` | Path to an MMIRAGE YAML config file (**required**) |
 | `--log-level LEVEL` | Log verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR` (default: `INFO`) |
 
 ---
 
-## `anonlib run`
+## `mmirage run`
 
 Run the pipeline according to `execution_params.mode` and `execution_params.retry`.
 
 ```bash
-anonlib run --config configs/config.yaml [--force-retry] [--shard-id N] [--stats]
+mmirage run --config configs/config.yaml [--force-retry] [--shard-id N] [--stats]
 ```
 
 | Flag | Description |
@@ -42,12 +42,12 @@ anonlib run --config configs/config.yaml [--force-retry] [--shard-id N] [--stats
 
 ---
 
-## `anonlib submit`
+## `mmirage submit`
 
 Submit a single SLURM array job without the retry/merge orchestration loop.
 
 ```bash
-anonlib submit --config configs/config.yaml [--shard-ids 0,2,3] [--wait] [--stats]
+mmirage submit --config configs/config.yaml [--shard-ids 0,2,3] [--wait] [--stats]
 ```
 
 | Flag | Description |
@@ -58,12 +58,12 @@ anonlib submit --config configs/config.yaml [--shard-ids 0,2,3] [--wait] [--stat
 
 ---
 
-## `anonlib check`
+## `mmirage check`
 
 Inspect shard status from the state directory and optionally submit retries.
 
 ```bash
-anonlib check --config configs/config.yaml [--retry] [-y] [--stats]
+mmirage check --config configs/config.yaml [--retry] [-y] [--stats]
 ```
 
 | Flag | Description |
@@ -76,12 +76,12 @@ Exits with code `0` if all shards succeeded, `1` otherwise.
 
 ---
 
-## `anonlib retry`
+## `mmirage retry`
 
 Submit a retry job for failed shards without inspecting status interactively.
 
 ```bash
-anonlib retry --config configs/config.yaml [-y] [--stats]
+mmirage retry --config configs/config.yaml [-y] [--stats]
 ```
 
 | Flag | Description |
@@ -91,26 +91,26 @@ anonlib retry --config configs/config.yaml [-y] [--stats]
 
 ---
 
-## `anonlib merge`
+## `mmirage merge`
 
 Merge shard outputs for all datasets listed in `loading_params.datasets`.
 
 ```bash
-anonlib merge --config configs/config.yaml [--output-root /path/to/merged]
+mmirage merge --config configs/config.yaml [--output-root /path/to/merged]
 ```
 
 | Flag | Description |
 |---|---|
-| `--output-root PATH` | Root directory for merged outputs. AnonLib creates one subdirectory per dataset. If omitted, each dataset is merged into `<dataset.output_dir>/merged` |
+| `--output-root PATH` | Root directory for merged outputs. MMIRAGE creates one subdirectory per dataset. If omitted, each dataset is merged into `<dataset.output_dir>/merged` |
 
 ---
 
-## `anonlib merge-dir`
+## `mmirage merge-dir`
 
 Merge shard outputs directly from a directory, without a config file.
 
 ```bash
-anonlib merge-dir --input-dir /path/to/shards --output-dir /path/to/merged
+mmirage merge-dir --input-dir /path/to/shards --output-dir /path/to/merged
 ```
 
 | Flag | Description |
@@ -118,19 +118,19 @@ anonlib merge-dir --input-dir /path/to/shards --output-dir /path/to/merged
 | `--input-dir PATH` | Directory containing `shard_*` folders (one dataset), or a parent directory containing multiple dataset subdirectories |
 | `--output-dir PATH` | Output directory for the merged dataset(s) |
 
-If `shard_*` folders are present **directly** in `--input-dir`, AnonLib treats it as a single dataset and merges it there, ignoring nested internal folders such as `_pipeline_state`.
+If `shard_*` folders are present **directly** in `--input-dir`, MMIRAGE treats it as a single dataset and merges it there, ignoring nested internal folders such as `_pipeline_state`.
 
 ---
 
-## `anonlib stats`
+## `mmirage stats`
 
 Print per-shard benchmark statistics including runtime, throughput, and GPU utilization.
 
 ```bash
-anonlib stats --config configs/config.yaml
+mmirage stats --config configs/config.yaml
 ```
 
-Stats are only available for shards that were run with `--stats` enabled (or `ANONLIB_COLLECT_STATS=1`). Output is a JSON report:
+Stats are only available for shards that were run with `--stats` enabled (or `MMIRAGE_COLLECT_STATS=1`). Output is a JSON report:
 
 ```json
 {
@@ -192,5 +192,5 @@ Token metrics are `null` when no LLM processor was active. GPU stats are `null` 
 
 - [Pipeline](pipeline.md) — understand the stages each command drives
 - [SLURM & Cluster Deployment](slurm.md) — `submit`, `check`, `retry` in context
-- [Benchmarking](benchmarking.md) — `--stats` flag and `anonlib stats` in depth
+- [Benchmarking](benchmarking.md) — `--stats` flag and `mmirage stats` in depth
 - [Configuration Reference](configuration.md) — the YAML config every command reads

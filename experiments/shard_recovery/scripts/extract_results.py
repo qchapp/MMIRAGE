@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Extract ANONLIB shard recovery metrics into JSON and CSV."""
+"""Extract MMIRAGE shard recovery metrics into JSON and CSV."""
 
 from __future__ import annotations
 
@@ -18,18 +18,18 @@ from datasets import load_from_disk
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_CONTAINER_REPO = Path("/workspace/ANONLIB")
-DEFAULT_SHARED_ROOT = "/workspace/anonlib-recovery"
+DEFAULT_CONTAINER_REPO = Path("/workspace/MMIRAGE")
+DEFAULT_SHARED_ROOT = "/workspace/mmirage-recovery"
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from anonlib.cli_utils.status import collect_bench_stats  # noqa: E402
-from anonlib.config.utils import load_anonlib_config  # noqa: E402
+from mmirage.cli_utils.status import collect_bench_stats  # noqa: E402
+from mmirage.config.utils import load_mmirage_config  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--shared-root", default=os.environ.get("ANONLIB_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-    parser.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "anonlib_recovery.yaml"))
+    parser.add_argument("--shared-root", default=os.environ.get("MMIRAGE_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
+    parser.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "mmirage_recovery.yaml"))
     parser.add_argument("--conditions", default="baseline,fail_1,fail_4,fail_8")
     parser.add_argument("--reps", default="1")
     parser.add_argument("--output-dir", default=None)
@@ -44,7 +44,7 @@ def require_container_terminal(args: argparse.Namespace) -> None:
         )
     if not Path(args.config).exists():
         raise RuntimeError(
-            f"ANONLIB config not found at {args.config}. Run from the ANONLIB container terminal "
+            f"MMIRAGE config not found at {args.config}. Run from the MMIRAGE container terminal "
             f"with the repository available at {DEFAULT_CONTAINER_REPO}, or pass --config explicitly."
         )
 
@@ -56,11 +56,11 @@ def run_dir(shared_root: str, condition: str, rep: int) -> Path:
 def runtime_env(shared_root: str, condition: str, rep: int) -> Dict[str, str]:
     rd = run_dir(shared_root, condition, rep)
     return {
-        "ANONLIB_RECOVERY_ROOT": shared_root,
-        "ANONLIB_RECOVERY_RUN_DIR": str(rd),
-        "ANONLIB_RECOVERY_INPUT_JSONL": str(Path(shared_root) / "data" / "ultrachat_200k" / "subset.jsonl"),
-        "ANONLIB_RECOVERY_STATE_DIR": str(rd / "state"),
-        "ANONLIB_RECOVERY_OUTPUT_DIR": str(rd / "output"),
+        "MMIRAGE_RECOVERY_ROOT": shared_root,
+        "MMIRAGE_RECOVERY_RUN_DIR": str(rd),
+        "MMIRAGE_RECOVERY_INPUT_JSONL": str(Path(shared_root) / "data" / "ultrachat_200k" / "subset.jsonl"),
+        "MMIRAGE_RECOVERY_STATE_DIR": str(rd / "state"),
+        "MMIRAGE_RECOVERY_OUTPUT_DIR": str(rd / "output"),
     }
 
 
@@ -68,7 +68,7 @@ def load_cfg(config: str, env: Dict[str, str]) -> Any:
     old = os.environ.copy()
     os.environ.update(env)
     try:
-        return load_anonlib_config(config)
+        return load_mmirage_config(config)
     finally:
         os.environ.clear()
         os.environ.update(old)
@@ -115,7 +115,7 @@ def expected_ids(shared_root: str) -> List[str]:
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
             if line.strip():
-                ids.append(json.loads(line)["anonlib_id"])
+                ids.append(json.loads(line)["mmirage_id"])
     return ids
 
 
@@ -125,7 +125,7 @@ def load_merged_ids(rd: Path) -> Dict[str, Any]:
         return {"final_row_count": None, "ids": [], "error": f"Missing merged dataset at {merged_dir}"}
     try:
         ds = load_from_disk(str(merged_dir))
-        ids = list(ds["anonlib_id"])
+        ids = list(ds["mmirage_id"])
         return {"final_row_count": len(ids), "ids": ids, "error": None}
     except Exception as exc:
         return {"final_row_count": None, "ids": [], "error": str(exc)}
@@ -245,7 +245,7 @@ def summarize_run(shared_root: str, config: str, condition: str, rep: int, basel
     final_rows = merged.get("final_row_count")
     condition_wall = wall_seconds(phases)
     initial_phase = next((phase for phase in phases if phase.get("phase") == "initial"), {})
-    initially_failed = initial_phase.get("anonlib_retryable_shards_after_phase") or initial_phase.get("failed_shards_requested") or []
+    initially_failed = initial_phase.get("mmirage_retryable_shards_after_phase") or initial_phase.get("failed_shards_requested") or []
     result = {
         "condition": condition,
         "rep": rep,
@@ -262,7 +262,7 @@ def summarize_run(shared_root: str, config: str, condition: str, rep: int, basel
         "estimated_gpu_seconds_wasted": wasted_gpu_seconds(phases),
         "rows_recomputed": recomputed_rows,
         "output_tokens_recomputed_closest_available": recomputed_output_tokens if total_output_tokens else None,
-        "token_recomputation_note": "ANONLIB status records final successful shard token counts, not token progress lost inside a killed pod. The recomputed token count is therefore the output tokens generated by successful retry shards, not exact token-level lost work before termination.",
+        "token_recomputation_note": "MMIRAGE status records final successful shard token counts, not token progress lost inside a killed pod. The recomputed token count is therefore the output tokens generated by successful retry shards, not exact token-level lost work before termination.",
         "fraction_of_total_workload_recomputed": round(recomputed_rows / final_rows, 6) if final_rows else None,
         "final_row_count": final_rows,
         "missing_id_count": integrity["missing_id_count"],
@@ -270,7 +270,7 @@ def summarize_run(shared_root: str, config: str, condition: str, rep: int, basel
         "unexpected_id_count": integrity["unexpected_id_count"],
         "order_after_merge_matches_original_input_order": integrity["order_matches_original_input"],
         "completed_shard_outputs_unchanged_after_retry": completed_unchanged(rd),
-        "anonlib_stats": stats,
+        "mmirage_stats": stats,
         "merge_error": merged.get("error"),
         "integrity_detail": integrity,
     }
@@ -358,7 +358,7 @@ def main() -> None:
 
     payload = {
         "created_at": datetime.now().astimezone().isoformat(),
-        "interpretation": "Kubernetes terminates selected pods; ANONLIB recovery semantics are shard-scoped state detection and rerunning only incomplete shards. This is not evidence of a native Kubernetes backend.",
+        "interpretation": "Kubernetes terminates selected pods; MMIRAGE recovery semantics are shard-scoped state detection and rerunning only incomplete shards. This is not evidence of a native Kubernetes backend.",
         "individual_runs": rows,
         "summary_mean_std": build_summary(rows),
     }

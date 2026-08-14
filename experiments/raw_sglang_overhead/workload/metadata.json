@@ -8,7 +8,7 @@
   "model_revision_requested": null,
   "model_revision_resolved": "1cfa9a7208912126459214e8b04321603b3df60c",
   "num_rows": 1000,
-  "prompt_construction": "AnonLib LLMProcessor behavior: Jinja prompt_text, then tokenizer.apply_chat_template(..., add_generation_prompt=True). Raw client uses the resulting prompt field.",
+  "prompt_construction": "MMIRAGE LLMProcessor behavior: Jinja prompt_text, then tokenizer.apply_chat_template(..., add_generation_prompt=True). Raw client uses the resulting prompt field.",
   "prompt_text_template": "<|im_start|>user\n{question}\n<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n",
   "split": "train",
   "start_index": 0,

@@ -7,15 +7,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pebble import ProcessExpired
 
-from anonlib.config.utils import load_anonlib_config
-from anonlib.core.process.base import AutoProcessor
-from anonlib.core.process.processors.custom import worker
-from anonlib.core.process.processors.custom.config import (
+from mmirage.config.utils import load_mmirage_config
+from mmirage.core.process.base import AutoProcessor
+from mmirage.core.process.processors.custom import worker
+from mmirage.core.process.processors.custom.config import (
     CustomOutputVar,
     CustomProcessorConfig,
 )
-from anonlib.core.process.processors.custom.custom_processor import CustomProcessor
-from anonlib.core.process.variables import VariableEnvironment
+from mmirage.core.process.processors.custom.custom_processor import CustomProcessor
+from mmirage.core.process.variables import VariableEnvironment
 
 
 # applies to every test in this file: no CustomProcessor ever starts real workers
@@ -26,7 +26,7 @@ def mock_pebble_pool():
     This patches the pool precisely at the module level where CustomProcessor imports it.
     """
     with patch(
-        "anonlib.core.process.processors.custom.custom_processor.ProcessPool"
+        "mmirage.core.process.processors.custom.custom_processor.ProcessPool"
     ) as mock_pool:
         pool_instance = MagicMock()
         mock_pool.return_value = pool_instance
@@ -93,7 +93,7 @@ def test_config_registration_and_loading(tmp_path, dummy_script):
     conf_file.write_text(yaml_content)
 
     # Load configuration
-    config = load_anonlib_config(str(conf_file))
+    config = load_mmirage_config(str(conf_file))
 
     # Assert Processor Config parsing
     proc_config = config.processors[0]
@@ -186,7 +186,7 @@ def test_start_method_defaults_to_spawn(base_config):
     assert base_config.start_method == "spawn"
 
     with patch(
-        "anonlib.core.process.processors.custom.custom_processor.multiprocessing.get_context"
+        "mmirage.core.process.processors.custom.custom_processor.multiprocessing.get_context"
     ) as mock_get_context:
         CustomProcessor(base_config)
         mock_get_context.assert_called_once_with("spawn")

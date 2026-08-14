@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH --job-name=anonlib-vision-test
-#SBATCH --chdir=$ANONLIB_PATH/src/anonlib
+#SBATCH --job-name=mmirage-vision-test
+#SBATCH --chdir=$MMIRAGE_PATH/src/mmirage
 #SBATCH --output=reports/R-%x.%A_%a.out
 #SBATCH --error=reports/R-%x.%A_%a.err
 #SBATCH --nodes=1
@@ -12,10 +12,10 @@
 #SBATCH --array=0-3
 
 # --- outputs & config ---
-export ROOT=$SCRATCH/anonlib_vision_test
+export ROOT=$SCRATCH/mmirage_vision_test
 export SHARDS_ROOT="$ROOT/shards"
 export MERGED_DIR="$ROOT/merged"
-export CFG=$ANONLIB_PATH/configs/config_mock_vision.yaml
+export CFG=$MMIRAGE_PATH/configs/config_mock_vision.yaml
 
 # HF cache/home
 export HF_HOME=$SCRATCH/hf
@@ -23,7 +23,7 @@ export HF_HOME=$SCRATCH/hf
 mkdir -p "$SHARDS_ROOT"
 mkdir -p "$MERGED_DIR"
 
-export CMD="python $ANONLIB_PATH/src/anonlib/shard_process.py --config $CFG"
+export CMD="python $MMIRAGE_PATH/src/mmirage/shard_process.py --config $CFG"
 
 SRUN_ARGS=" \
   --cpus-per-task $SLURM_CPUS_PER_TASK \

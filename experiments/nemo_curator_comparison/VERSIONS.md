@@ -4,7 +4,7 @@ This experiment was prepared against the current public documentation and source
 
 ## Primary Comparison Stack
 
-- AnonLib repository commit: captured at run time with `git rev-parse HEAD`.
+- MMIRAGE repository commit: captured at run time with `git rev-parse HEAD`.
 - NeMo Curator documentation: `latest`, listed as `v1.3.0 (26.07)` in `https://docs.nvidia.com/nemo/curator/llms.txt`.
 - NeMo Curator source/tag: `v1.3.0`, commit `6b956ce8965820de1b638fedf6de0cbcf0cc46ba`.
 - NeMo Curator integrated Data Designer dependency: `data-designer==0.5.5`, from Curator `v1.3.0` `pyproject.toml` `sdg_cpu` extra.

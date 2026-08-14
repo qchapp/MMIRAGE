@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run and aggregate a single-node ANONLIB multi-GPU strong-scaling point."""
+"""Run and aggregate a single-node MMIRAGE multi-GPU strong-scaling point."""
 
 from __future__ import annotations
 
@@ -107,7 +107,7 @@ def environment_metadata() -> Dict[str, Any]:
     )
     return {
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "interpretation": "single-node multi-GPU data-parallel ANONLIB scaling; not multi-node scaling",
+        "interpretation": "single-node multi-GPU data-parallel MMIRAGE scaling; not multi-node scaling",
         "python": sys.version.replace("\n", " "),
         "platform": platform.platform(),
         "git_commit": command_output(["git", "rev-parse", "HEAD"]),
@@ -161,7 +161,7 @@ def load_run_config(args: argparse.Namespace) -> Dict[str, Any]:
     return cfg
 
 
-def concrete_anonlib_config(
+def concrete_mmirage_config(
     semantic_recipe: Path,
     workload_jsonl: Path,
     state_dir: Path,
@@ -182,7 +182,7 @@ def concrete_anonlib_config(
     return recipe
 
 
-def write_anonlib_config(path: Path, payload: Dict[str, Any]) -> None:
+def write_mmirage_config(path: Path, payload: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(payload, handle, sort_keys=False)
@@ -205,7 +205,7 @@ def launch_shards(
 
     commands = []
     for shard_id, gpu_id in enumerate(gpu_ids):
-        shard_config = concrete_anonlib_config(
+        shard_config = concrete_mmirage_config(
             semantic_recipe=semantic_recipe,
             workload_jsonl=workload_jsonl,
             state_dir=state_dir,
@@ -215,8 +215,8 @@ def launch_shards(
             batch_size=batch_size,
         )
         config_path = configs_dir / f"shard_{shard_id}.yaml"
-        write_anonlib_config(config_path, shard_config)
-        command = [sys.executable, "-m", "anonlib.shard_process", "--config", str(config_path)]
+        write_mmirage_config(config_path, shard_config)
+        command = [sys.executable, "-m", "mmirage.shard_process", "--config", str(config_path)]
         commands.append({"shard_id": shard_id, "gpu_id": gpu_id, "command": command, "config": str(config_path)})
 
     if dry_run:
@@ -230,7 +230,7 @@ def launch_shards(
         existing_pythonpath = env.get("PYTHONPATH")
         env["PYTHONPATH"] = f"{source_path}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else source_path
         env["CUDA_VISIBLE_DEVICES"] = str(item["gpu_id"])
-        env["ANONLIB_COLLECT_STATS"] = "1"
+        env["MMIRAGE_COLLECT_STATS"] = "1"
         log_path = logs_dir / f"shard_{item['shard_id']}.log"
         log_handle = log_path.open("wb")
         proc = subprocess.Popen(

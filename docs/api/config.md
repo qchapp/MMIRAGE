@@ -1,55 +1,55 @@
-# `anonlib.config` — Configuration
+# `mmirage.config` — Configuration
 
-## `anonlib.config.config`
+## `mmirage.config.config`
 
-Main configuration dataclasses for the AnonLib pipeline.
+Main configuration dataclasses for the MMIRAGE pipeline.
 
 ```{eval-rst}
-.. automodule:: anonlib.config.config
+.. automodule:: mmirage.config.config
    :members:
    :undoc-members:
    :show-inheritance:
 ```
 
-## `anonlib.config.loading`
+## `mmirage.config.loading`
 
 Dataset loading and sharding configuration.
 
 ```{eval-rst}
-.. automodule:: anonlib.config.loading
+.. automodule:: mmirage.config.loading
    :members:
    :undoc-members:
    :show-inheritance:
 ```
 
-## `anonlib.config.batch_provider`
+## `mmirage.config.batch_provider`
 
 Provider-agnostic batch submission configuration used by the OpenAI Batch API integration and any future batch providers.
 
 ```{eval-rst}
-.. automodule:: anonlib.config.batch_provider
+.. automodule:: mmirage.config.batch_provider
    :members:
    :undoc-members:
    :show-inheritance:
 ```
 
-## `anonlib.config.openai_batch`
+## `mmirage.config.openai_batch`
 
-OpenAI-specific batch configuration extending {class}`~anonlib.config.batch_provider.BatchProviderConfig`.
+OpenAI-specific batch configuration extending {class}`~mmirage.config.batch_provider.BatchProviderConfig`.
 
 ```{eval-rst}
-.. automodule:: anonlib.config.openai_batch
+.. automodule:: mmirage.config.openai_batch
    :members:
    :undoc-members:
    :show-inheritance:
 ```
 
-## `anonlib.config.utils`
+## `mmirage.config.utils`
 
 YAML parsing helpers and configuration loaders.
 
 ```{eval-rst}
-.. automodule:: anonlib.config.utils
+.. automodule:: mmirage.config.utils
    :members:
    :undoc-members:
    :show-inheritance:

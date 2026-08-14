@@ -11,8 +11,8 @@
 Clone the repository, create a virtual environment with [uv](https://docs.astral.sh/uv/), and install the base package:
 
 ```bash
-git clone <anonymous-repository-url> AnonLib
-cd AnonLib
+git clone <anonymous-repository-url> MMIRAGE
+cd MMIRAGE
 uv venv
 source .venv/bin/activate
 uv pip install -e .
@@ -39,8 +39,8 @@ The host must have NVIDIA GPU drivers, the NVIDIA Container Toolkit, and a recen
 To build locally:
 
 ```bash
-docker compose build anonlib
-docker compose run --rm -it anonlib
+docker compose build mmirage
+docker compose run --rm -it mmirage
 ```
 
 ### CPU image
@@ -50,8 +50,8 @@ Suitable for workflows that do not require a local GPU (e.g. OpenAI Batch API mo
 To build locally:
 
 ```bash
-docker compose build anonlib-cpu
-docker compose run --rm -it anonlib-cpu
+docker compose build mmirage-cpu
+docker compose run --rm -it mmirage-cpu
 ```
 
 ## Environment Variables
@@ -70,7 +70,7 @@ Key variables:
 | `HF_HOME` | HuggingFace cache directory (default: `~/hf`) |
 | `SLURM_ARRAY_TASK_ID` | Shard ID injected automatically in SLURM array jobs |
 | `SLURM_GPUS_ON_NODE` | Used to auto-detect `tp_size` for SGLang |
-| `ANONLIB_COLLECT_STATS` | Set to `1` to enable GPU/throughput benchmarking |
+| `MMIRAGE_COLLECT_STATS` | Set to `1` to enable GPU/throughput benchmarking |
 
 ## Development Setup
 
@@ -102,5 +102,5 @@ ruff format .
 ## Verifying the Installation
 
 ```bash
-anonlib --help
+mmirage --help
 ```

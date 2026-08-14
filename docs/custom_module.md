@@ -1,10 +1,10 @@
 # Custom Processor (Dynamic Python Functions)
 
-The **Custom Processor** lets you run user-defined Python logic over a dataset. AnonLib executes it in an isolated, asynchronous process pool.
+The **Custom Processor** lets you run user-defined Python logic over a dataset. MMIRAGE executes it in an isolated, asynchronous process pool.
 
 ## Key Architectural Features
 
-* **Memory Isolated:** Worker pools are initialized using a `"spawn"` multiprocessing context by default (see `start_method`). Your custom logic runs in separate processes, so a memory leak, a segfault or a fatal crash inside your script cannot corrupt AnonLib's main process.
+* **Memory Isolated:** Worker pools are initialized using a `"spawn"` multiprocessing context by default (see `start_method`). Your custom logic runs in separate processes, so a memory leak, a segfault or a fatal crash inside your script cannot corrupt MMIRAGE's main process.
 * **Concurrency:** Inside one shard, many workers can work at the same time, independently.
 * **Strict Order Preservation:** The processor guarantees that the output of each row is written at their original position into the batch.
 * **Fault Tolerance:**
@@ -78,9 +78,9 @@ If it is too large to duplicate, memory-map it instead (`np.load(..., mmap_mode=
 
 ### 2. Pipeline Configuration
 
-To use the custom processor, register it in your AnonLib YAML configuration file. You must define the processor execution parameters, the input mapping, and the output schema.
+To use the custom processor, register it in your MMIRAGE YAML configuration file. You must define the processor execution parameters, the input mapping, and the output schema.
 
-Because local custom processors write to intermediate `.arrow` shards by default, it is highly recommended to set `merge: true` in your execution parameters so AnonLib automatically generates your final `.jsonl` file.
+Because local custom processors write to intermediate `.arrow` shards by default, it is highly recommended to set `merge: true` in your execution parameters so MMIRAGE automatically generates your final `.jsonl` file.
 
 > **Note:** A relative `script_path` is resolved against the **current working directory of the run**, not against the location of the YAML file. Launch the job from your project root (as in the example below), or use an absolute path if you need the config to be location-independent.
 
@@ -125,7 +125,7 @@ processing_params:
 ### 3. Running It
 
 ```bash
-anonlib run --config configs/my_config.yaml
+mmirage run --config configs/my_config.yaml
 ```
 
 See the [CLI Reference](cli.md) for the full set of flags.
@@ -150,7 +150,7 @@ See the [CLI Reference](cli.md) for the full set of flags.
 
 This only affects how long it takes to create a worker: rows are processed at the same speed under all three. Workers are created at pool startup, and a new one replaces any worker killed by a timeout or a fatal crash, so a script that times out pays this cost again — up to `max_timeouts` times before the shard fails.
 
-* **`spawn` (default):** each worker is a fresh interpreter that re-imports `anonlib` and your script and inherits nothing from the shard process. Slowest to start, correct in every pipeline.
+* **`spawn` (default):** each worker is a fresh interpreter that re-imports `mmirage` and your script and inherits nothing from the shard process. Slowest to start, correct in every pipeline.
 * **`fork`:** copies the shard process, so the pool starts much faster. But it copies memory without threads, and a lock held by one of those threads at fork time stays locked forever in the worker — the worker hangs, and you see timeouts instead of the real cause. Only safe when `custom` is the first entry of `processors:`; after `llm` or `image_gen` the shard process is already multi-threaded.
 * **`forkserver`:** forks from a clean server process, avoiding the inherited locks. That server is started fresh for the single pool a shard creates, so it costs about as much as `spawn` without the safety of it.
 

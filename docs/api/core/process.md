@@ -1,9 +1,9 @@
-# `anonlib.core.process` — Processors
+# `mmirage.core.process` — Processors
 
 ## Variables
 
 ```{eval-rst}
-.. automodule:: anonlib.core.process.variables
+.. automodule:: mmirage.core.process.variables
    :members:
    :undoc-members:
    :show-inheritance:
@@ -12,7 +12,7 @@
 ## Base processor
 
 ```{eval-rst}
-.. automodule:: anonlib.core.process.base
+.. automodule:: mmirage.core.process.base
    :members:
    :undoc-members:
    :show-inheritance:
@@ -21,7 +21,7 @@
 ## Mapper
 
 ```{eval-rst}
-.. automodule:: anonlib.core.process.mapper
+.. automodule:: mmirage.core.process.mapper
    :members:
    :undoc-members:
    :show-inheritance:
@@ -32,7 +32,7 @@
 ### Configuration
 
 ```{eval-rst}
-.. automodule:: anonlib.core.process.processors.llm.config
+.. automodule:: mmirage.core.process.processors.llm.config
    :members:
    :undoc-members:
    :show-inheritance:
@@ -41,7 +41,7 @@
 ### Implementation
 
 ```{eval-rst}
-.. automodule:: anonlib.core.process.processors.llm.llm_processor
+.. automodule:: mmirage.core.process.processors.llm.llm_processor
    :members:
    :undoc-members:
    :show-inheritance:
@@ -54,7 +54,7 @@ The batch subsystem handles asynchronous, provider-backed inference (e.g. OpenAI
 ### Orchestrator
 
 ```{eval-rst}
-.. automodule:: anonlib.core.process.batch.orchestrator
+.. automodule:: mmirage.core.process.batch.orchestrator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -63,7 +63,7 @@ The batch subsystem handles asynchronous, provider-backed inference (e.g. OpenAI
 ### Adapter (provider-neutral interface)
 
 ```{eval-rst}
-.. automodule:: anonlib.core.process.batch.adapter
+.. automodule:: mmirage.core.process.batch.adapter
    :members:
    :undoc-members:
    :show-inheritance:
@@ -72,7 +72,7 @@ The batch subsystem handles asynchronous, provider-backed inference (e.g. OpenAI
 ### OpenAI adapter
 
 ```{eval-rst}
-.. automodule:: anonlib.core.process.batch.openai_adapter
+.. automodule:: mmirage.core.process.batch.openai_adapter
    :members:
    :undoc-members:
    :show-inheritance:
@@ -81,7 +81,7 @@ The batch subsystem handles asynchronous, provider-backed inference (e.g. OpenAI
 ### Chunking
 
 ```{eval-rst}
-.. automodule:: anonlib.core.process.batch.chunking
+.. automodule:: mmirage.core.process.batch.chunking
    :members:
    :undoc-members:
    :show-inheritance:
@@ -90,7 +90,7 @@ The batch subsystem handles asynchronous, provider-backed inference (e.g. OpenAI
 ### Status checker
 
 ```{eval-rst}
-.. automodule:: anonlib.core.process.batch.status_checker
+.. automodule:: mmirage.core.process.batch.status_checker
    :members:
    :undoc-members:
    :show-inheritance:

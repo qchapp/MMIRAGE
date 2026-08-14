@@ -1,9 +1,9 @@
 # 🏗️ Architecture
 
-This page covers AnonLib's internal module layout and the key design decisions behind each subsystem.
+This page covers MMIRAGE's internal module layout and the key design decisions behind each subsystem.
 It is aimed at developers who want to understand or modify the codebase.
 
-If you are looking for a user-facing explanation of what happens when you run `anonlib run`,
+If you are looking for a user-facing explanation of what happens when you run `mmirage run`,
 read [Pipeline](pipeline.md) instead.
 
 ---
@@ -13,7 +13,7 @@ read [Pipeline](pipeline.md) instead.
 Each shard follows the same three-stage pipeline:
 
 ```{image} _static/pipeline_diagram.png
-:alt: AnonLib pipeline — Loading Data → Processor → Write Data
+:alt: MMIRAGE pipeline — Loading Data → Processor → Write Data
 :align: center
 :width: 90%
 ```
@@ -22,7 +22,7 @@ At the orchestration level, the CLI manages shard dispatch, retry logic, and opt
 
 ```
                ┌─────────────────────────────────────────────────────┐
-               │                    anonlib CLI                       │
+               │                    mmirage CLI                       │
                │  run / submit / check / retry / merge / stats        │
                └───────────────────┬─────────────────────────────────┘
                                    │
@@ -54,15 +54,15 @@ At the orchestration level, the CLI manages shard dispatch, retry logic, and opt
 ## Package Layout
 
 ```
-src/anonlib/
-├── __init__.py              Public API surface (AnonLibConfig, load_anonlib_config …)
+src/mmirage/
+├── __init__.py              Public API surface (MMirageConfig, load_mmirage_config …)
 ├── cli.py                   CLI entry point and subcommand handlers
 ├── shard_process.py         Single-shard processing script
 ├── shard_utils.py           Shard state, atomic saves, GPU polling, benchmarking
 ├── merge_shards.py          Post-processing: merge shard_* dirs into one dataset
 │
 ├── config/                  Configuration layer (pure dataclasses, no heavy deps)
-│   ├── config.py            AnonLibConfig, ExecutionParams, ProcessingParams
+│   ├── config.py            MMirageConfig, ExecutionParams, ProcessingParams
 │   ├── loading.py           LoadingParams, env-var resolution
 │   ├── batch_provider.py    Provider-neutral BatchProviderConfig
 │   ├── openai_batch.py      OpenAIBatchConfig (extends BatchProviderConfig)
@@ -83,7 +83,7 @@ src/anonlib/
     ├── process/             Data transformation
     │   ├── variables.py     InputVar, OutputVar, VariableEnvironment, JMESPath cache
     │   ├── base.py          BaseProcessor, ProcessorRegistry, TokenCounts
-    │   ├── mapper.py        AnonLibMapper — orchestrates variables through processors
+    │   ├── mapper.py        MMIRAGEMapper — orchestrates variables through processors
     │   ├── processors/
     │   │   ├── llm/
     │   │   │   ├── config.py              SGLangLLMConfig, SGLangServerArgs, LLMOutputVar
@@ -114,10 +114,10 @@ src/anonlib/
 
 ### Single Shard (local mode)
 
-1. **Config loading** — `load_anonlib_config` reads the YAML, expands `${ENV_VAR}` references, and constructs a typed `AnonLibConfig` via `dacite`.
+1. **Config loading** — `load_mmirage_config` reads the YAML, expands `${ENV_VAR}` references, and constructs a typed `MMirageConfig` via `dacite`.
 2. **Dataset loading** — `load_datasets_from_configs` calls the appropriate `DataLoader` (JSONL or `loadable`), returning a HuggingFace `Dataset`.
 3. **Sharding** — The dataset is split into `num_shards` slices; this shard processes slice `shard_id`.
-4. **Mapping** — `AnonLibMapper.rewrite_batch` iterates over batches:
+4. **Mapping** — `MMIRAGEMapper.rewrite_batch` iterates over batches:
    - Extracts `InputVar` values from each sample using cached JMESPath expressions.
    - Resolves image inputs to PIL Images or absolute paths.
    - Calls the registered `Processor` (e.g. `LLMProcessor`) for each `OutputVar`.
@@ -135,7 +135,7 @@ The `BatchApiProcessor` delegates request submission to the batch orchestrator:
 1. Requests are serialized to JSONL chunks respecting `max_chunk_bytes` / `max_requests_per_chunk`.
 2. Each chunk is uploaded/submitted and a metadata receipt is written.
 3. The mapper writes `__BATCH_SUBMITTED__:<custom_id>` placeholders into the output shards.
-4. Results are later checked/collected via `anonlib.core.process.batch.status_checker` and `anonlib.core.process.batch.collector`.
+4. Results are later checked/collected via `mmirage.core.process.batch.status_checker` and `mmirage.core.process.batch.collector`.
 
 ---
 

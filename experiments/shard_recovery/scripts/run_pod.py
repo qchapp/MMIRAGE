@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pod entrypoint for one externally orchestrated ANONLIB shard."""
+"""Pod entrypoint for one externally orchestrated MMIRAGE shard."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 
-DEFAULT_CONTAINER_REPO = Path("/workspace/ANONLIB")
+DEFAULT_CONTAINER_REPO = Path("/workspace/MMIRAGE")
 
 
 def repo_root() -> Path:
@@ -20,8 +20,8 @@ def repo_root() -> Path:
 
 sys.path.insert(0, str(repo_root() / "src"))
 
-from anonlib.config.utils import load_anonlib_config  # noqa: E402
-from anonlib.shard_utils import (  # noqa: E402
+from mmirage.config.utils import load_mmirage_config  # noqa: E402
+from mmirage.shard_utils import (  # noqa: E402
     _mark_failure,
     read_status,
     shard_state_dir,
@@ -39,7 +39,7 @@ def main() -> None:
     args = parse_args()
     if not Path(args.config).exists():
         raise RuntimeError(
-            f"ANONLIB config not found inside the shard pod at {args.config}. "
+            f"MMIRAGE config not found inside the shard pod at {args.config}. "
             f"The pod image should contain the repository at {DEFAULT_CONTAINER_REPO}."
         )
     source_path = str(repo_root() / "src")
@@ -50,12 +50,12 @@ def main() -> None:
         else source_path
     )
     os.environ["SLURM_ARRAY_TASK_ID"] = str(args.shard_id)
-    os.environ.setdefault("ANONLIB_COLLECT_STATS", "1")
+    os.environ.setdefault("MMIRAGE_COLLECT_STATS", "1")
     os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
-    cfg = load_anonlib_config(args.config)
+    cfg = load_mmirage_config(args.config)
     state_dir = shard_state_dir(args.shard_id, cfg.loading_params.get_state_root())
-    command = [sys.executable, "-m", "anonlib.shard_process", "--config", args.config]
+    command = [sys.executable, "-m", "mmirage.shard_process", "--config", args.config]
     child = subprocess.Popen(command, env=os.environ.copy())
     terminated_by_wrapper = False
 
@@ -63,7 +63,7 @@ def main() -> None:
         nonlocal terminated_by_wrapper
         terminated_by_wrapper = True
         print(
-            f"Wrapper for shard {args.shard_id} received signal {signum}; terminating ANONLIB shard process {child.pid}.",
+            f"Wrapper for shard {args.shard_id} received signal {signum}; terminating MMIRAGE shard process {child.pid}.",
             flush=True,
         )
         if child.poll() is None:

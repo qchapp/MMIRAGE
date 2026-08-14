@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Local shard-recovery runner (no Kubernetes).
 
-Runs the same ANONLIB shard-recovery experiment as
+Runs the same MMIRAGE shard-recovery experiment as
 ``run_k8s.py`` but from a single pod terminal without creating
 Kubernetes pods. Each logical shard is a local subprocess that runs the same
 pod entrypoint (``run_pod.py``); one GPU is pinned per
 concurrent shard through ``CUDA_VISIBLE_DEVICES``. The deliberate pod
 termination of the Kubernetes experiment is emulated by sending ``SIGTERM`` to
-the selected wrapper processes, which the wrapper records as ANONLIB shard
+the selected wrapper processes, which the wrapper records as MMIRAGE shard
 failure exactly as it does for a terminated Kubernetes pod.
 
 The controller/raw_logs directory layout written here matches
@@ -44,14 +44,14 @@ from run_k8s import (  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_SHARED_ROOT = "/workspace/anonlib-recovery"
+DEFAULT_SHARED_ROOT = "/workspace/mmirage-recovery"
 DEFAULT_GPU_IDS = "0,1,2,3"
 
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from anonlib.cli_utils.status import check_failed_shards, status_exit_code  # noqa: E402
-from anonlib.config.utils import load_anonlib_config  # noqa: E402
-from anonlib.shard_utils import read_status, shard_state_dir  # noqa: E402
+from mmirage.cli_utils.status import check_failed_shards, status_exit_code  # noqa: E402
+from mmirage.config.utils import load_mmirage_config  # noqa: E402
+from mmirage.shard_utils import read_status, shard_state_dir  # noqa: E402
 
 POD_ENTRYPOINT = EXPERIMENT_DIR / "scripts" / "run_pod.py"
 
@@ -61,8 +61,8 @@ def parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     def add_common(p: argparse.ArgumentParser) -> None:
-        p.add_argument("--shared-root", default=os.environ.get("ANONLIB_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-        p.add_argument("--config", default=str(EXPERIMENT_DIR / "configs" / "anonlib_recovery.yaml"))
+        p.add_argument("--shared-root", default=os.environ.get("MMIRAGE_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
+        p.add_argument("--config", default=str(EXPERIMENT_DIR / "configs" / "mmirage_recovery.yaml"))
         p.add_argument("--max-active-shards", type=int, default=4)
         p.add_argument("--gpu-ids", default=DEFAULT_GPU_IDS)
         p.add_argument("--wait-timeout-seconds", type=int, default=21600)
@@ -75,17 +75,17 @@ def parse_args() -> argparse.Namespace:
     run_p.add_argument("--overwrite", action="store_true")
     run_p.add_argument("--baseline-rep", type=int, default=1)
 
-    retry_p = subparsers.add_parser("retry", help="Relaunch only shards ANONLIB marks incomplete")
+    retry_p = subparsers.add_parser("retry", help="Relaunch only shards MMIRAGE marks incomplete")
     add_common(retry_p)
     retry_p.add_argument("--condition", choices=["fail_1", "fail_4", "fail_8"], required=True)
     retry_p.add_argument("--rep", type=int, default=1)
     retry_p.add_argument("--max-rounds", type=int, default=3)
 
-    status_p = subparsers.add_parser("status", help="Print ANONLIB shard status for one run")
+    status_p = subparsers.add_parser("status", help="Print MMIRAGE shard status for one run")
     status_p.add_argument("--condition", choices=sorted(CONDITION_FAILURE_SHARDS), required=True)
     status_p.add_argument("--rep", type=int, default=1)
-    status_p.add_argument("--shared-root", default=os.environ.get("ANONLIB_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-    status_p.add_argument("--config", default=str(EXPERIMENT_DIR / "configs" / "anonlib_recovery.yaml"))
+    status_p.add_argument("--shared-root", default=os.environ.get("MMIRAGE_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
+    status_p.add_argument("--config", default=str(EXPERIMENT_DIR / "configs" / "mmirage_recovery.yaml"))
 
     return parser.parse_args()
 
@@ -99,7 +99,7 @@ def require_container_terminal(args: argparse.Namespace) -> None:
     config = getattr(args, "config", None)
     if config and not Path(config).exists():
         raise RuntimeError(
-            f"ANONLIB config not found at {config}. Run from the ANONLIB container terminal "
+            f"MMIRAGE config not found at {config}. Run from the MMIRAGE container terminal "
             f"with the repository available, or pass --config explicitly."
         )
     if getattr(args, "max_active_shards", 1) < 1:
@@ -162,7 +162,7 @@ def wait_for_pod_running(
     proc: subprocess.Popen[str],
     timeout_seconds: int,
 ) -> None:
-    """Wait until ANONLIB marks the shard running (pod Running equivalent)."""
+    """Wait until MMIRAGE marks the shard running (pod Running equivalent)."""
     state_dir = shard_state_dir(shard, state_root)
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
@@ -321,15 +321,15 @@ def handle_run_condition(args: argparse.Namespace) -> int:
     old = os.environ.copy()
     os.environ.update(env)
     try:
-        cfg = load_anonlib_config(args.config)
+        cfg = load_mmirage_config(args.config)
         fail_shards = CONDITION_FAILURE_SHARDS[args.condition]
         kill_after = baseline_kill_after(args.shared_root, args.baseline_rep, args.kill_after_seconds) if fail_shards else None
         summary = run_phase(
             args, args.condition, args.rep, "initial", list(range(cfg.loading_params.get_num_shards())), fail_shards, kill_after, cfg=cfg
         )
         failed, status_summary = check_failed_shards(cfg)
-        summary["anonlib_status_after_phase"] = status_summary.__dict__
-        summary["anonlib_retryable_shards_after_phase"] = failed
+        summary["mmirage_status_after_phase"] = status_summary.__dict__
+        summary["mmirage_retryable_shards_after_phase"] = failed
         write_json(rd / "controller" / "phase_initial.json", summary)
         if fail_shards:
             snapshot_completed(args, args.condition, args.rep, cfg, "before_retry")
@@ -346,7 +346,7 @@ def handle_retry(args: argparse.Namespace) -> int:
     old = os.environ.copy()
     os.environ.update(env)
     try:
-        cfg = load_anonlib_config(args.config)
+        cfg = load_mmirage_config(args.config)
         for round_idx in range(1, args.max_rounds + 1):
             failed, summary = check_failed_shards(cfg)
             if status_exit_code(failed, summary) == 0:

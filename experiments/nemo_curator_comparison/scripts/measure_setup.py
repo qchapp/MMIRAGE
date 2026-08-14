@@ -25,9 +25,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 FRAMEWORKS: dict[str, dict[str, object]] = {
-    "anonlib": {
+    "mmirage": {
         "python": "3.12",
-        "requirements": "experiments/nemo_curator_comparison/environment/anonlib_uv_requirements.txt",
+        "requirements": "experiments/nemo_curator_comparison/environment/mmirage_uv_requirements.txt",
         "extra_index": None,
         "pin_setuptools": None,
         "prerelease": True,

@@ -3,16 +3,16 @@
 # Two HTTP execution modes are available:
 #
 #   backend: sglang
-#     AnonLib starts one shared SGLang server for the run, waits until it is
+#     MMIRAGE starts one shared SGLang server for the run, waits until it is
 #     ready, publishes the local base URL internally, runs all shard workers
 #     against it, and shuts it down afterwards. The localhost port is selected
-#     automatically; AnonLib skips occupied ports.
+#     automatically; MMIRAGE skips occupied ports.
 #
 #   backend: external
 #     You provide an already-running HTTP image generation server URL in an
 #     external: block.
 #
-# AnonLib handles all dataset sharding, prompt rendering, filename rendering,
+# MMIRAGE handles all dataset sharding, prompt rendering, filename rendering,
 # and result saving.  The SGLang server is only responsible for generating
 # image pixels.
 
@@ -46,7 +46,7 @@ loading_params:
     - path: tests/mock_data_image_gen/data.jsonl
       type: JSONL
       output_dir: tests/output/image_gen
-  num_shards: 4  # shard workers share one AnonLib-launched localhost server
+  num_shards: 4  # shard workers share one MMIRAGE-launched localhost server
   shard_id: ${SLURM_ARRAY_TASK_ID}
   batch_size: 64
 
@@ -92,8 +92,8 @@ execution_params:
   # HPC account/partition to charge jobs to (REQUIRED for SLURM mode)
   account: my_account
 
-  # SLURM job name (default: "anonlib-sharded")
-  job_name: anonlib-sharded
+  # SLURM job name (default: "mmirage-sharded")
+  job_name: mmirage-sharded
 
   # Optional SLURM reservation name (leave blank or omit to not use)
   # reservation: "my_reservation"

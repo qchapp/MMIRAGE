@@ -8,11 +8,11 @@ from pathlib import Path
 from typing import List, Optional
 
 _SRC = Path(__file__).resolve().parents[2] / "src"
-_PKG = types.ModuleType("anonlib")
-_PKG.__path__ = [str(_SRC / "anonlib")]
-sys.modules.setdefault("anonlib", _PKG)
+_PKG = types.ModuleType("mmirage")
+_PKG.__path__ = [str(_SRC / "mmirage")]
+sys.modules.setdefault("mmirage", _PKG)
 
-_CONFIG_MODULE = types.ModuleType("anonlib.core.process.processors.image_gen.config")
+_CONFIG_MODULE = types.ModuleType("mmirage.core.process.processors.image_gen.config")
 
 
 @dataclass
@@ -36,11 +36,11 @@ class SGLangBackendConfig:
 
 _CONFIG_MODULE.SGLangBackendConfig = SGLangBackendConfig
 sys.modules.setdefault(
-    "anonlib.core.process.processors.image_gen.config",
+    "mmirage.core.process.processors.image_gen.config",
     _CONFIG_MODULE,
 )
 
-from anonlib.core.process.processors.image_gen import sglang_server  # noqa: E402
+from mmirage.core.process.processors.image_gen import sglang_server  # noqa: E402
 
 
 def _bind_localhost(port: int) -> socket.socket:
@@ -84,16 +84,16 @@ def test_shared_sglang_server_sets_internal_base_url_on_selected_port(monkeypatc
     monkeypatch.setattr(
         sglang_server, "stop_sglang_server", lambda proc: stopped.append(proc)
     )
-    monkeypatch.delenv(sglang_server.ANONLIB_SGLANG_BASE_URL, raising=False)
+    monkeypatch.delenv(sglang_server.MMIRAGE_SGLANG_BASE_URL, raising=False)
 
     config = SGLangBackendConfig(model_path="Qwen/Qwen-Image")
     with sglang_server.shared_sglang_server(config):
         assert launched_ports == [sglang_server.DEFAULT_SGLANG_PORT]
-        assert os.environ[sglang_server.ANONLIB_SGLANG_BASE_URL] == (
+        assert os.environ[sglang_server.MMIRAGE_SGLANG_BASE_URL] == (
             f"http://127.0.0.1:{sglang_server.DEFAULT_SGLANG_PORT}/v1"
         )
 
-    assert sglang_server.ANONLIB_SGLANG_BASE_URL not in os.environ
+    assert sglang_server.MMIRAGE_SGLANG_BASE_URL not in os.environ
     assert config.port is None
     assert len(stopped) == 1
 
@@ -107,13 +107,13 @@ def test_shared_sglang_server_retries_when_launch_reports_port_collision(monkeyp
 
     def fake_wait(proc, config):
         if len(attempts) == 1:
-            setattr(proc, "_anonlib_output_tail", ["OSError: address already in use"])
+            setattr(proc, "_mmirage_output_tail", ["OSError: address already in use"])
             raise RuntimeError("SGLang server exited before becoming ready")
 
     monkeypatch.setattr(sglang_server, "launch_sglang_server", fake_launch)
     monkeypatch.setattr(sglang_server, "wait_for_sglang_server", fake_wait)
     monkeypatch.setattr(sglang_server, "stop_sglang_server", lambda proc: None)
-    monkeypatch.delenv(sglang_server.ANONLIB_SGLANG_BASE_URL, raising=False)
+    monkeypatch.delenv(sglang_server.MMIRAGE_SGLANG_BASE_URL, raising=False)
 
     config = SGLangBackendConfig(model_path="Qwen/Qwen-Image")
     with sglang_server.shared_sglang_server(config):
@@ -121,7 +121,7 @@ def test_shared_sglang_server_retries_when_launch_reports_port_collision(monkeyp
             sglang_server.DEFAULT_SGLANG_PORT,
             sglang_server.DEFAULT_SGLANG_PORT + 1,
         ]
-        assert os.environ[sglang_server.ANONLIB_SGLANG_BASE_URL].endswith(
+        assert os.environ[sglang_server.MMIRAGE_SGLANG_BASE_URL].endswith(
             f":{sglang_server.DEFAULT_SGLANG_PORT + 1}/v1"
         )
 

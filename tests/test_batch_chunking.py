@@ -1,7 +1,7 @@
 import pytest
 
-from anonlib.config.batch_provider import BatchProviderConfig
-from anonlib.core.process.batch.adapter import (
+from mmirage.config.batch_provider import BatchProviderConfig
+from mmirage.core.process.batch.adapter import (
     BatchSubmissionAdapter,
     BatchSubmissionResult,
 )
@@ -53,7 +53,7 @@ def _sizes_from_chunks(chunks):
 
 
 def test_chunker_splits_when_byte_limit_is_reached():
-    from anonlib.core.process.batch.chunking import BatchRequestChunker
+    from mmirage.core.process.batch.chunking import BatchRequestChunker
 
     adapter = SizeAwareTestAdapter()
     config = BatchProviderConfig(provider="unit", max_chunk_bytes=10)
@@ -71,7 +71,7 @@ def test_chunker_splits_when_byte_limit_is_reached():
 
 
 def test_chunker_splits_when_max_requests_per_chunk_is_reached():
-    from anonlib.core.process.batch.chunking import BatchRequestChunker
+    from mmirage.core.process.batch.chunking import BatchRequestChunker
 
     adapter = SizeAwareTestAdapter()
     config = BatchProviderConfig(
@@ -94,7 +94,7 @@ def test_chunker_splits_when_max_requests_per_chunk_is_reached():
 
 
 def test_chunker_honors_exact_byte_boundary_without_flushing_early():
-    from anonlib.core.process.batch.chunking import BatchRequestChunker
+    from mmirage.core.process.batch.chunking import BatchRequestChunker
 
     adapter = SizeAwareTestAdapter()
     config = BatchProviderConfig(provider="unit", max_chunk_bytes=10)
@@ -111,7 +111,7 @@ def test_chunker_honors_exact_byte_boundary_without_flushing_early():
 
 
 def test_chunker_isolates_oversized_single_request_by_default(caplog):
-    from anonlib.core.process.batch.chunking import BatchRequestChunker
+    from mmirage.core.process.batch.chunking import BatchRequestChunker
 
     adapter = SizeAwareTestAdapter()
     config = BatchProviderConfig(provider="unit", max_chunk_bytes=10)
@@ -129,7 +129,7 @@ def test_chunker_isolates_oversized_single_request_by_default(caplog):
 
 
 def test_chunker_rejects_oversized_single_request_when_policy_is_reject():
-    from anonlib.core.process.batch.chunking import BatchRequestChunker
+    from mmirage.core.process.batch.chunking import BatchRequestChunker
 
     adapter = SizeAwareTestAdapter()
     config = BatchProviderConfig(

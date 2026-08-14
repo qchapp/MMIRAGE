@@ -1,0 +1,48 @@
+# MMIRAGE-over-SGLang overhead benchmark config.
+# This file is used by experiments/raw_sglang_overhead/scripts/run_mmirage_with_sglang_endpoint.py,
+# which patches sglang.Engine at runtime without modifying MMIRAGE source code.
+
+processors:
+  - type: llm
+    server_args:
+      model_path: ${MMIRAGE_OVERHEAD_MODEL_PATH}
+      tp_size: 1
+      trust_remote_code: true
+      disable_custom_all_reduce: true
+      extra_engine_args:
+        max_running_requests: 1000
+    default_sampling_params:
+      temperature: 0.0
+      max_tokens: 1024
+
+loading_params:
+  state_dir: ${MMIRAGE_OVERHEAD_STATE_DIR}
+  datasets:
+    - path: ${MMIRAGE_OVERHEAD_PROMPTS_JSONL}
+      type: JSONL
+      output_dir: ${MMIRAGE_OVERHEAD_OUTPUT_DIR}
+  num_shards: 1
+  shard_id: 0
+  batch_size: 1000
+
+processing_params:
+  inputs:
+    - name: source_index
+      key: source_index
+    - name: question
+      key: question
+    - name: prompt_text
+      key: prompt_text
+
+  outputs:
+    - name: answer
+      type: llm
+      output_type: plain
+      prompt: "{{ prompt_text }}"
+
+  remove_columns: false
+  output_schema:
+    source_index: "{{ source_index }}"
+    question: "{{ question }}"
+    prompt_text: "{{ prompt_text }}"
+    answer: "{{ answer }}"

@@ -7,12 +7,12 @@ Note : Nothing is mocked here then it costs time for starting real workers
 
 import pytest
 
-from anonlib.core.process.processors.custom.config import (
+from mmirage.core.process.processors.custom.config import (
     CustomOutputVar,
     CustomProcessorConfig,
 )
-from anonlib.core.process.processors.custom.custom_processor import CustomProcessor
-from anonlib.core.process.variables import VariableEnvironment
+from mmirage.core.process.processors.custom.custom_processor import CustomProcessor
+from mmirage.core.process.variables import VariableEnvironment
 
 
 @pytest.fixture

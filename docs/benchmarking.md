@@ -1,13 +1,13 @@
 # 📊 Benchmarking
 
 This page explains how to collect and interpret throughput and efficiency
-metrics for AnonLib pipeline runs.
+metrics for MMIRAGE pipeline runs.
 
 ---
 
 ## Overview
 
-AnonLib includes built-in benchmarking that measures:
+MMIRAGE includes built-in benchmarking that measures:
 
 - wall-clock runtime
 - throughput (rows per second)
@@ -25,16 +25,16 @@ Pass `--stats` to any command that submits or runs shards:
 
 ```bash
 # Local run
-anonlib run --config configs/config.yaml --stats
+mmirage run --config configs/config.yaml --stats
 
 # SLURM array submission
-anonlib submit --config configs/config.yaml --stats
+mmirage submit --config configs/config.yaml --stats
 
 # Retry failed shards with stats
-anonlib retry --config configs/config.yaml --stats
+mmirage retry --config configs/config.yaml --stats
 ```
 
-When `--stats` is set, AnonLib polls GPU utilisation at a fixed interval
+When `--stats` is set, MMIRAGE polls GPU utilisation at a fixed interval
 during processing and records token counts reported by the SGLang engine.
 
 ---
@@ -44,7 +44,7 @@ during processing and records token counts reported by the SGLang engine.
 After a run (or after shards complete), aggregate and display the metrics:
 
 ```bash
-anonlib stats --config configs/config.yaml
+mmirage stats --config configs/config.yaml
 ```
 
 This reads per-shard stats files from the state directory and prints a
@@ -111,7 +111,7 @@ If benchmarking reveals low efficiency, try:
 
 ## DataTrove benchmark
 
-AnonLib includes a reference config for the DataTrove benchmark dataset:
+MMIRAGE includes a reference config for the DataTrove benchmark dataset:
 
 ```
 configs/config_benchmark_datatrove.yaml
@@ -124,6 +124,6 @@ against published numbers.
 
 ## See also
 
-- [CLI Reference](cli.md) — `--stats` flag and `anonlib stats` command details
+- [CLI Reference](cli.md) — `--stats` flag and `mmirage stats` command details
 - [SLURM & Cluster Deployment](slurm.md) — collecting stats in SLURM mode
 - [Configuration Reference](configuration.md) — `extra_engine_args` for SGLang tuning

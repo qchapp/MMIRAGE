@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a deterministic fixed UltraChat-style workload for ANONLIB scaling."""
+"""Prepare a deterministic fixed UltraChat-style workload for MMIRAGE scaling."""
 
 from __future__ import annotations
 

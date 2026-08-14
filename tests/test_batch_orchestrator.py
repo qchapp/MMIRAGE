@@ -3,15 +3,15 @@ from dataclasses import dataclass
 
 import pytest
 
-from anonlib.config.batch_provider import BatchProviderConfig
-from anonlib.core.process.base import ProcessorRegistry
-from anonlib.core.process.batch.adapter import (
+from mmirage.config.batch_provider import BatchProviderConfig
+from mmirage.core.process.base import ProcessorRegistry
+from mmirage.core.process.batch.adapter import (
     BatchSubmissionAdapter,
     BatchSubmissionResult,
 )
-from anonlib.core.process.batch.provider_resolution import BatchProviderConfigRegistry
-from anonlib.core.process.batch.registry import BatchAdapterRegistry
-from anonlib.core.process.processors.batch_api.config import BatchApiProcessorConfig
+from mmirage.core.process.batch.provider_resolution import BatchProviderConfigRegistry
+from mmirage.core.process.batch.registry import BatchAdapterRegistry
+from mmirage.core.process.processors.batch_api.config import BatchApiProcessorConfig
 
 
 class RecordingAdapter(BatchSubmissionAdapter):
@@ -63,7 +63,7 @@ def clear_batch_registries():
 def test_orchestrator_buffers_across_iterations_and_avoids_tiny_midstream_flush(
     tmp_path,
 ):
-    from anonlib.core.process.batch.orchestrator import BatchSubmissionOrchestrator
+    from mmirage.core.process.batch.orchestrator import BatchSubmissionOrchestrator
 
     adapter = RecordingAdapter()
     config = BatchProviderConfig(
@@ -96,7 +96,7 @@ def test_orchestrator_buffers_across_iterations_and_avoids_tiny_midstream_flush(
 
 
 def test_orchestrator_writes_provider_neutral_metadata_with_flush_reason(tmp_path):
-    from anonlib.core.process.batch.orchestrator import BatchSubmissionOrchestrator
+    from mmirage.core.process.batch.orchestrator import BatchSubmissionOrchestrator
 
     metadata_path = tmp_path / "batch_metadata.jsonl"
     adapter = RecordingAdapter()

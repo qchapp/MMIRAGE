@@ -3,14 +3,14 @@ from pathlib import Path
 
 from datasets import load_dataset
 
-from anonlib.config.openai_batch import OpenAIBatchConfig
-from anonlib.core.process.mapper import AnonLibMapper
-from anonlib.core.process.processors.batch_api.config import (
+from mmirage.config.openai_batch import OpenAIBatchConfig
+from mmirage.core.process.mapper import MMIRAGEMapper
+from mmirage.core.process.processors.batch_api.config import (
     BatchApiOutputVar,
     BatchApiProcessorConfig,
 )
-from anonlib.core.process.variables import InputVar
-from anonlib.core.writer.renderer import TemplateRenderer
+from mmirage.core.process.variables import InputVar
+from mmirage.core.writer.renderer import TemplateRenderer
 
 
 def test_integration_batch_pipeline_with_stateful_accumulator(monkeypatch, tmp_path):
@@ -53,7 +53,7 @@ def test_integration_batch_pipeline_with_stateful_accumulator(monkeypatch, tmp_p
             self.batches = FakeBatches()
 
     monkeypatch.setattr(
-        "anonlib.core.process.batch.openai_adapter.OpenAI",
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
         FakeOpenAIClient,
     )
 
@@ -69,7 +69,7 @@ def test_integration_batch_pipeline_with_stateful_accumulator(monkeypatch, tmp_p
         ),
     )
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    mapper = AnonLibMapper(
+    mapper = MMIRAGEMapper(
         processor_configs=[batch_cfg],
         input_vars=[InputVar(name="text", key="text")],
         output_vars=[

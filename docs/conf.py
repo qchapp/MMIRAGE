@@ -6,7 +6,7 @@ import sys
 from unittest.mock import MagicMock
 
 # -- Path setup ----------------------------------------------------------------
-# Point at the package source so autodoc can import anonlib without installing.
+# Point at the package source so autodoc can import mmirage without installing.
 sys.path.insert(0, os.path.abspath("../src"))
 
 # -- Lightweight datasets mock ------------------------------------------------
@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath("../src"))
 # present in the docs build environment.  We pre-inject a minimal mock that
 # exposes actual Python *classes* (not MagicMock instances) for Dataset and
 # DatasetDict so that the PEP-604 union ``Dataset | DatasetDict`` in
-# anonlib.core.loader.base works without a TypeError.
+# mmirage.core.loader.base works without a TypeError.
 
 
 class _FakeDataset:
@@ -48,7 +48,7 @@ if not hasattr(_typing, "override"):
     _typing.override = _override  # type: ignore[attr-defined]
 
 # -- Project information -------------------------------------------------------
-project = "AnonLib"
+project = "MMIRAGE"
 release = "0.1.4"
 
 # -- General configuration -----------------------------------------------------
@@ -138,7 +138,7 @@ suppress_warnings = [
 # -- HTML output ---------------------------------------------------------------
 html_theme = "furo"
 html_static_path = ["_static"]
-html_title = "AnonLib"
+html_title = "MMIRAGE"
 html_logo = "_static/logo.svg"
 
 html_theme_options = {

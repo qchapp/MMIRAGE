@@ -1,8 +1,8 @@
-# AnonLib Shard Recovery Experiment
+# MMIRAGE Shard Recovery Experiment
 
-This experiment measures how much work AnonLib avoids recomputing after selected shard workloads are deliberately terminated. Kubernetes is only external orchestration: each pod still runs AnonLib's normal local shard path, state files, retry detection, statistics, and merge command.
+This experiment measures how much work MMIRAGE avoids recomputing after selected shard workloads are deliberately terminated. Kubernetes is only external orchestration: each pod still runs MMIRAGE's normal local shard path, state files, retry detection, statistics, and merge command.
 
-Run all commands from the repository root inside the AnonLib container unless a step says otherwise.
+Run all commands from the repository root inside the MMIRAGE container unless a step says otherwise.
 
 ## What It Measures
 
@@ -15,7 +15,7 @@ The workload has 16 logical shards. The controller runs four conditions:
 | `fail_4` | `1,5,9,13` |
 | `fail_8` | `0,2,4,6,8,10,12,14` |
 
-For failure conditions, the controller terminates selected running pods with `SIGTERM`, then retries only shards AnonLib marks incomplete.
+For failure conditions, the controller terminates selected running pods with `SIGTERM`, then retries only shards MMIRAGE marks incomplete.
 
 Primary metrics:
 
@@ -27,13 +27,13 @@ Primary metrics:
 - `estimated_gpu_seconds_wasted`: approximate GPU seconds spent in deliberately killed pods.
 - `completed_shard_outputs_unchanged_after_retry`: integrity check that successful shard outputs were preserved.
 
-This experiment does not measure native Kubernetes fault tolerance, scheduler quality, image pull time, PVC provisioning time, or model-cache warm-up. Kubernetes is used only to launch and terminate isolated one-shard AnonLib processes.
+This experiment does not measure native Kubernetes fault tolerance, scheduler quality, image pull time, PVC provisioning time, or model-cache warm-up. Kubernetes is used only to launch and terminate isolated one-shard MMIRAGE processes.
 
 ## Files
 
 | Path | Purpose |
 |---|---|
-| `configs/anonlib_recovery.yaml` | Fixed 16-shard AnonLib workload. |
+| `configs/mmirage_recovery.yaml` | Fixed 16-shard MMIRAGE workload. |
 | `scripts/prepare_workload.py` | Downloads and freezes the public Hugging Face workload. |
 | `scripts/run_k8s.py` | Kubernetes controller. |
 | `scripts/run_local.py` | Optional local fallback runner with the same output layout. |
@@ -42,8 +42,8 @@ This experiment does not measure native Kubernetes fault tolerance, scheduler qu
 
 ## Prerequisites
 
-- Repository available inside the container at `/workspace/ANONLIB`.
-- Python environment with AnonLib GPU dependencies, `sglang==0.5.10`, CUDA-compatible PyTorch, `datasets`, and `kubectl`.
+- Repository available inside the container at `/workspace/MMIRAGE`.
+- Python environment with MMIRAGE GPU dependencies, `sglang==0.5.10`, CUDA-compatible PyTorch, `datasets`, and `kubectl`.
 - Kubernetes or Run:ai namespace where the controller can create pods and run `kubectl exec` in them.
 - Shared `ReadWriteMany` PVC mounted at the same path in the controller container and shard pods.
 - H100 access. The default controller budget runs at most four one-GPU shard pods at once.
@@ -51,11 +51,11 @@ This experiment does not measure native Kubernetes fault tolerance, scheduler qu
 Use Bash for the commands below. Set these variables once, replacing only `IMAGE` unless your cluster requires different names:
 
 ```bash
-cd /workspace/ANONLIB
-export NAMESPACE=anonlib-recovery
-export PVC_NAME=anonlib-recovery-pvc
-export IMAGE=<your-anonlib-gpu-image>
-export ANONLIB_RECOVERY_ROOT=/workspace/anonlib-recovery
+cd /workspace/MMIRAGE
+export NAMESPACE=mmirage-recovery
+export PVC_NAME=mmirage-recovery-pvc
+export IMAGE=<your-mmirage-gpu-image>
+export MMIRAGE_RECOVERY_ROOT=/workspace/mmirage-recovery
 export MAX_ACTIVE_SHARDS=4
 ```
 
@@ -72,7 +72,7 @@ COMMON_K8S_ARGS=(
   --namespace "$NAMESPACE"
   --pvc "$PVC_NAME"
   --image "$IMAGE"
-  --shared-root "$ANONLIB_RECOVERY_ROOT"
+  --shared-root "$MMIRAGE_RECOVERY_ROOT"
   --max-active-shards "$MAX_ACTIVE_SHARDS"
 )
 if [ -n "${GPU_PRODUCT_LABEL:-}" ]; then
@@ -82,7 +82,7 @@ fi
 
 ## 1. Create Or Confirm The PVC
 
-If your namespace and PVC already exist, skip this step after confirming the PVC is mounted at `$ANONLIB_RECOVERY_ROOT` in the controller container.
+If your namespace and PVC already exist, skip this step after confirming the PVC is mounted at `$MMIRAGE_RECOVERY_ROOT` in the controller container.
 
 If your cluster has a default storage class that supports `ReadWriteMany`, this generic command is sufficient:
 
@@ -110,7 +110,7 @@ This writes the fixed JSONL workload, input order manifest, and provenance metad
 
 ```bash
 python experiments/shard_recovery/scripts/prepare_workload.py \
-  --output-root "$ANONLIB_RECOVERY_ROOT" \
+  --output-root "$MMIRAGE_RECOVERY_ROOT" \
   --dataset HuggingFaceH4/ultrachat_200k \
   --split train_sft \
   --num-records 65536 \
@@ -120,9 +120,9 @@ python experiments/shard_recovery/scripts/prepare_workload.py \
 Expected files:
 
 ```text
-$ANONLIB_RECOVERY_ROOT/data/ultrachat_200k/subset.jsonl
-$ANONLIB_RECOVERY_ROOT/data/ultrachat_200k/id_order.jsonl
-$ANONLIB_RECOVERY_ROOT/data/ultrachat_200k/manifest.json
+$MMIRAGE_RECOVERY_ROOT/data/ultrachat_200k/subset.jsonl
+$MMIRAGE_RECOVERY_ROOT/data/ultrachat_200k/id_order.jsonl
+$MMIRAGE_RECOVERY_ROOT/data/ultrachat_200k/manifest.json
 ```
 
 ## 3. Run The Clean Baseline
@@ -140,9 +140,9 @@ python experiments/shard_recovery/scripts/run_k8s.py run-condition \
 Merge the baseline:
 
 ```bash
-anonlib merge-dir \
-  --input-dir "$ANONLIB_RECOVERY_ROOT/runs/baseline/rep_01/output" \
-  --output-dir "$ANONLIB_RECOVERY_ROOT/runs/baseline/rep_01/merged"
+mmirage merge-dir \
+  --input-dir "$MMIRAGE_RECOVERY_ROOT/runs/baseline/rep_01/output" \
+  --output-dir "$MMIRAGE_RECOVERY_ROOT/runs/baseline/rep_01/merged"
 ```
 
 ## 4. Run Failure Conditions
@@ -161,9 +161,9 @@ python experiments/shard_recovery/scripts/run_k8s.py retry \
   --rep 1 \
   "${COMMON_K8S_ARGS[@]}"
 
-anonlib merge-dir \
-  --input-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_1/rep_01/output" \
-  --output-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_1/rep_01/merged"
+mmirage merge-dir \
+  --input-dir "$MMIRAGE_RECOVERY_ROOT/runs/fail_1/rep_01/output" \
+  --output-dir "$MMIRAGE_RECOVERY_ROOT/runs/fail_1/rep_01/merged"
 ```
 
 Run `fail_4`:
@@ -180,9 +180,9 @@ python experiments/shard_recovery/scripts/run_k8s.py retry \
   --rep 1 \
   "${COMMON_K8S_ARGS[@]}"
 
-anonlib merge-dir \
-  --input-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_4/rep_01/output" \
-  --output-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_4/rep_01/merged"
+mmirage merge-dir \
+  --input-dir "$MMIRAGE_RECOVERY_ROOT/runs/fail_4/rep_01/output" \
+  --output-dir "$MMIRAGE_RECOVERY_ROOT/runs/fail_4/rep_01/merged"
 ```
 
 Run `fail_8`:
@@ -199,9 +199,9 @@ python experiments/shard_recovery/scripts/run_k8s.py retry \
   --rep 1 \
   "${COMMON_K8S_ARGS[@]}"
 
-anonlib merge-dir \
-  --input-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_8/rep_01/output" \
-  --output-dir "$ANONLIB_RECOVERY_ROOT/runs/fail_8/rep_01/merged"
+mmirage merge-dir \
+  --input-dir "$MMIRAGE_RECOVERY_ROOT/runs/fail_8/rep_01/output" \
+  --output-dir "$MMIRAGE_RECOVERY_ROOT/runs/fail_8/rep_01/merged"
 ```
 
 ## 5. Check Status
@@ -212,7 +212,7 @@ Use this if a run appears stuck or before extracting results:
 python experiments/shard_recovery/scripts/run_k8s.py status \
   --condition fail_4 \
   --rep 1 \
-  --shared-root "$ANONLIB_RECOVERY_ROOT"
+  --shared-root "$MMIRAGE_RECOVERY_ROOT"
 ```
 
 The command exits with nonzero status if shards are incomplete.
@@ -223,7 +223,7 @@ Run this after every completed condition has been merged:
 
 ```bash
 python experiments/shard_recovery/scripts/extract_results.py \
-  --shared-root "$ANONLIB_RECOVERY_ROOT" \
+  --shared-root "$MMIRAGE_RECOVERY_ROOT" \
   --conditions baseline,fail_1,fail_4,fail_8 \
   --reps 1
 ```
@@ -231,16 +231,16 @@ python experiments/shard_recovery/scripts/extract_results.py \
 Expected outputs:
 
 ```text
-$ANONLIB_RECOVERY_ROOT/results/recovery_results.csv
-$ANONLIB_RECOVERY_ROOT/results/recovery_results.json
+$MMIRAGE_RECOVERY_ROOT/results/recovery_results.csv
+$MMIRAGE_RECOVERY_ROOT/results/recovery_results.json
 ```
 
-The extractor reports recomputed rows exactly. Token recomputation is reported as the output tokens generated by successful retry shards, because AnonLib does not record token progress inside a killed pod.
+The extractor reports recomputed rows exactly. Token recomputation is reported as the output tokens generated by successful retry shards, because MMIRAGE does not record token progress inside a killed pod.
 
 Expected tree after one completed repetition of every condition:
 
 ```text
-$ANONLIB_RECOVERY_ROOT/
+$MMIRAGE_RECOVERY_ROOT/
   data/
     ultrachat_200k/
       subset.jsonl
@@ -281,10 +281,10 @@ For a successful recovery run, `recovery_results.json` should report zero missin
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Controller cannot create pods | Namespace, RBAC, image, or quota is wrong. | Check `kubectl -n "$NAMESPACE" get events`, verify `IMAGE`, and confirm the namespace allows pod creation. |
-| Pods start but cannot see data | PVC is not mounted at the same path in controller and shard pods. | Confirm `$ANONLIB_RECOVERY_ROOT` exists in both places and that `subset.jsonl` is visible from a pod. |
+| Pods start but cannot see data | PVC is not mounted at the same path in controller and shard pods. | Confirm `$MMIRAGE_RECOVERY_ROOT` exists in both places and that `subset.jsonl` is visible from a pod. |
 | Pods stay pending | No matching H100 nodes, bad GPU product label, or insufficient quota. | Check pod events and adjust `GPU_PRODUCT_LABEL` or resource quota. |
 | `retry` exits nonzero | Some shard statuses remain incomplete or blocked. | Run the `status` command and inspect `state/shard_<id>/status.json` plus `raw_logs/<phase>/`. |
-| `merge-dir` fails | One or more shard output directories are missing or incomplete. | Run `status`, retry failed shards, then rerun `anonlib merge-dir`. |
+| `merge-dir` fails | One or more shard output directories are missing or incomplete. | Run `status`, retry failed shards, then rerun `mmirage merge-dir`. |
 | Extractor reports missing or duplicate IDs | Merge output does not match the prepared input order. | Preserve the run directory, inspect `merged/`, `id_order.jsonl`, and `recovery_results.json`; do not overwrite the failed run before diagnosis. |
 
 ## Reproducibility Metadata
@@ -305,10 +305,10 @@ Use these generated files for paper artifacts:
 
 | Paper artifact | Source file |
 |---|---|
-| Per-condition recovery table | `$ANONLIB_RECOVERY_ROOT/results/recovery_results.csv` |
-| Full structured metrics and integrity detail | `$ANONLIB_RECOVERY_ROOT/results/recovery_results.json` |
-| Audit trail for failure timing and pod termination | `$ANONLIB_RECOVERY_ROOT/runs/<condition>/rep_<NN>/controller/phase_*.json` |
-| Raw Kubernetes logs for appendix/debugging | `$ANONLIB_RECOVERY_ROOT/runs/<condition>/rep_<NN>/raw_logs/` |
+| Per-condition recovery table | `$MMIRAGE_RECOVERY_ROOT/results/recovery_results.csv` |
+| Full structured metrics and integrity detail | `$MMIRAGE_RECOVERY_ROOT/results/recovery_results.json` |
+| Audit trail for failure timing and pod termination | `$MMIRAGE_RECOVERY_ROOT/runs/<condition>/rep_<NN>/controller/phase_*.json` |
+| Raw Kubernetes logs for appendix/debugging | `$MMIRAGE_RECOVERY_ROOT/runs/<condition>/rep_<NN>/raw_logs/` |
 
 ## Repetitions
 
@@ -322,7 +322,7 @@ Extract multiple repetitions with:
 
 ```bash
 python experiments/shard_recovery/scripts/extract_results.py \
-  --shared-root "$ANONLIB_RECOVERY_ROOT" \
+  --shared-root "$MMIRAGE_RECOVERY_ROOT" \
   --conditions baseline,fail_1,fail_4,fail_8 \
   --reps 1,2,3
 ```
@@ -335,7 +335,7 @@ Use `scripts/run_local.py` only if Kubernetes pod creation or `kubectl exec` is 
 python experiments/shard_recovery/scripts/run_local.py run-condition \
   --condition baseline \
   --rep 1 \
-  --shared-root "$ANONLIB_RECOVERY_ROOT" \
+  --shared-root "$MMIRAGE_RECOVERY_ROOT" \
   --max-active-shards 4 \
   --gpu-ids 0,1,2,3 \
   --overwrite
@@ -345,11 +345,11 @@ Use the same `run-condition`, `retry`, `merge-dir`, and `extract_results.py` seq
 
 ## Interpretation Boundary
 
-This experiment supports the claim that AnonLib recovery is shard-scoped and preserves completed shard work. It does not show that AnonLib has a native Kubernetes backend or Kubernetes-level fault tolerance.
+This experiment supports the claim that MMIRAGE recovery is shard-scoped and preserves completed shard work. It does not show that MMIRAGE has a native Kubernetes backend or Kubernetes-level fault tolerance.
 
 Raw pod logs and pod JSON are retained under:
 
 ```text
-$ANONLIB_RECOVERY_ROOT/runs/<condition>/rep_<NN>/raw_logs/<phase>/
-$ANONLIB_RECOVERY_ROOT/runs/<condition>/rep_<NN>/controller/
+$MMIRAGE_RECOVERY_ROOT/runs/<condition>/rep_<NN>/raw_logs/<phase>/
+$MMIRAGE_RECOVERY_ROOT/runs/<condition>/rep_<NN>/controller/
 ```

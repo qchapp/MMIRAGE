@@ -1,12 +1,12 @@
 # ⚙️ Configuration Reference
 
-This page is the complete reference for every parameter in the AnonLib YAML configuration file.
+This page is the complete reference for every parameter in the MMIRAGE YAML configuration file.
 
 A pipeline config is split into four top-level sections: `processors`, `loading_params`,
 `processing_params`, and `execution_params`.
 
 To route inference through the OpenAI Batch API, use the `batch_api` processor instead of `llm` (see below).
-If you are new to AnonLib, read [Concepts](concepts.md) first to understand the terminology,
+If you are new to MMIRAGE, read [Concepts](concepts.md) first to understand the terminology,
 then follow [Quickstart](quickstart.md) for a minimal working example.
 
 ---
@@ -124,7 +124,7 @@ Controls how datasets are loaded and distributed across shards.
 
 ```yaml
 loading_params:
-  state_dir: ~/.cache/AnonLib/state_dir
+  state_dir: ~/.cache/MMIRAGE/state_dir
   datasets:
     - path: /path/to/data.jsonl
       type: JSONL
@@ -137,7 +137,7 @@ loading_params:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `state_dir` | `str` | `~/.cache/AnonLib/state_dir` | Shared directory for shard state, retry markers, and status files |
+| `state_dir` | `str` | `~/.cache/MMIRAGE/state_dir` | Shared directory for shard state, retry markers, and status files |
 | `datasets` | `list` | `[]` | List of dataset configurations (see below) |
 | `num_shards` | `int` or env var | `1` | Total number of shards to split datasets into |
 | `shard_id` | `int` or env var | `0` | Index of this shard (0-based). In SLURM use `"$SLURM_ARRAY_TASK_ID"` |
@@ -279,7 +279,7 @@ execution_params:
 
   # SLURM-specific (required when mode: slurm)
   account: my_account
-  job_name: anonlib-sharded
+  job_name: mmirage-sharded
   reservation: ""
   nodes: 1
   ntasks_per_node: 1
@@ -310,7 +310,7 @@ execution_params:
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `account` | `str` | — | HPC account/partition (**required** for SLURM mode) |
-| `job_name` | `str` | `anonlib-sharded` | SLURM job name |
+| `job_name` | `str` | `mmirage-sharded` | SLURM job name |
 | `reservation` | `str` | — | Optional SLURM reservation |
 | `nodes` | `int` | `1` | Number of nodes |
 | `ntasks_per_node` | `int` | `1` | Tasks per node |
@@ -338,7 +338,7 @@ execution_params:
 | `merge --output-root /path` | `/path/<dataset_name>/` per dataset |
 | `merge-dir --input-dir /path --output-dir /out` | `/out/` (single dataset) |
 
-If `shard_*` folders are present **directly** inside `--input-dir`, AnonLib merges that dataset and ignores nested subdirectories (e.g. `_pipeline_state`).
+If `shard_*` folders are present **directly** inside `--input-dir`, MMIRAGE merges that dataset and ignores nested subdirectories (e.g. `_pipeline_state`).
 
 ---
 

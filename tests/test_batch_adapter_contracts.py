@@ -2,16 +2,16 @@ from dataclasses import dataclass
 
 import pytest
 
-from anonlib.config.batch_provider import BatchProviderConfig
-from anonlib.core.process.batch.adapter import (
+from mmirage.config.batch_provider import BatchProviderConfig
+from mmirage.core.process.batch.adapter import (
     BatchSubmissionAdapter,
     BatchSubmissionResult,
 )
-from anonlib.core.process.batch.provider_resolution import (
+from mmirage.core.process.batch.provider_resolution import (
     BatchProviderConfigRegistry,
     resolve_single_provider_config,
 )
-from anonlib.core.process.batch.registry import (
+from mmirage.core.process.batch.registry import (
     BatchAdapterFactory,
     BatchAdapterRegistry,
 )

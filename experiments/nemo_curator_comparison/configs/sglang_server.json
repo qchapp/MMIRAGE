@@ -2,7 +2,7 @@
   "model_id": "Qwen/Qwen2.5-VL-7B-Instruct",
   "model_revision_requested": "main",
   "server": "sglang",
-  "server_version": "0.5.10 recommended to match anonlib pyproject optional gpu extra",
+  "server_version": "0.5.10 recommended to match mmirage pyproject optional gpu extra",
   "openai_base_url": "http://127.0.0.1:30000/v1",
   "port": 30000,
   "tp_size": 1,

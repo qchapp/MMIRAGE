@@ -3,9 +3,9 @@ import json
 
 import pytest
 
-from anonlib.config.openai_batch import OpenAIBatchConfig
-from anonlib.core.process.batch.adapter import BatchSubmissionResult
-from anonlib.core.process.batch.registry import (
+from mmirage.config.openai_batch import OpenAIBatchConfig
+from mmirage.core.process.batch.adapter import BatchSubmissionResult
+from mmirage.core.process.batch.registry import (
     BatchAdapterFactory,
     BatchAdapterRegistry,
 )
@@ -18,7 +18,7 @@ def openai_api_key(monkeypatch):
 
 
 def test_openai_build_request_matches_expected_structure():
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     config = OpenAIBatchConfig(model="gpt-4.1-mini")
     adapter = OpenAIBatchAdapter()
@@ -42,7 +42,7 @@ def test_openai_build_request_matches_expected_structure():
 
 
 def test_openai_build_request_injects_structured_output_format():
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     config = OpenAIBatchConfig(model="gpt-4.1-mini")
     adapter = OpenAIBatchAdapter()
@@ -74,7 +74,7 @@ def test_openai_build_request_injects_structured_output_format():
 
 
 def test_openai_build_request_converts_local_image_path_to_data_uri(tmp_path):
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     image_bytes = b"\xff\xd8\xff\xe0testjpeg"
     image_path = tmp_path / "sample.jpg"
@@ -106,7 +106,7 @@ def test_openai_build_request_converts_local_image_path_to_data_uri(tmp_path):
 
 
 def test_openai_estimate_request_bytes_matches_utf8_json_size():
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     adapter = OpenAIBatchAdapter()
     request = {
@@ -124,7 +124,7 @@ def test_openai_estimate_request_bytes_matches_utf8_json_size():
 
 
 def test_openai_submit_chunk_uses_mocked_openai_client(monkeypatch):
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     captured = {}
 
@@ -159,7 +159,7 @@ def test_openai_submit_chunk_uses_mocked_openai_client(monkeypatch):
             self.batches = FakeBatches()
 
     monkeypatch.setattr(
-        "anonlib.core.process.batch.openai_adapter.OpenAI",
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
         FakeClient,
     )
 
@@ -199,7 +199,7 @@ def test_openai_submit_chunk_uses_mocked_openai_client(monkeypatch):
 
 
 def test_openai_parse_submission_result_normalizes_payload():
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     adapter = OpenAIBatchAdapter()
     raw = {
@@ -217,7 +217,7 @@ def test_openai_parse_submission_result_normalizes_payload():
 
 
 def test_factory_resolves_openai_adapter_from_registry():
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     BatchAdapterRegistry.clear()
     config = OpenAIBatchConfig(model="gpt-4.1-mini")
@@ -228,7 +228,7 @@ def test_factory_resolves_openai_adapter_from_registry():
 
 
 def test_openai_check_batch_status_uses_mocked_openai_client(monkeypatch):
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     captured = {}
 
@@ -248,7 +248,7 @@ def test_openai_check_batch_status_uses_mocked_openai_client(monkeypatch):
             self.batches = FakeBatches()
 
     monkeypatch.setattr(
-        "anonlib.core.process.batch.openai_adapter.OpenAI",
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
         FakeClient,
     )
 
@@ -270,7 +270,7 @@ def test_openai_check_batch_status_uses_mocked_openai_client(monkeypatch):
 
 
 def test_openai_check_batch_status_falls_back_to_env_api_key(monkeypatch):
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     captured = {}
 
@@ -288,7 +288,7 @@ def test_openai_check_batch_status_falls_back_to_env_api_key(monkeypatch):
             self.batches = FakeBatches()
 
     monkeypatch.setattr(
-        "anonlib.core.process.batch.openai_adapter.OpenAI",
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
         FakeClient,
     )
     monkeypatch.setenv("OPENAI_API_KEY", "env-test-key")
@@ -303,7 +303,7 @@ def test_openai_check_batch_status_falls_back_to_env_api_key(monkeypatch):
 
 
 def test_openai_check_batch_status_raises_when_no_api_key(monkeypatch):
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
@@ -315,7 +315,7 @@ def test_openai_check_batch_status_raises_when_no_api_key(monkeypatch):
 
 
 def test_openai_retrieve_results_downloads_and_parses_jsonl(monkeypatch):
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     captured = {}
 
@@ -349,7 +349,7 @@ def test_openai_retrieve_results_downloads_and_parses_jsonl(monkeypatch):
             self.files = FakeFiles()
 
     monkeypatch.setattr(
-        "anonlib.core.process.batch.openai_adapter.OpenAI",
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
         FakeClient,
     )
 
@@ -370,7 +370,7 @@ def test_openai_retrieve_results_downloads_and_parses_jsonl(monkeypatch):
 
 
 def test_openai_retrieve_results_normalizes_usage(monkeypatch):
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     class FakeBatches:
         def retrieve(self, provider_batch_id):
@@ -398,7 +398,7 @@ def test_openai_retrieve_results_normalizes_usage(monkeypatch):
             self.files = FakeFiles()
 
     monkeypatch.setattr(
-        "anonlib.core.process.batch.openai_adapter.OpenAI",
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
         FakeClient,
     )
 
@@ -416,7 +416,7 @@ def test_openai_retrieve_results_normalizes_usage(monkeypatch):
 
 
 def test_openai_retrieve_results_prefers_message_content(monkeypatch):
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     class FakeBatches:
         def retrieve(self, provider_batch_id):
@@ -444,7 +444,7 @@ def test_openai_retrieve_results_prefers_message_content(monkeypatch):
             self.files = FakeFiles()
 
     monkeypatch.setattr(
-        "anonlib.core.process.batch.openai_adapter.OpenAI",
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
         FakeClient,
     )
 
@@ -458,7 +458,7 @@ def test_openai_retrieve_results_prefers_message_content(monkeypatch):
 
 
 def test_openai_retrieve_results_normalizes_error_rows(monkeypatch):
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     class FakeBatches:
         def retrieve(self, provider_batch_id):
@@ -487,7 +487,7 @@ def test_openai_retrieve_results_normalizes_error_rows(monkeypatch):
             self.files = FakeFiles()
 
     monkeypatch.setattr(
-        "anonlib.core.process.batch.openai_adapter.OpenAI",
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
         FakeClient,
     )
 
@@ -520,7 +520,7 @@ def test_openai_retrieve_results_normalizes_error_rows(monkeypatch):
 
 
 def test_openai_retrieve_results_raises_if_batch_not_completed(monkeypatch):
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     class FakeBatches:
         def retrieve(self, provider_batch_id):
@@ -544,7 +544,7 @@ def test_openai_retrieve_results_raises_if_batch_not_completed(monkeypatch):
             self.files = _Files()
 
     monkeypatch.setattr(
-        "anonlib.core.process.batch.openai_adapter.OpenAI",
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
         FakeClient,
     )
 
@@ -556,7 +556,7 @@ def test_openai_retrieve_results_raises_if_batch_not_completed(monkeypatch):
 
 
 def test_openai_retrieve_results_uses_error_file_when_output_missing(monkeypatch):
-    from anonlib.core.process.batch.openai_adapter import OpenAIBatchAdapter
+    from mmirage.core.process.batch.openai_adapter import OpenAIBatchAdapter
 
     class FakeBatches:
         def retrieve(self, provider_batch_id):
@@ -589,7 +589,7 @@ def test_openai_retrieve_results_uses_error_file_when_output_missing(monkeypatch
             self.files = _Files()
 
     monkeypatch.setattr(
-        "anonlib.core.process.batch.openai_adapter.OpenAI",
+        "mmirage.core.process.batch.openai_adapter.OpenAI",
         FakeClient,
     )
 

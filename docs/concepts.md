@@ -1,14 +1,14 @@
 # 💡 Concepts
 
-This page defines the core vocabulary used throughout the AnonLib documentation.
+This page defines the core vocabulary used throughout the MMIRAGE documentation.
 Read it before diving into the pipeline or configuration details.
 
 ---
 
 ## Dataset and samples
 
-A **dataset** is any collection of data samples that AnonLib reads as input.
-AnonLib supports two dataset formats:
+A **dataset** is any collection of data samples that MMIRAGE reads as input.
+MMIRAGE supports two dataset formats:
 
 - **JSONL** — a plain text file where each line is a JSON object representing one sample.
 - **Loadable** — a HuggingFace-compatible dataset directory saved with `save_to_disk`.
@@ -20,7 +20,7 @@ Each **sample** is one record in the dataset, typically a JSON object with field
 
 ## Shards
 
-AnonLib splits a dataset into **shards** — non-overlapping partitions that are
+MMIRAGE splits a dataset into **shards** — non-overlapping partitions that are
 processed independently and in parallel.
 
 The total number of shards is set by `loading_params.num_shards`.
@@ -36,7 +36,7 @@ subdirectory under `output_dir`.
 ## State directory
 
 The **state directory** is a folder that tracks the status of each shard.
-After a shard finishes, AnonLib writes a `status.json` file there recording
+After a shard finishes, MMIRAGE writes a `status.json` file there recording
 whether the shard succeeded or failed, and how many attempts it took.
 
 The state directory enables:
@@ -107,7 +107,7 @@ numeric bounds that constrain generation. See
 ## JMESPath
 
 **JMESPath** is a query language for extracting values from JSON.
-AnonLib uses it in `inputs[*].key` to pull fields out of each sample.
+MMIRAGE uses it in `inputs[*].key` to pull fields out of each sample.
 
 Common patterns:
 
@@ -118,14 +118,14 @@ Common patterns:
 | `list[0].content` | First element of a list, then a subfield |
 | `list[-1].content` | Last element of a list |
 
-AnonLib compiles and caches JMESPath expressions at startup to avoid
+MMIRAGE compiles and caches JMESPath expressions at startup to avoid
 recompilation on every sample.
 
 ---
 
 ## Jinja2 templates
 
-**Jinja2** is a templating language used in two places in AnonLib:
+**Jinja2** is a templating language used in two places in MMIRAGE:
 
 1. **Prompts** (`outputs[*].prompt`) — to construct the message sent to the model.
 2. **Output schema** (`processing_params.output_schema`) — to render the final saved sample.
@@ -178,8 +178,8 @@ Each entry in `processing_params.outputs` names a processor via its `type`.
 ## Execution modes
 
 - **`local`** — runs a single shard in the current Python environment (defaults to shard 0).
-  Use `anonlib run --shard-id N` to select a shard; use `--force-retry` (or `execution_params.retry: true`) to iterate over all shards locally.
-- **`slurm`** — AnonLib generates and submits an `sbatch` array job.
+  Use `mmirage run --shard-id N` to select a shard; use `--force-retry` (or `execution_params.retry: true`) to iterate over all shards locally.
+- **`slurm`** — MMIRAGE generates and submits an `sbatch` array job.
   Each array task processes one shard on a dedicated node.
 
 See [SLURM & Cluster Deployment](slurm.md) for details on the SLURM workflow.
@@ -188,7 +188,7 @@ See [SLURM & Cluster Deployment](slurm.md) for details on the SLURM workflow.
 
 ## Retry and merge
 
-After processing, AnonLib can automatically:
+After processing, MMIRAGE can automatically:
 
 - **Retry** failed shards up to `max_retries` times (set `retry: true`).
 - **Merge** all shard outputs into a single dataset directory at

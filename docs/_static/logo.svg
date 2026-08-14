@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 180" role="img" aria-labelledby="title desc">
-  <title id="title">AnonLib</title>
-  <desc id="desc">AnonLib wordmark with a simple data pipeline mark</desc>
+  <title id="title">MMIRAGE</title>
+  <desc id="desc">MMIRAGE wordmark with a simple data pipeline mark</desc>
   <rect width="640" height="180" rx="28" fill="#f7f7fb"/>
   <g transform="translate(38 42)" fill="none" stroke="#5b5bd6" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
     <rect x="0" y="0" width="72" height="72" rx="14"/>
     <path d="M72 36h44m-16-16 20 16-20 16"/>
     <rect x="124" y="0" width="72" height="72" rx="14"/>
   </g>
-  <text x="270" y="112" fill="#22223b" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700">AnonLib</text>
+  <text x="270" y="112" fill="#22223b" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700">MMIRAGE</text>
 </svg>
