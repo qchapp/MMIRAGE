@@ -1,7 +1,8 @@
-datatrove[vllm]==0.9.0
+datatrove==0.9.0
 vllm
 datasets
 pandas
 pyarrow
 pillow
 openai
+orjson

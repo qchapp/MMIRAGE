@@ -32,10 +32,10 @@ This is not a ChartQA accuracy evaluation, a VLM quality evaluation, or a multi-
 | `configs/datatrove_native_chartqa.yaml` | Native-mode DataTrove completion settings and multimodal adapter boundary for the same ChartQA task. |
 | `configs/sglang_server.json` | Shared-server settings to reproduce. |
 | `scripts/prepare_workload.py` | Downloads the pinned ChartQA subset, image assets, manifest, and checksums. |
-| `scripts/run_comparison.py` | Balanced repetition runner for MMIRAGE, NeMo, and the planned DataTrove baseline. |
+| `scripts/run_comparison.py` | Balanced repetition runner for MMIRAGE, NeMo, and the DataTrove baseline. |
 | `scripts/run_mmirage_with_openai_vision_endpoint.py` | Benchmark adapter that forwards MMIRAGE SGLang calls to an external OpenAI-compatible VLM endpoint without changing `src/`. |
 | `scripts/run_nemo_curator_pipeline.py` | NeMo Curator/Data Designer pipeline plus final nested-record renderer. |
-| `scripts/run_datatrove_pipeline.py` | Dry-run-safe native DataTrove ChartQA scaffold and output-contract manifest. |
+| `scripts/run_datatrove_pipeline.py` | Native DataTrove ChartQA pipeline: `JsonlReader` → `InferenceRunner` (self-managed vLLM server) → `JsonlWriter`, plus the output-contract summary. |
 | `scripts/analyze_results.py` | Validates outputs, computes summaries, counts footprint, reads setup timings, and writes paper-ready files. |
 | `scripts/measure_setup.py` | Times fresh environment creation and dependency installation per framework. |
 | `scripts/launch_sglang_server.sh` | Shared SGLang server launcher. |
@@ -93,15 +93,18 @@ python3 -c "import nemo_curator, data_designer; print(nemo_curator.__version__)"
 deactivate
 ```
 
-DataTrove native-mode environment for the planned ChartQA baseline:
+DataTrove native-mode environment for the ChartQA baseline:
 
 ```bash
 uv venv .venv-datatrove --python 3.12
 source .venv-datatrove/bin/activate
 uv pip install -r experiments/nemo_curator_comparison/environment/datatrove_uv_requirements.txt
-python3 -c "import datatrove; print('datatrove ok')"
+uv pip install "setuptools<76"
+python3 -c "import datatrove, vllm; print('datatrove', datatrove.__version__); print('vllm', vllm.__version__)"
 deactivate
 ```
+
+`setuptools<76` is required: setuptools 76 removed the vendored `distutils` that DataTrove's dependency stack still imports on Python 3.12. If your shell exports `SETUPTOOLS_USE_DISTUTILS=stdlib`, the pipeline self-corrects to `local` at startup (see `experiments/_shared/native_frameworks.py`), so no manual workaround is needed at runtime.
 
 Separate SGLang environment, used by the shared server in step 4. Skip it only if you already have an
 environment with `sglang==0.5.10` and `transformers==5.3.0`, and activate that one in step 4 instead:
@@ -124,15 +127,18 @@ python3 experiments/nemo_curator_comparison/scripts/measure_setup.py --framework
 deactivate
 ```
 
-DataTrove setup timing should be added only after the native multimodal execution path or documented adapter path is finalized.
+DataTrove setup timing can be added the same way now that the native multimodal execution path is implemented (`scripts/run_datatrove_pipeline.py`).
 
-## DataTrove Native-Mode Completion Plan
+## DataTrove Native-Mode ChartQA Baseline
 
-The DataTrove addition is intentionally native-mode, not shared-endpoint mode. DataTrove should use its documented inference stack where possible. Because the public DataTrove benchmark path is text-first, the DataTrove ChartQA baseline has an explicit adapter boundary in `configs/datatrove_native_chartqa.yaml`:
+The DataTrove addition is native-mode: DataTrove's own `JsonlReader` → `InferenceRunner` → `JsonlWriter` pipeline reads the chart images, partitions the workload, calls the VLM, and materializes the output. It is implemented (not just planned) in `scripts/run_datatrove_pipeline.py`.
 
-- Prefer a native DataTrove multimodal inference path if it can pass image content to the VLM backend.
-- If that path is unavailable, use the thinnest benchmark adapter that keeps DataTrove responsible for reading, partitioning, writing, and materialization while the adapter calls the VLM.
-- Do not claim first-class DataTrove multimodal parity unless the native API path runs without adapter glue.
+The multimodal path uses DataTrove's native document media handling:
+
+- Each input row becomes a `Document` with `text` set to the chart question, `media=[Media(id=..., type=MediaType.IMAGE, url=..., path=...)]`, and the row passed through as `metadata`.
+- The rollout builds an OpenAI-style vision payload (`image_url` data-URI block plus the text question) and calls the vLLM chat endpoint.
+- Because DataTrove 0.9.0's bundled `VLLMServer` passes vLLM CLI flags that were removed in vLLM 0.23, the pipeline spawns its own `vllm serve` (current flags) and points `InferenceConfig(server_type="endpoint")` at it. The server log lands next to the summary JSON as `<summary>.vllm.log`.
+- The runner output is re-rendered into the same nested schema the analyzer expects: `{id, messages:[user content blocks, assistant answer], metadata:{reference_answer, generated_answer_normalized, source}}`.
 
 Dry-run the planned command through the balanced runner without executing the framework:
 
@@ -143,9 +149,23 @@ python experiments/nemo_curator_comparison/scripts/run_comparison.py \
   --dry-run
 ```
 
-The DataTrove output must still materialize the same nested schema and pass the existing analyzer checks for row count, IDs, duplicates, order, and schema validity.
+Run one real repetition directly (the exact command from `configs/datatrove_native_chartqa.yaml`), from inside the `.venv-datatrove` environment:
 
-After implementation, include DataTrove in the full balanced order rather than comparing it against stale AnonLib/NeMo runs.
+```bash
+source .venv-datatrove/bin/activate
+python3 experiments/nemo_curator_comparison/scripts/run_datatrove_pipeline.py \
+  --input-jsonl experiments/nemo_curator_comparison/workload/chartqa/chartqa_subset.jsonl \
+  --image-base-path experiments/nemo_curator_comparison/workload/chartqa \
+  --output-dir experiments/nemo_curator_comparison/results/datatrove_rep1/output \
+  --summary-json experiments/nemo_curator_comparison/results/datatrove_rep1/run_summary.json \
+  --model Qwen/Qwen2.5-VL-7B-Instruct \
+  --max-tokens 256
+deactivate
+```
+
+The materialized output must pass the existing analyzer checks for row count, IDs, duplicates, order, and schema validity (see the `output_contract`/`validation` keys in `run_summary.json`). After the DataTrove repetitions complete, include DataTrove in the full balanced order rather than comparing it against stale AnonLib/NeMo runs.
+
+The DataTrove ChartQA path was smoke-verified end-to-end on one H100 (2 rows, `execution_status: completed`, validation passed).
 
 ## 2. Prepare ChartQA
 

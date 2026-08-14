@@ -40,9 +40,17 @@ This experiment does not measure multi-node scaling, tensor parallelism, Kuberne
 | `scripts/run_1gpu.sh` | Wrapper for the 1-GPU point. |
 | `scripts/run_2gpu.sh` | Wrapper for the 2-GPU point. |
 | `scripts/run_4gpu.sh` | Wrapper for the 4-GPU point. |
+| `scripts/run_native_text_competitor.py` | Native-mode orchestrator: shards the workload, launches one worker per GPU, merges, validates, and aggregates. |
+| `scripts/native_shard_worker.py` | Native-mode per-GPU worker subprocess that runs one framework backend and writes ANONLIB-compatible status files. |
+| `scripts/run_datatrove_scaling.py` | Wrapper that runs the DataTrove native baseline (see section 6). |
+| `scripts/run_nemo_curator_scaling.py` | Wrapper that runs the NeMo Curator native baseline (see section 6). |
+| `scripts/run_distilabel_scaling.py` | Wrapper that runs the Distilabel native baseline (see section 6). |
+| `scripts/run_ray_data_llm_scaling.py` | Wrapper that runs the Ray Data LLM native baseline (see section 6). |
+| `scripts/run_raw_sglang_scaling.py` | Wrapper that runs the raw SGLang native baseline (see section 6). |
 | `scripts/plan_native_competitors.py` | Emits dry-run manifests for native competitor runs without launching GPU work. |
 | `scripts/plot.py` | Regenerates plots from `summary.csv`. |
-| `environment/` | Optional native competitor environment pins. |
+| `environment/` | Per-framework requirement pins for the native competitor environments. |
+| `experiments/_shared/native_frameworks.py` | Shared `run_<framework>(...)` implementations and output-contract helpers for all native baselines. |
 
 ## Prerequisites
 
@@ -106,7 +114,7 @@ python experiments/single_node_h100_scaling/scripts/plan_native_competitors.py \
   --visible-gpus 0,1,2,3
 ```
 
-The native competitor settings cover DataTrove, NeMo Curator/Data Designer, Distilabel, Ray Data LLM, and raw SGLang. They use the same UltraChat workload, prompt, model family, GPU points, shard split, and output schema. They do not report results until each native runner is wired and executed in its own framework environment.
+The native competitor settings cover DataTrove, NeMo Curator, Distilabel, Ray Data LLM, and raw SGLang. They use the same UltraChat workload, prompt, model family, GPU points, shard split, and output schema. See section 6 for how to install their environments and run them.
 
 ## 3. Run The Three Scaling Points
 
@@ -202,6 +210,95 @@ Important metrics:
 - `output_tok_s_per_gpu = aggregate_output_tok_s / gpu_count`
 - `speedup_vs_1gpu = mean aggregate_output_tok_s at N GPUs / 1-GPU mean`
 - `parallel_efficiency = speedup_vs_1gpu / gpu_count`
+
+## 6. Native Competitor Baselines
+
+The native baselines answer the same strong-scaling question using each framework's own inference stack instead of AnonLib. They reuse the same workload, prompt template, model, GPU points, shard split, and output contract. Each framework runs in its own Python environment; nothing here imports or executes AnonLib.
+
+### 6.1 What runs where
+
+| Framework | Inference backend | Wrapper script |
+|---|---|---|
+| DataTrove | `InferenceRunner` against a self-managed `vllm serve` | `scripts/run_datatrove_scaling.py` |
+| NeMo Curator | `nemo_curator.pipeline` with `OpenAIClient` against a self-managed `vllm serve` | `scripts/run_nemo_curator_scaling.py` |
+| Distilabel | in-process vLLM-backed `TextGeneration` step | `scripts/run_distilabel_scaling.py` |
+| Ray Data LLM | `ray.data.llm` `vLLMEngineProcessorConfig` | `scripts/run_ray_data_llm_scaling.py` |
+| raw SGLang | one in-process `sglang.Engine` per shard worker | `scripts/run_raw_sglang_scaling.py` |
+
+All five share the same plumbing:
+
+- `scripts/native_shard_worker.py` runs the framework backend for one shard and writes ANONLIB-compatible `running.json`/`status.json` plus the contract output.
+- `scripts/run_native_text_competitor.py` splits the workload into one contiguous shard per visible GPU, launches one worker subprocess per GPU pinned with `CUDA_VISIBLE_DEVICES`, merges shard outputs in input order, validates the contract, and reuses `run.py` for aggregation.
+- `experiments/_shared/native_frameworks.py` holds the `run_<framework>(...)` implementations, the vLLM server helpers, and the contract validator.
+
+### 6.2 Install the framework environments
+
+Each framework pins a different inference stack, so create one uv virtualenv per framework (Python 3.12) and install its requirement file:
+
+```bash
+uv venv --python 3.12 .venv-datatrove
+uv pip install --python .venv-datatrove/bin/python -r experiments/single_node_h100_scaling/environment/datatrove_uv_requirements.txt
+uv pip install --python .venv-datatrove/bin/python "setuptools<76"
+```
+
+Repeat for `distilabel`, `nemo_curator`, `ray_data_llm`, and `raw_sglang` using their matching `environment/<name>_uv_requirements.txt`. Versions used and verified for this experiment:
+
+| Environment | Key packages |
+|---|---|
+| `.venv-anonlib` | sglang 0.5.10 |
+| `.venv-datatrove` | datatrove 0.9.0, vllm 0.23.0, setuptools 75.9.1 |
+| `.venv-distilabel` | distilabel 1.5.3, vllm 0.27.1 |
+| `.venv-ray` | ray 2.57.0, vllm 0.27.1 |
+| `.venv-nemo` | nemo-curator 1.3.0, ray 2.57.0 |
+
+Environment notes:
+
+- `.venv-datatrove` needs `setuptools<76`: setuptools 76 removed the vendored `distutils` that DataTrove's dependency stack still imports on Python 3.12; the `setuptools<76` pin above keeps the distutils shim available.
+- If your shell exports `SETUPTOOLS_USE_DISTUTILS=stdlib` (some shared environments do), setuptools will refuse to install a working distutils shim. `experiments/_shared/native_frameworks.py` normalizes this back to `local` when it loads, and the vLLM servers it spawns inherit the same setting, so no manual workaround is needed.
+- vLLM 0.23 removed the CLI flags that DataTrove 0.9.0's bundled `VLLMServer` passes, which is why every vLLM-backed path spawns its own `vllm serve` (current flags) instead of using a framework-managed server. The server also requires a real `vllm` executable on `PATH` (or `<venv>/bin/vllm`); `python -m vllm` does not work in vLLM 0.23.
+- The workload and model are read from the Hugging Face cache. Pre-cache `Qwen/Qwen3-4B` in each environment (or point `HF_HOME` at a shared cache) before running so the first shard does not download.
+
+### 6.3 Run a point
+
+Run each point with that framework's venv python so the shard workers inherit the framework environment (the orchestrator defaults `--worker-python` to `sys.executable`):
+
+```bash
+.venv-datatrove/bin/python experiments/single_node_h100_scaling/scripts/run_datatrove_scaling.py \
+  --workload-jsonl experiments/single_node_h100_scaling/workload/workload.jsonl \
+  --output-root experiments/single_node_h100_scaling/results/native_competitors/datatrove \
+  --gpu-count 1 \
+  --visible-gpus 0 \
+  --repetitions 3 \
+  --model Qwen/Qwen3-4B
+```
+
+Swap `run_datatrove_scaling.py` for `run_nemo_curator_scaling.py`, `run_distilabel_scaling.py`, `run_ray_data_llm_scaling.py`, or `run_raw_sglang_scaling.py` (and the venv) for the other frameworks. Alternatively keep the orchestrator in `.venv-anonlib` and pass `--worker-python .venv-datatrove/bin/python`.
+
+Useful flags:
+
+- `--dry-run` prints the run manifest and exits without launching GPU work.
+- `--overwrite` replaces existing repetition directories for that framework/GPU point.
+- `--repetitions N` changes the repetition count.
+- `--aggregate-only` re-aggregates an existing output root without running workers.
+
+To print planned manifests for every framework and GPU point without launching anything, use the plan script (also section 2):
+
+```bash
+python experiments/single_node_h100_scaling/scripts/plan_native_competitors.py \
+  --framework all \
+  --gpu-count all \
+  --visible-gpus 0,1,2,3
+```
+
+### 6.4 Output contract and validation
+
+Each repetition writes per shard under `runs/gpu_<N>/rep_<R>/state/shard_<i>/`: `input.jsonl`, `output.jsonl`, `running.json`, `status.json`, and `worker.log` (plus `worker.vllm.log` where a vLLM server is spawned). The orchestrator merges shard outputs in input order into `runs/gpu_<N>/rep_<R>/output/native_competitor_output.jsonl`, writes `validation.json`, and produces the same ANONLIB repetition summary and `summary.csv`/`summary.json` outputs as the AnonLib run.
+
+Output rows are one JSON line per workload row with the contract fields `stable_id`, `source_index`, `prompt_sha256`, `prompt_text`, `answer`. Validation checks that the row count, id set, row order, and prompt hashes match the input (`processed_rows_equals_input_rows`, `stable_id_set_matches_input`, `no_duplicate_stable_ids`, `prompt_sha256_preserved`, `schema_valid_for_every_row`, plus `row_order_matches_input`). Decoding is greedy (`temperature=0.0`, `max_new_tokens=256`), so generation is deterministic per model and framework. Each repetition prints `validation=PASS|FAIL`.
+
+### 6.5 Verification status
+
+Smoke runs on one H100 exercised the full path (worker subprocess, GPU inference, merge, validation, aggregation) for the DataTrove and raw SGLang scaling points, and for the DataTrove ChartQA pipeline (see `experiments/nemo_curator_comparison/README.md`). The 2-GPU and 4-GPU points are the same code path with more shard workers and require 2 and 4 visible GPUs respectively. The NeMo Curator, Distilabel, and Ray Data LLM backends follow the identical orchestrator path but have not been GPU smoke-run.
 
 ## Common Failures
 

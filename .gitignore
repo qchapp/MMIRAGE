@@ -195,3 +195,4 @@ experiments/nemo_curator_comparison/setup_times/
 # Shard-recovery benchmark: raw experiment data kept local
 # (regenerate with scripts/benchmarks/run_shard_recovery.py)
 experiments/shard_recovery/recovery_root/
+.opencode/

@@ -41,8 +41,8 @@ This experiment does not measure native Kubernetes fault tolerance, scheduler qu
 | `scripts/run_pod.py` | One-shard wrapper used by Kubernetes pods and the local fallback. |
 | `scripts/extract_results.py` | Aggregates final CSV and JSON results. |
 | `scripts/plan_native_competitor_recovery.py` | Emits dry-run manifests for native competitor recovery-equivalent runs. |
-| `scripts/run_native_recovery_competitor.py` | Dry-run-safe native competitor recovery scaffold. |
-| `environment/` | Optional native competitor environment pins. |
+| `scripts/run_native_recovery_competitor.py` | Local native competitor recovery controller (no Kubernetes); runs the initial phase, emulates kills with `SIGTERM`, retries incomplete shards, merges, and validates. |
+| `environment/` | Per-framework requirement pins for the native competitor environments. |
 
 ## Prerequisites
 
@@ -102,21 +102,32 @@ if [ -n "${GPU_PRODUCT_LABEL:-}" ]; then
 fi
 ```
 
-## Native Competitor Recovery Plan
+## Native Competitor Recovery (No Kubernetes)
 
-The native competitor settings in `configs/native_competitors.yaml` define equivalent recovery experiments for DataTrove, NeMo Curator/Data Designer, Distilabel, and Ray Data LLM. These are useful for the text-generation recovery task because all four systems can express or execute text-generation data pipelines, but they do not expose MMIRAGE's exact shard-state semantics.
+The native competitor recovery runs the same recovery experiment as the K8s baseline but with DataTrove, NeMo Curator, Distilabel, or Ray Data LLM workers on the local node, no Kubernetes, and a deliberately emulated pod termination (`SIGTERM` to the designated failure shards). It is implemented and runnable via `scripts/run_native_recovery_competitor.py`, the local equivalent of `run_local.py` for the native backends.
 
-The comparison therefore uses a benchmark-level equivalence contract:
+The comparison uses a benchmark-level equivalence contract:
 
-- same prepared input workload and expected ID order
-- same 16 logical shard IDs
+- same prepared input workload and expected ID order (`--shared-root/data/ultrachat_200k/`)
+- same 16 logical shard IDs, split into waves of `--max-active-shards` (default 4) workers
 - same killed shard sets for `baseline`, `fail_1`, `fail_4`, and `fail_8`
 - same model family and decoding settings where the framework exposes them
+- kills are emulated with `SIGTERM` to the worker process group after `--kill-after-seconds` (default 20)
 - retry only shards without a valid completion marker
 - preserve completed shard output hashes across retry
 - merge outputs in original input order
 
-Inspect the planned competitor recovery runs without creating pods or launching inference:
+The worker itself is the scaling experiment's `experiments/single_node_h100_scaling/scripts/native_shard_worker.py` invoked with `--prompt-style raw --id-field anonlib_id`.
+
+Report Ray task retry, DataTrove checkpointing, NeMo pipeline retry, and Distilabel pipeline retry separately from the normalized benchmark shard retry. Do not claim any competitor has native MMIRAGE-equivalent shard state unless the final implementation uses that competitor's own public API to expose it.
+
+### Environments
+
+The four frameworks need their own Python environments, exactly as for the scaling experiment (see `experiments/single_node_h100_scaling/README.md` section 6.2): `.venv-datatrove`, `.venv-nemo`, `.venv-distilabel`, `.venv-ray`. Each run is executed with that framework's venv python.
+
+### Dry-run / plan
+
+Print the run manifest without launching any worker:
 
 ```bash
 python experiments/shard_recovery/scripts/plan_native_competitor_recovery.py \
@@ -126,7 +137,43 @@ python experiments/shard_recovery/scripts/plan_native_competitor_recovery.py \
   --gpu-ids 0,1,2,3
 ```
 
-Report Ray task retry, DataTrove checkpointing, NeMo pipeline retry, and Distilabel pipeline retry separately from the normalized benchmark shard retry. Do not claim any competitor has native MMIRAGE-equivalent shard state unless the final implementation uses that competitor's own public API to expose it.
+or
+
+```bash
+.venv-datatrove/bin/python experiments/shard_recovery/scripts/run_native_recovery_competitor.py \
+  --framework datatrove --condition fail_4 --rep 1 \
+  --shared-root "$ANONLIB_RECOVERY_ROOT" --gpu-ids 0,1,2,3 --dry-run
+```
+
+### Run a condition
+
+Prepare the workload first (section 2), then run a condition with the framework venv:
+
+```bash
+.venv-datatrove/bin/python experiments/shard_recovery/scripts/run_native_recovery_competitor.py \
+  --framework datatrove \
+  --condition fail_4 \
+  --rep 1 \
+  --shared-root "$ANONLIB_RECOVERY_ROOT" \
+  --gpu-ids 0,1,2,3
+```
+
+Run each framework with its own venv (`nemo_curator`, `distilabel`, `ray_data_llm`) and each condition (`baseline`, `fail_1`, `fail_4`, `fail_8`) and repetition. The controller runs the initial phase, snapshots completed shard outputs, retries incomplete shards in rounds (up to `--max-rounds`, default 3), merges in expected ID order, and writes:
+
+```text
+$ANONLIB_RECOVERY_ROOT/native_competitors/<framework>/<condition>/rep_<R>/
+  controller/run_manifest.json
+  controller/phase_initial.json
+  controller/phase_retry_<N>.json
+  controller/completed_shards_before_retry.json
+  state/shard_<i>/{input.jsonl,output.jsonl,running.json,status.json,worker.log}
+  raw_logs/<phase>/...
+  merged/merged.jsonl
+  summary.json
+  validation.json
+```
+
+`validation.json` checks `no_missing_ids`, `no_duplicate_ids`, `no_unexpected_ids`, `order_after_merge_matches_expected`, `completed_shard_outputs_unchanged_after_retry`, and `retry_only_incomplete_or_killed_shards`. The exit code is nonzero if validation fails. Metrics for the paper (shards recomputed, rows recomputed, fraction recomputed, initial and retry wall times) are in `summary.json`.
 
 ## 1. Create Or Confirm The PVC
 
