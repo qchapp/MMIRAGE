@@ -1,12 +1,12 @@
 import json
 
-from anonlib.config.openai_batch import OpenAIBatchConfig
+from mmirage.config.openai_batch import OpenAIBatchConfig
 
 
 def test_integration_receiver_reads_receipt_and_writes_merged_output(
     tmp_path, monkeypatch
 ):
-    from anonlib.core.process.batch.collector import (
+    from mmirage.core.process.batch.collector import (
         _read_metadata_records,
         collect_and_merge,
     )
@@ -57,14 +57,14 @@ def test_integration_receiver_reads_receipt_and_writes_merged_output(
             ]
 
     monkeypatch.setattr(
-        "anonlib.core.process.batch.collector.BatchAdapterFactory.from_config",
+        "mmirage.core.process.batch.collector.BatchAdapterFactory.from_config",
         lambda config: FakeAdapter(),
     )
 
     records = _read_metadata_records(str(metadata_path))
     rows = collect_and_merge(
         records=records,
-        provider_configs={"openai": OpenAIBatchConfig(credentials={"api_key": "test"})},
+        provider_configs={"openai": OpenAIBatchConfig()},
         output_path=str(output_path),
     )
 

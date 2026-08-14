@@ -1,22 +1,28 @@
 # ⚙️ Configuration Reference
 
-This page is the complete reference for every parameter in the AnonLib YAML configuration file.
+This page is the complete reference for every parameter in the MMIRAGE YAML configuration file.
 
 A pipeline config is split into four top-level sections: `processors`, `loading_params`,
 `processing_params`, and `execution_params`.
 
-To route inference through the OpenAI Batch API, configure `batch_provider` under your `llm` processor (see `processors[*].batch_provider` below).
-If you are new to AnonLib, read [Concepts](concepts.md) first to understand the terminology,
+To route inference through the OpenAI Batch API, use the `batch_api` processor instead of `llm` (see below).
+If you are new to MMIRAGE, read [Concepts](concepts.md) first to understand the terminology,
 then follow [Quickstart](quickstart.md) for a minimal working example.
 
 ---
 
 ## `processors`
 
-A list of processor definitions. AnonLib supports `llm` for text and
-vision-language inference and `image_gen` for image generation. The fields below
-describe `llm`; see [Image Generation](image_generation.md) for the complete
-`image_gen` processor and output reference.
+The list of supported processor types:
+
+- **`llm`** — runs a local SGLang server.
+- **`image_gen`** — runs a local Diffusers pipeline for text-to-image generation, see [Image Generation](image_generation.md).
+- **`custom`** — runs your own Python function instead of a model, see [Custom Module](custom_module.md).
+- **`batch_api`** — submits generation requests to an API provider.
+
+The fields below describe `llm` and `batch_api`. See [Image Generation](image_generation.md)
+for the complete `image_gen` reference and [Custom Module](custom_module.md) for the
+complete `custom` reference.
 
 ```yaml
 processors:
@@ -33,7 +39,7 @@ processors:
       max_new_tokens: 1024
 ```
 
-### `processors[*].server_args`
+#### `processors[*].server_args`
 
 | Field | Type | Default | Description |
 |---|---|---|---|
@@ -55,7 +61,7 @@ server_args:
     mem_fraction_static: 0.88
 ```
 
-### `processors[*].default_sampling_params`
+#### `processors[*].default_sampling_params`
 
 Any key-value pairs accepted by the SGLang sampling API, e.g.:
 
@@ -77,35 +83,28 @@ default_sampling_params:
       enable_thinking: false   # Qwen3 thinking-mode control
 ```
 
-### `processors[*].chat_template`
+#### `processors[*].chat_template`
 
 Optional. Set to a named template (e.g. `qwen2-vl`, `llava`, `internvl`, `phi3_v`) for vision-language models. Defaults to the tokenizer's built-in template.
 
-### `processors[*].batch_provider` — OpenAI Batch API
+### `batch_api` — Provider batch execution
 
-Optional. When set, AnonLib routes requests through the OpenAI Batch API instead of running a local SGLang server. This is useful for large-scale processing without a local GPU.
+Routes requests through a provider batch API instead of a local SGLang server, for large-scale processing without a GPU. Outputs served by this processor must use `type: batch_api`.
 
 ```yaml
 processors:
-  - type: llm
-    server_args:
-      model_path: gpt-4o-mini   # Informational; actual model is set in batch_provider.model
-    batch_provider:
-      enabled: true
-      provider: openai
-      model: gpt-4o-mini
-      max_chunk_bytes: 52428800    # 50 MB per batch file
-      metadata_output_path: /path/to/batch_metadata.jsonl
-      credentials:
-        api_key: "sk-..."          # Or leave blank and set OPENAI_API_KEY env var
+  - type: batch_api
+    provider: openai
+    model: gpt-4o-mini
+    max_chunk_bytes: 52428800    # 50 MB per batch file
+    metadata_output_path: /path/to/batch_metadata.jsonl
 ```
 
-**`batch_provider` fields:**
+**`batch_api` fields:**
 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `provider` | `str` | — | Provider identifier. Currently `"openai"` is supported |
-| `enabled` | `bool` | `true` | Whether batch mode is active |
 | `model` | `str` | `gpt-4.1-mini` | Model name for chat completion requests |
 | `max_chunk_bytes` | `int` | `52428800` | Max serialized bytes per batch file (50 MB) |
 | `max_requests_per_chunk` | `int` | `null` | Optional hard cap on requests per chunk |
@@ -125,7 +124,7 @@ Controls how datasets are loaded and distributed across shards.
 
 ```yaml
 loading_params:
-  state_dir: ~/.cache/AnonLib/state_dir
+  state_dir: ~/.cache/MMIRAGE/state_dir
   datasets:
     - path: /path/to/data.jsonl
       type: JSONL
@@ -138,7 +137,7 @@ loading_params:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `state_dir` | `str` | `~/.cache/AnonLib/state_dir` | Shared directory for shard state, retry markers, and status files |
+| `state_dir` | `str` | `~/.cache/MMIRAGE/state_dir` | Shared directory for shard state, retry markers, and status files |
 | `datasets` | `list` | `[]` | List of dataset configurations (see below) |
 | `num_shards` | `int` or env var | `1` | Total number of shards to split datasets into |
 | `shard_id` | `int` or env var | `0` | Index of this shard (0-based). In SLURM use `"$SLURM_ARRAY_TASK_ID"` |
@@ -197,7 +196,7 @@ processing_params:
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `name` | `str` | — | Variable name made available in `output_schema` templates |
-| `type` | `str` | — | Processor type — must match a registered processor (`llm`) |
+| `type` | `str` | — | Processor type — must match a registered processor (`llm`, `custom`) |
 | `output_type` | `str` | `plain` | `"plain"` (raw text) or `"JSON"` (structured object) |
 | `prompt` | `str` | — | Jinja2 template for the LLM prompt |
 | `output_schema` | `list[str]` or `dict` | `[]` | Fields the model must produce when `output_type: JSON` (see below) |
@@ -252,6 +251,9 @@ Bounds given as strings are accepted when they look like a number (matching
 expansion always produces a string, this is what keeps `min: ${MIN_SCORE}`
 working; a string that is not numeric is still rejected.
 
+`output_type`, `prompt`, and `output_schema` apply to `llm` outputs only. A `custom`
+output needs just `name` and `type` — the value comes from your Python function.
+
 ### `processing_params.output_schema`
 
 A dictionary describing the structure of each output sample. Values are Jinja2 templates that reference input or output variable names. Nested dicts and lists are supported.
@@ -277,7 +279,7 @@ execution_params:
 
   # SLURM-specific (required when mode: slurm)
   account: my_account
-  job_name: anonlib-sharded
+  job_name: mmirage-sharded
   reservation: ""
   nodes: 1
   ntasks_per_node: 1
@@ -308,7 +310,7 @@ execution_params:
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `account` | `str` | — | HPC account/partition (**required** for SLURM mode) |
-| `job_name` | `str` | `anonlib-sharded` | SLURM job name |
+| `job_name` | `str` | `mmirage-sharded` | SLURM job name |
 | `reservation` | `str` | — | Optional SLURM reservation |
 | `nodes` | `int` | `1` | Number of nodes |
 | `ntasks_per_node` | `int` | `1` | Tasks per node |
@@ -336,7 +338,7 @@ execution_params:
 | `merge --output-root /path` | `/path/<dataset_name>/` per dataset |
 | `merge-dir --input-dir /path --output-dir /out` | `/out/` (single dataset) |
 
-If `shard_*` folders are present **directly** inside `--input-dir`, AnonLib merges that dataset and ignores nested subdirectories (e.g. `_pipeline_state`).
+If `shard_*` folders are present **directly** inside `--input-dir`, MMIRAGE merges that dataset and ignores nested subdirectories (e.g. `_pipeline_state`).
 
 ---
 
@@ -346,5 +348,5 @@ If `shard_*` folders are present **directly** inside `--input-dir`, AnonLib merg
 - [Quickstart](quickstart.md) — minimal working config examples
 - [Multimodal Processing](multimodal.md) — image inputs and `chat_template`
 - [SLURM & Cluster Deployment](slurm.md) — `execution_params` for SLURM mode
-- [Batch API](batch_api.md) — `batch_provider` configuration in depth
+- [Batch API](batch_api.md) — the `batch_api` processor in depth
 - [CLI Reference](cli.md) — how to run a configured pipeline

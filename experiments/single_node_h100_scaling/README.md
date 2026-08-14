@@ -1,12 +1,12 @@
 # Single-Node H100 Strong-Scaling Experiment
 
-This experiment measures AnonLib throughput as the number of independent one-GPU shard workers increases on one node. It is single-node data-parallel scaling only. Do not use it as evidence for multi-node scaling.
+This experiment measures MMIRAGE throughput as the number of independent one-GPU shard workers increases on one node. It is single-node data-parallel scaling only. Do not use it as evidence for multi-node scaling.
 
-Run all commands from the repository root inside the AnonLib GPU environment.
+Run all commands from the repository root inside the MMIRAGE GPU environment.
 
 ## What It Measures
 
-The total JSONL workload is fixed. Only the number of independent AnonLib shard workers changes:
+The total JSONL workload is fixed. Only the number of independent MMIRAGE shard workers changes:
 
 | Point | Logical shards | Visible GPUs |
 |---|---:|---|
@@ -24,13 +24,13 @@ Primary metrics:
 - `speedup_vs_1gpu`: mean aggregate throughput divided by the 1-GPU mean.
 - `parallel_efficiency`: `speedup_vs_1gpu / gpu_count`.
 
-This experiment does not measure multi-node scaling, tensor parallelism, Kubernetes scheduling, image startup, dataset preparation, or model download time. The only intended independent variable is the number of one-GPU AnonLib shard workers on one H100 node.
+This experiment does not measure multi-node scaling, tensor parallelism, Kubernetes scheduling, image startup, dataset preparation, or model download time. The only intended independent variable is the number of one-GPU MMIRAGE shard workers on one H100 node.
 
 ## Files
 
 | Path | Purpose |
 |---|---|
-| `configs/semantic_recipe.yaml` | Fixed AnonLib transformation used for every GPU count. |
+| `configs/semantic_recipe.yaml` | Fixed MMIRAGE transformation used for every GPU count. |
 | `configs/execution_1gpu.yaml` | Execution settings for the 1-GPU point. |
 | `configs/execution_2gpu.yaml` | Execution settings for the 2-GPU point. |
 | `configs/execution_4gpu.yaml` | Execution settings for the 4-GPU point. |
@@ -44,8 +44,8 @@ This experiment does not measure multi-node scaling, tensor parallelism, Kuberne
 ## Prerequisites
 
 - One terminal inside a pod or job with 4 visible H100 GPUs for the full run. The 1-GPU and 2-GPU commands use subsets of those visible devices.
-- Python environment with AnonLib GPU dependencies, SGLang, CUDA-compatible PyTorch, `datasets`, and `matplotlib`.
-  `matplotlib` is not part of any AnonLib extra and must be installed separately. Without it a run
+- Python environment with MMIRAGE GPU dependencies, SGLang, CUDA-compatible PyTorch, `datasets`, and `matplotlib`.
+  `matplotlib` is not part of any MMIRAGE extra and must be installed separately. Without it a run
   still writes every summary, but no plot files are produced.
 - Hugging Face access to `HuggingFaceH4/ultrachat_200k` and `Qwen/Qwen3-4B` if they are not cached.
 - Enough local or shared storage for the workload, model cache, and result directories.
@@ -55,7 +55,7 @@ Check the environment:
 ```bash
 python -m pip install -e '.[gpu]'
 python -m pip install matplotlib
-python -c "import anonlib, sglang, torch; print('anonlib/sglang/torch ok', torch.cuda.device_count())"
+python -c "import mmirage, sglang, torch; print('mmirage/sglang/torch ok', torch.cuda.device_count())"
 nvidia-smi
 ```
 
@@ -86,7 +86,7 @@ If the run is too short for stable measurements, regenerate with `--num-rows 500
 
 ## 2. Smoke Check Without Running Inference
 
-This checks config composition and the commands that would be launched. It does not start SGLang or run AnonLib shard processing.
+This checks config composition and the commands that would be launched. It does not start SGLang or run MMIRAGE shard processing.
 
 ```bash
 bash experiments/single_node_h100_scaling/scripts/run_4gpu.sh --dry-run
@@ -221,8 +221,6 @@ Use these generated files for paper artifacts:
 | Paper table fragment | `experiments/single_node_h100_scaling/results/latex_table.txt` |
 | Throughput-vs-GPU figure | `experiments/single_node_h100_scaling/results/aggregate_throughput_vs_gpu.png` |
 | Parallel-efficiency figure | `experiments/single_node_h100_scaling/results/parallel_efficiency_vs_gpu.png` |
-
-Fill in the final paper figure or table number here after manuscript numbering is fixed.
 
 ## Interpretation Boundary
 

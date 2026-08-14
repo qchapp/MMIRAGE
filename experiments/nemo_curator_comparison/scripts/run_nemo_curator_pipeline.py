@@ -22,11 +22,14 @@ import data_designer.config as dd
 from nemo_curator.backends.xenna import XennaExecutor
 from nemo_curator.pipeline import Pipeline
 from nemo_curator.stages.base import ProcessingStage
-from nemo_curator.stages.synthetic.nemo_data_designer.data_designer import DataDesignerStage
+from nemo_curator.stages.synthetic.nemo_data_designer.data_designer import (
+    DataDesignerStage,
+)
 from nemo_curator.stages.text.io.reader.jsonl import JsonlReader
 from nemo_curator.stages.text.io.writer.jsonl import JsonlWriter
 from nemo_curator.tasks import DocumentBatch
 from pydantic import BaseModel
+
 
 class VLMResult(BaseModel):
     answer: str

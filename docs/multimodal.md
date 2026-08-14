@@ -1,6 +1,6 @@
 # 🖼️ Multimodal Processing
 
-This page explains how to use AnonLib with vision-language models (VLMs) to
+This page explains how to use MMIRAGE with vision-language models (VLMs) to
 process datasets that include images.
 
 Before reading this page, familiarise yourself with [Concepts](concepts.md)
@@ -10,8 +10,8 @@ and the [Quickstart](quickstart.md) text-only example.
 
 ## Overview
 
-AnonLib supports multimodal inputs natively.
-When a dataset sample includes an image reference, AnonLib resolves it to a
+MMIRAGE supports multimodal inputs natively.
+When a dataset sample includes an image reference, MMIRAGE resolves it to a
 PIL Image object and passes it alongside the text prompt to the VLM.
 
 The key additions compared to a text-only pipeline are:
@@ -57,13 +57,13 @@ processing_params:
 
 The `key` extracts a value from each sample (via JMESPath).
 For image inputs, this value is treated as a file path.
-AnonLib resolves it as follows:
+MMIRAGE resolves it as follows:
 
 1. If `image_base_path` is set on the dataset config, the path is joined with that prefix.
 2. The resolved path is loaded as a PIL Image and stored under `name`.
 
 Inside your prompt template, you can reference the image variable by name.
-AnonLib places it in the correct position in the multimodal message:
+MMIRAGE places it in the correct position in the multimodal message:
 
 ```yaml
 outputs:

@@ -1,4 +1,4 @@
-# AnonLib — DataTrove-compatible throughput benchmark
+# MMIRAGE — DataTrove-compatible throughput benchmark
 # See README.md for setup instructions and benchmark details.
 
 processors:
@@ -50,7 +50,7 @@ execution_params:
   merge: false
   max_retries: 3
   account: my_account
-  job_name: anonlib-sharded
+  job_name: mmirage-sharded
   nodes: 1
   ntasks_per_node: 1
   gpus: 1

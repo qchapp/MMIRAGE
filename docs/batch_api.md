@@ -1,14 +1,14 @@
 # 🗂️ Batch API
 
-This page explains how to run AnonLib inference asynchronously using the OpenAI Batch API, which is useful for large-scale processing at lower cost.
+This page explains how to run MMIRAGE inference asynchronously using the OpenAI Batch API, which is useful for large-scale processing at lower cost.
 
 ---
 
 ## Overview
 
-By default, AnonLib runs inference locally via an SGLang engine. When a `batch_provider` is configured, the `llm` processor instead delegates requests to the OpenAI Batch API asynchronously:
+Use the `batch_api` processor instead of `llm`, and give its outputs `type: batch_api`.
 
-1. **Request serialization:** AnonLib serializes inference requests into JSONL chunks.
+1. **Request serialization:** MMIRAGE serializes inference requests into JSONL chunks.
 2. **Batch submission:** Each chunk is uploaded and submitted as an OpenAI batch job.
 3. **Execution completion:** The pipeline run exits immediately after submission, saving placeholder values (e.g. `__BATCH_SUBMITTED__:<output_name>:<modality>:<request_number>`) in the output dataset shards.
 4. **Asynchronous retrieval:** The user manually polls status and downloads/merges the completed results using separate Python utility modules once the provider completes the batch jobs.
@@ -35,27 +35,23 @@ This mode is useful when:
 
 ## Configuration
 
-Add a `batch_provider` block inside the processor definition in your YAML config:
+Declare a `batch_api` processor and its provider settings in your YAML config:
 
 ```yaml
 processors:
-  - type: llm
-    server_args:
-      model_path: none               # Ignored in batch mode, defaults to "none"
-    batch_provider:
-      provider: openai
-      enabled: true
-      model: gpt-4o-mini
-      max_chunk_bytes: 52428800      # Max bytes per uploaded JSONL file (50 MB)
-      max_requests_per_chunk: 50000  # Max requests per batch job
-      metadata_output_path: /path/to/batch_metadata.jsonl
-      completion_window: 24h
-      base_url: https://api.openai.com/v1
-      oversized_request_policy: isolate  # isolate | reject
-      retry_policy:
-        max_attempts: 3
-        initial_backoff_seconds: 2.0
-        backoff_multiplier: 2.0
+  - type: batch_api
+    provider: openai
+    model: gpt-4o-mini
+    max_chunk_bytes: 52428800      # Max bytes per uploaded JSONL file (50 MB)
+    max_requests_per_chunk: 50000  # Max requests per batch job
+    metadata_output_path: /path/to/batch_metadata.jsonl
+    completion_window: 24h
+    base_url: https://api.openai.com/v1
+    oversized_request_policy: isolate  # isolate | reject
+    retry_policy:
+      max_attempts: 3
+      initial_backoff_seconds: 2.0
+      backoff_multiplier: 2.0
 ```
 
 ### Field reference
@@ -63,7 +59,6 @@ processors:
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `provider` | `str` | — | Provider identifier. Currently `"openai"` is supported. |
-| `enabled` | `bool` | `true` | Whether batch mode is active. |
 | `model` | `str` | `"gpt-4.1-mini"` | Model name for chat completion requests. |
 | `batch_endpoint` | `str` | `"/v1/chat/completions"` | Target endpoint used by OpenAI batch jobs. |
 | `completion_window` | `str` | `"24h"` | OpenAI batch completion window (only `"24h"` is supported). |
@@ -76,35 +71,25 @@ processors:
 | `retry_policy.initial_backoff_seconds` | `float` | `2.0` | Initial retry delay in seconds. |
 | `retry_policy.backoff_multiplier` | `float` | `2.0` | Multiplicative factor for subsequent retry delays. |
 | `metadata` | `dict` | `{}` | Key-value pairs sent on batch creation (OpenAI-specific metadata). |
-| `credentials.api_key` | `str` | `null` | OpenAI API key (can also be specified via the `OPENAI_API_KEY` env var). |
 
 ---
 
 ## API key
 
-The OpenAI Batch API requires an API key. You can specify it in your YAML config under `credentials`:
-
-```yaml
-    batch_provider:
-      provider: openai
-      credentials:
-        api_key: sk-...
-```
-
-Or set it via the environment variable before running:
+API provider require an API key. You can set it via the environment variable before running:
+Exemple for OpenAI:
 
 ```bash
 export OPENAI_API_KEY=sk-...
-anonlib run --config configs/batch_config.yaml
+mmirage run --config configs/batch_config.yaml
 ```
 
-AnonLib reads the key from either `credentials.api_key` in the config or the `OPENAI_API_KEY` environment variable. Prefer environment variables to avoid committing credentials.
-
+MMIRAGE reads the key from `OPENAI_API_KEY`. Keep credentials out of configuration files and version control.
 ---
 
 ## Request chunking
 
-AnonLib automatically splits requests into chunks that respect both `max_chunk_bytes` and `max_requests_per_chunk`.
+MMIRAGE automatically splits requests into chunks that respect both `max_chunk_bytes` and `max_requests_per_chunk`.
 
 For very large prompts (e.g. with long contexts), you may need to reduce `max_requests_per_chunk` so that individual chunks stay within the size limit. Set `oversized_request_policy: isolate` to submit oversized requests as a dedicated chunk, or `oversized_request_policy: reject` to fail fast on requests exceeding the limit.
 
@@ -115,28 +100,28 @@ For very large prompts (e.g. with long contexts), you may need to reduce `max_re
 Running the batch pipeline is an asynchronous, three-step process:
 
 ### Step 1: Submit the Batch Jobs
-Execute your AnonLib pipeline with a configuration that has `batch_provider.enabled: true`:
+Execute your MMIRAGE pipeline with a configuration that declares a `batch_api` processor:
 
 ```bash
-anonlib run --config configs/batch_config.yaml
+mmirage run --config configs/batch_config.yaml
 ```
 
-During this run, AnonLib maps over your datasets, generates request payloads, writes them to serialized JSONL chunks, and submits them to the OpenAI Batch API.
+During this run, MMIRAGE maps over your datasets, generates request payloads, writes them to serialized JSONL chunks, and submits them to the OpenAI Batch API.
 - The pipeline execution completes immediately after submission.
 - The output files in the dataset's `output_dir` shards will contain temporary placeholder variables of the format `__BATCH_SUBMITTED__:<output_name>:<modality>:<request_number>`.
-- AnonLib generates **metadata receipt files** named `<metadata_output_path>.<modality>.<run_id>.jsonl` (e.g., `batch_metadata.text.abc123.jsonl`). These receipt files store the API batch IDs and map each API request's `custom_id` to its original dataset `source_index`.
+- MMIRAGE generates **metadata receipt files** named `<metadata_output_path>.<modality>.<run_id>.jsonl` (e.g., `batch_metadata.text.abc123.jsonl`). These receipt files store the API batch IDs and map each API request's `custom_id` to its original dataset `source_index`.
 
 ### Step 2: Check Batch Job Status
 Because batch jobs run asynchronously on the provider's server and can take up to 24 hours to complete, you can monitor their status using the `status_checker` utility module:
 
 ```bash
-python -m anonlib.core.process.batch.status_checker --config configs/batch_config.yaml
+python -m mmirage.core.process.batch.status_checker --config configs/batch_config.yaml
 ```
 
 By default, the status checker automatically resolves the metadata receipt files from your configuration. You can also specify them manually:
 
 ```bash
-python -m anonlib.core.process.batch.status_checker \
+python -m mmirage.core.process.batch.status_checker \
   --config configs/batch_config.yaml \
   --metadata-path /path/to/batch_metadata.text.abc123.jsonl
 ```
@@ -145,7 +130,7 @@ python -m anonlib.core.process.batch.status_checker \
 Once all batch jobs show a status of `completed`, retrieve the generated outputs, map them back to their original row positions, and merge them into a single, ordered JSONL file using the `collector` utility module:
 
 ```bash
-python -m anonlib.core.process.batch.collector \
+python -m mmirage.core.process.batch.collector \
   --config configs/batch_config.yaml \
   --output-path /path/to/final_merged_output.jsonl
 ```
@@ -153,24 +138,26 @@ python -m anonlib.core.process.batch.collector \
 Just like the status checker, the collector automatically locates the metadata receipt files based on the config. To specify the metadata receipts manually, run:
 
 ```bash
-python -m anonlib.core.process.batch.collector \
+python -m mmirage.core.process.batch.collector \
   --config configs/batch_config.yaml \
   --metadata-path /path/to/batch_metadata.text.abc123.jsonl \
   --output-path /path/to/final_merged_output.jsonl
 ```
 
+The collector prints the run totals, and each merged row carries `input_tokens` and `output_tokens` when the provider reports usage. Token counts are unknown at submission time, so they never appear in the [benchmark report](benchmarking.md).
+
 ---
 
 ## Provider-Agnostic Architecture & Custom Providers
 
-AnonLib's batch processing system is designed to be provider-agnostic. While it comes with built-in support for the OpenAI Batch API, developers can implement custom batch submission providers (such as Anthropic, Mistral, or private gateways) by implementing and registering custom provider configurations and adapters.
+MMIRAGE's batch processing system is designed to be provider-agnostic. While it comes with built-in support for the OpenAI Batch API, developers can implement custom batch submission providers (such as Anthropic, Mistral, or private gateways) by implementing and registering custom provider configurations and adapters.
 
 ### Extension Contracts
 
 To integrate a new provider, you need to implement two classes:
 
-1. **Provider Config Subclass**: Defines the configuration schema. Must inherit from `BatchProviderConfig` ([BatchProviderConfig](../src/anonlib/config/batch_provider.py)).
-2. **Submission Adapter Subclass**: Implements request construction, size estimation, chunk submission, status checking, and result retrieval. Must inherit from `BatchSubmissionAdapter` ([BatchSubmissionAdapter](../src/anonlib/core/process/batch/adapter.py#L29)).
+1. **Provider Config Subclass**: Defines the configuration schema. Must inherit from `BatchProviderConfig` ([BatchProviderConfig](../src/mmirage/config/batch_provider.py)).
+2. **Submission Adapter Subclass**: Implements request construction, size estimation, chunk submission, status checking, and result retrieval. Must inherit from `BatchSubmissionAdapter` ([BatchSubmissionAdapter](../src/mmirage/core/process/batch/adapter.py#L29)).
 
 #### 1. Custom Provider Config
 
@@ -178,7 +165,7 @@ A custom provider configuration class extends `BatchProviderConfig` with fields 
 
 ```python
 from dataclasses import dataclass
-from anonlib.config.batch_provider import BatchProviderConfig
+from mmirage.config.batch_provider import BatchProviderConfig
 
 
 @dataclass
@@ -193,15 +180,15 @@ A custom adapter implements the core lifecycle logic for the custom provider:
 
 ```python
 from typing import Any, Dict, Sequence
-from anonlib.core.process.batch.adapter import (
+from mmirage.core.process.batch.adapter import (
     BatchSubmissionAdapter,
     BatchSubmissionResult,
 )
-from anonlib.config.batch_provider import BatchProviderConfig
+from mmirage.config.batch_provider import BatchProviderConfig
 
 
 class AnthropicBatchAdapter(BatchSubmissionAdapter):
-    # Defines required keys for config.credentials (or environment variable fallbacks)
+    # Each key must be set as an <PROVIDER>_<KEY> environment variable, e.g. ANTHROPIC_API_KEY
     required_credentials = ("api_key",)
 
     def build_request(
@@ -262,16 +249,18 @@ class AnthropicBatchAdapter(BatchSubmissionAdapter):
         # Downloads/retrieves completed outputs and normalizes each row.
         # Ensure text generations are mapped to the "generated_text" key so
         # the collector can reconstruct the original dataset rows neutrally.
+        # Expose any reported usage as "input_tokens" and "output_tokens",
+        # omitting both keys when the provider reports none.
         ...
 ```
 
 ### Registry Integration
 
-Once you have defined your config and adapter classes, register them with the AnonLib batch system at runtime (typically inside your application's bootstrap or initialization code):
+Once you have defined your config and adapter classes, register them with the MMIRAGE batch system at runtime (typically inside your application's bootstrap or initialization code):
 
 ```python
-from anonlib.core.process.batch.provider_resolution import BatchProviderConfigRegistry
-from anonlib.core.process.batch.registry import BatchAdapterRegistry
+from mmirage.core.process.batch.provider_resolution import BatchProviderConfigRegistry
+from mmirage.core.process.batch.registry import BatchAdapterRegistry
 
 # Register the provider configuration class
 BatchProviderConfigRegistry.register("anthropic", AnthropicBatchConfig)
@@ -282,18 +271,14 @@ BatchAdapterRegistry.register("anthropic", AnthropicBatchAdapter)
 
 ### Config Usage
 
-After registering your custom provider, you can reference it in your AnonLib pipeline YAML configuration:
+After registering your custom provider, you can reference it in your MMIRAGE pipeline YAML configuration:
 
 ```yaml
 processors:
-  - type: llm
-    batch_provider:
-      provider: anthropic
-      enabled: true
-      model: claude-haiku-4-5
-      metadata_output_path: /scratch/anthropic_meta.jsonl
-      credentials:
-        api_key: "your-anthropic-key"  # Or leave blank and set ANTHROPIC_API_KEY env var
+  - type: batch_api
+    provider: anthropic
+    model: claude-haiku-4-5
+    metadata_output_path: /scratch/anthropic_meta.jsonl
 ```
 
 ---
@@ -302,26 +287,19 @@ processors:
 
 ```yaml
 processors:
-  - type: llm
-    server_args:
-      model_path: none        # Ignored in batch mode
-    default_sampling_params:
-      temperature: 0.0
-      max_new_tokens: 512
-    batch_provider:
-      provider: openai
-      enabled: true
-      model: gpt-4o-mini
-      max_chunk_bytes: 52428800
-      max_requests_per_chunk: 50000
-      metadata_output_path: /scratch/batch_meta.jsonl
-      completion_window: 24h
-      base_url: https://api.openai.com/v1
-      oversized_request_policy: isolate
-      retry_policy:
-        max_attempts: 3
-        initial_backoff_seconds: 2.0
-        backoff_multiplier: 2.0
+  - type: batch_api
+    provider: openai
+    model: gpt-4o-mini
+    max_chunk_bytes: 52428800
+    max_requests_per_chunk: 50000
+    metadata_output_path: /scratch/batch_meta.jsonl
+    completion_window: 24h
+    base_url: https://api.openai.com/v1
+    oversized_request_policy: isolate
+    retry_policy:
+      max_attempts: 3
+      initial_backoff_seconds: 2.0
+      backoff_multiplier: 2.0
 
 loading_params:
   state_dir: /scratch/state
@@ -340,7 +318,7 @@ processing_params:
 
   outputs:
     - name: answer
-      type: llm
+      type: batch_api
       output_type: plain
       prompt: |
         Answer the following question concisely:
@@ -360,7 +338,7 @@ execution_params:
 
 ## See also
 
-- [Concepts](concepts.md) — processor types and execution modes
-- [Configuration Reference](configuration.md) — full `batch_provider` parameter reference
+- [Concepts](concepts.md) — processor types
+- [Configuration Reference](configuration.md) — full `batch_api` parameter reference
 - [Pipeline](pipeline.md) — where batch inference fits in the data flow
 - [CLI Reference](cli.md) — CLI command reference for local and SLURM pipeline execution

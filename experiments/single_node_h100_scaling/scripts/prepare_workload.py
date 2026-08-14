@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a deterministic fixed UltraChat-style workload for ANONLIB scaling."""
+"""Prepare a deterministic fixed UltraChat-style workload for MMIRAGE scaling."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
 from datasets import load_dataset
-
 
 DEFAULT_DATASET = "HuggingFaceH4/ultrachat_200k"
 DEFAULT_SPLIT = "train_sft"

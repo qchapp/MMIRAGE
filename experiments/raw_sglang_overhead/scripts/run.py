@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run raw SGLang and AnonLib-over-SGLang overhead repetitions."""
+"""Run raw SGLang and MMIRAGE-over-SGLang overhead repetitions."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from typing import Any, Dict, Iterable, List, Optional
 DEFAULT_MODEL = "Qwen/Qwen3-4B"
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_CONFIG = str(EXPERIMENT_DIR / "configs" / "anonlib_sglang.yaml")
+DEFAULT_CONFIG = str(EXPERIMENT_DIR / "configs" / "mmirage_sglang.yaml")
 DEFAULT_SERVER_EXTRA_ARGS = [
     "--tp-size",
     "1",
@@ -249,7 +249,7 @@ def start_server(
     proc = subprocess.Popen(
         command, stdout=log_handle, stderr=subprocess.STDOUT, start_new_session=True
     )
-    setattr(proc, "_anonlib_log_handle", log_handle)
+    setattr(proc, "_mmirage_log_handle", log_handle)
     try:
         startup_seconds = wait_for_server(proc, base_url, args.startup_timeout_seconds)
     except Exception:
@@ -272,7 +272,7 @@ def stop_server(proc: subprocess.Popen[bytes]) -> None:
             except ProcessLookupError:
                 pass
             proc.wait()
-    handle = getattr(proc, "_anonlib_log_handle", None)
+    handle = getattr(proc, "_mmirage_log_handle", None)
     if handle is not None:
         handle.close()
 
@@ -348,7 +348,7 @@ def run_raw(
     }
 
 
-def run_anonlib(
+def run_mmirage(
     args: argparse.Namespace, prompts_jsonl: Path, base_url: str, run_dir: Path
 ) -> float:
     env = os.environ.copy()
@@ -361,19 +361,19 @@ def run_anonlib(
     )
     env.update(
         {
-            "ANONLIB_OVERHEAD_MODEL_PATH": args.model_path,
-            "ANONLIB_OVERHEAD_SGLANG_BASE_URL": base_url,
-            "ANONLIB_OVERHEAD_STATE_DIR": str(run_dir / "state"),
-            "ANONLIB_OVERHEAD_PROMPTS_JSONL": str(prompts_jsonl),
-            "ANONLIB_OVERHEAD_OUTPUT_DIR": str(run_dir / "output"),
-            "ANONLIB_OVERHEAD_CONCURRENCY": str(args.concurrency),
-            "ANONLIB_OVERHEAD_TIMEOUT_SECONDS": "900",
+            "MMIRAGE_OVERHEAD_MODEL_PATH": args.model_path,
+            "MMIRAGE_OVERHEAD_SGLANG_BASE_URL": base_url,
+            "MMIRAGE_OVERHEAD_STATE_DIR": str(run_dir / "state"),
+            "MMIRAGE_OVERHEAD_PROMPTS_JSONL": str(prompts_jsonl),
+            "MMIRAGE_OVERHEAD_OUTPUT_DIR": str(run_dir / "output"),
+            "MMIRAGE_OVERHEAD_CONCURRENCY": str(args.concurrency),
+            "MMIRAGE_OVERHEAD_TIMEOUT_SECONDS": "900",
         }
     )
     return timed_subprocess(
         [
             sys.executable,
-            str(EXPERIMENT_DIR / "scripts" / "run_anonlib_with_sglang_endpoint.py"),
+            str(EXPERIMENT_DIR / "scripts" / "run_mmirage_with_sglang_endpoint.py"),
             "--config",
             args.config,
             "--summary-json",
@@ -383,7 +383,7 @@ def run_anonlib(
     )
 
 
-def anonlib_metrics(run_dir: Path, full_wall_seconds: float) -> Dict[str, Any]:
+def mmirage_metrics(run_dir: Path, full_wall_seconds: float) -> Dict[str, Any]:
     status = read_json(run_dir / "state" / "shard_0" / "status.json")
     stats = status.get("stats") or {}
     wrapper = read_json(run_dir / "wrapper_summary.json")
@@ -444,7 +444,7 @@ def mean_std(values: Iterable[Any]) -> Dict[str, Optional[float]]:
 def build_summary(
     rows: List[Dict[str, Any]], metadata: Dict[str, Any]
 ) -> Dict[str, Any]:
-    grouped = {"raw_sglang": [], "anonlib_sglang": []}
+    grouped = {"raw_sglang": [], "mmirage_sglang": []}
     for row in rows:
         grouped[row["path"]].append(row)
     metric_names = [
@@ -464,7 +464,7 @@ def build_summary(
         for path_name, path_rows in grouped.items()
     }
     raw_mean = metrics["raw_sglang"]["output_tokens_per_second_per_gpu"]["mean"]
-    mm_mean = metrics["anonlib_sglang"]["output_tokens_per_second_per_gpu"]["mean"]
+    mm_mean = metrics["mmirage_sglang"]["output_tokens_per_second_per_gpu"]["mean"]
     retention = round(mm_mean / raw_mean, 6) if raw_mean and mm_mean else None
     overhead = round(1.0 - retention, 6) if retention is not None else None
     return {
@@ -505,7 +505,7 @@ def latex_cell(value: Dict[str, Optional[float]]) -> str:
 
 def write_latex_table(path: Path, summary: Dict[str, Any]) -> None:
     raw = summary["metrics"]["raw_sglang"]
-    mm = summary["metrics"]["anonlib_sglang"]
+    mm = summary["metrics"]["mmirage_sglang"]
     line_end = "\\\\"
     table = "\n".join(
         [
@@ -514,7 +514,7 @@ def write_latex_table(path: Path, summary: Dict[str, Any]) -> None:
             f"Path & Output tok/s/GPU & Rows/s & Gen. wall (s) & Success count {line_end}",
             "\\midrule",
             f"Raw SGLang & {latex_cell(raw['output_tokens_per_second_per_gpu'])} & {latex_cell(raw['rows_per_second'])} & {latex_cell(raw['generation_wall_seconds'])} & {latex_cell(raw['success_count'])} {line_end}",
-            f"AnonLib over SGLang & {latex_cell(mm['output_tokens_per_second_per_gpu'])} & {latex_cell(mm['rows_per_second'])} & {latex_cell(mm['generation_wall_seconds'])} & {latex_cell(mm['success_count'])} {line_end}",
+            f"MMIRAGE over SGLang & {latex_cell(mm['output_tokens_per_second_per_gpu'])} & {latex_cell(mm['rows_per_second'])} & {latex_cell(mm['generation_wall_seconds'])} & {latex_cell(mm['success_count'])} {line_end}",
             "\\bottomrule",
             "\\end{tabular}",
             f"% Throughput retention: {summary['throughput_retention']}",
@@ -536,12 +536,12 @@ root = Path(__file__).resolve().parent
 with (root / "raw_results.csv").open(newline="", encoding="utf-8") as handle:
     rows = list(csv.DictReader(handle))
 
-labels = ["Raw SGLang", "AnonLib"]
-keys = ["raw_sglang", "anonlib_sglang"]
+labels = ["Raw SGLang", "MMIRAGE"]
+keys = ["raw_sglang", "mmirage_sglang"]
 data = [[float(row["output_tokens_per_second_per_gpu"]) for row in rows if row["path"] == key] for key in keys]
 plt.boxplot(data, labels=labels)
 plt.ylabel("Output tok/s/GPU")
-plt.title("Raw SGLang vs AnonLib over SGLang")
+plt.title("Raw SGLang vs MMIRAGE over SGLang")
 plt.tight_layout()
 plt.savefig(root / "throughput_boxplot.png", dpi=200)
 """,
@@ -566,7 +566,7 @@ def main() -> None:
     gpu_info = nvidia_metadata()
     gpu_label = "/".join(gpu_info.get("gpu_names") or ["unknown"])
     metadata = {
-        "anonlib_commit": command_output(["git", "rev-parse", "HEAD"]),
+        "mmirage_commit": command_output(["git", "rev-parse", "HEAD"]),
         "sglang_version": command_output(
             [
                 sys.executable,
@@ -604,7 +604,7 @@ def main() -> None:
 
     rows: List[Dict[str, Any]] = []
     for rep in range(1, args.repetitions + 1):
-        for path_name in ("raw_sglang", "anonlib_sglang"):
+        for path_name in ("raw_sglang", "mmirage_sglang"):
             run_dir = output_dir / f"rep_{rep}" / path_name
             run_dir.mkdir(parents=True, exist_ok=True)
             proc, startup_seconds, base_url, server_cmd = start_server(args, run_dir)
@@ -618,7 +618,7 @@ def main() -> None:
                             args, warmup_jsonl, base_url, warmup_dir, args.warmup_limit
                         )
                     else:
-                        warmup_wall = run_anonlib(
+                        warmup_wall = run_mmirage(
                             args, warmup_jsonl, base_url, warmup_dir
                         )
                 if path_name == "raw_sglang":
@@ -645,13 +645,13 @@ def main() -> None:
                         "server_command": " ".join(server_cmd),
                     }
                 else:
-                    measured_wall = run_anonlib(args, prompts_jsonl, base_url, run_dir)
+                    measured_wall = run_mmirage(args, prompts_jsonl, base_url, run_dir)
                     row = {
                         "repetition": rep,
                         "path": path_name,
                         "model_loading_seconds": round(startup_seconds, 6),
                         "server_command": " ".join(server_cmd),
-                        **anonlib_metrics(
+                        **mmirage_metrics(
                             run_dir, startup_seconds + warmup_wall + measured_wall
                         ),
                     }

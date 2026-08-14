@@ -1,0 +1,89 @@
+processors:
+  - type: llm
+    server_args:
+      model_path: ${MMIRAGE_CHARTQA_MODEL_PATH}
+      tp_size: 1
+      trust_remote_code: true
+      disable_custom_all_reduce: true
+      extra_engine_args:
+        max_running_requests: ${MMIRAGE_CHARTQA_MAX_RUNNING_REQUESTS}
+    chat_template: qwen2-vl
+    default_sampling_params:
+      temperature: 0.0
+      top_p: 1.0
+      max_tokens: ${MMIRAGE_CHARTQA_MAX_TOKENS}
+
+loading_params:
+  state_dir: ${MMIRAGE_CHARTQA_STATE_DIR}
+  datasets:
+    - path: ${MMIRAGE_CHARTQA_INPUT_JSONL}
+      type: JSONL
+      output_dir: ${MMIRAGE_CHARTQA_OUTPUT_DIR}
+      image_base_path: ${MMIRAGE_CHARTQA_IMAGE_BASE_PATH}
+  num_shards: 1
+  shard_id: 0
+  batch_size: ${MMIRAGE_CHARTQA_BATCH_SIZE}
+
+processing_params:
+  inputs:
+    - name: id
+      key: id
+    - name: image
+      key: image_path
+      type: image
+    - name: image_ref
+      key: image_path
+    - name: query
+      key: query
+    - name: reference_answer
+      key: reference_answer
+    - name: source
+      key: source
+
+  outputs:
+    - name: vlm_result
+      type: llm
+      output_type: JSON
+      output_schema:
+        answer: str
+        normalized_query: str
+        generated_answer_normalized: str
+        rationale: str
+      prompt: |
+        You are transforming ChartQA examples into training data.
+        Use the chart image and the question to answer concisely.
+
+        Question: {{ query }}
+
+        Return JSON only with these four string fields, in this order:
+        - answer: the answer to the question.
+        - normalized_query: copy Question exactly, changing only leading/trailing whitespace and runs of whitespace. Do not rephrase, lowercase, correct spelling, or change punctuation.
+        - generated_answer_normalized: copy answer exactly, then lowercase it and collapse/trim whitespace. Do not remove or change punctuation, symbols, units, or number forms.
+        - rationale: at most 20 words explaining the chart evidence.
+
+        Before returning, verify that the two normalized fields obey those exact mechanical rules.
+
+  remove_columns: false
+  cast_images: false
+  output_schema:
+    id: "{{ id }}"
+    messages:
+      - role: user
+        content:
+          - type: image
+            image: "{{ image_ref }}"
+          - type: text
+            text: "{{ vlm_result.normalized_query }}"
+      - role: assistant
+        content: "{{ vlm_result.answer }}\n\nRationale: {{ vlm_result.rationale }}"
+    metadata:
+      reference_answer: "{{ reference_answer }}"
+      generated_answer_normalized: "{{ vlm_result.generated_answer_normalized }}"
+      source: "{{ source }}"
+
+execution_params:
+  mode: local
+  retry: false
+  merge: true
+  report_dir: ${MMIRAGE_CHARTQA_REPORT_DIR}
+  hf_home: ${HF_HOME}

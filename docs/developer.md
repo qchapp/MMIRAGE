@@ -1,6 +1,6 @@
 # 🔧 Developer Guide
 
-This page covers everything needed to develop AnonLib locally.
+This page covers everything needed to develop MMIRAGE locally.
 
 For a user-facing overview of the pipeline and architecture, see
 [Pipeline](pipeline.md) and [Architecture](architecture.md).
@@ -12,8 +12,8 @@ For a user-facing overview of the pipeline and architecture, see
 Clone the repository and install all dependencies including dev tools:
 
 ```bash
-git clone <anonymous-repository-url> AnonLib
-cd AnonLib
+git clone <anonymous-repository-url> MMIRAGE
+cd MMIRAGE
 pip install -e ".[dev]"
 ```
 
@@ -86,7 +86,7 @@ Ruff configuration (rule selection and ignores) lives in `pyproject.toml` under 
 Type-check with mypy:
 
 ```bash
-mypy src/anonlib/
+mypy src/mmirage/
 ```
 
 ---
@@ -102,16 +102,16 @@ mypy src/anonlib/
 
 ## Adding a New Loader
 
-1. Create a file under `src/anonlib/core/loader/`.
+1. Create a file under `src/mmirage/core/loader/`.
 2. Define a `@dataclass` config inheriting from `BaseDataLoaderConfig` with `type = "your_type"`.
 3. Implement `BaseDataLoader` and decorate the class with `@DataLoaderRegistry.register("your_type", YourConfig)`.
-4. Import the new module in `src/anonlib/config/utils.py` under the "Register built-in processors/loaders" comment.
+4. Import the new module in `src/mmirage/config/utils.py` under the "Register built-in processors/loaders" comment.
 
 Example skeleton:
 
 ```python
 from dataclasses import dataclass
-from anonlib.core.loader.base import (
+from mmirage.core.loader.base import (
     BaseDataLoader,
     BaseDataLoaderConfig,
     DataLoaderRegistry,
@@ -134,10 +134,10 @@ class MyLoader(BaseDataLoader[MyLoaderConfig]):
 
 ## Adding a New Processor
 
-1. Create a directory under `src/anonlib/core/process/processors/yourname/`.
+1. Create a directory under `src/mmirage/core/process/processors/yourname/`.
 2. Define a config dataclass inheriting from `BaseProcessorConfig` and an `OutputVar` subclass.
 3. Implement `BaseProcessor` and register with `@ProcessorRegistry.register("yourname")`.
-4. Import the config module in `src/anonlib/config/utils.py`.
+4. Import the config module in `src/mmirage/config/utils.py`.
 
 ---
 
@@ -178,7 +178,7 @@ python -m sphinx -b html -j auto docs docs/_build/html --keep-going
 | `HF_HOME` | HuggingFace hub | Local cache directory |
 | `SLURM_ARRAY_TASK_ID` | `LoadingParams` | Resolved as `shard_id` in SLURM jobs |
 | `SLURM_GPUS_ON_NODE` | `SGLangServerArgs` | Auto-populates `tp_size` when not set |
-| `ANONLIB_COLLECT_STATS` | `shard_process` | Set to `1` to enable GPU/throughput benchmarking |
+| `MMIRAGE_COLLECT_STATS` | `shard_process` | Set to `1` to enable GPU/throughput benchmarking |
 | `PYTHONPATH` | SLURM scripts | Injected by the generated sbatch script to point at `src/` |
 
 ---
@@ -188,19 +188,19 @@ python -m sphinx -b html -j auto docs docs/_build/html --keep-going
 ### Enable debug logging
 
 ```bash
-anonlib run --config configs/config_mock.yaml --log-level DEBUG
+mmirage run --config configs/config_mock.yaml --log-level DEBUG
 ```
 
 ### Run a single shard locally without SLURM
 
 ```bash
-anonlib run --config configs/config.yaml --shard-id 0
+mmirage run --config configs/config.yaml --shard-id 0
 ```
 
 ### Inspect shard state without running
 
 ```bash
-anonlib check --config configs/config.yaml
+mmirage check --config configs/config.yaml
 ```
 
 The command prints a JSON summary of `total / successful / running / failed / max_retries_exceeded` shard counts and exits with `0` if all shards succeeded.
@@ -216,7 +216,7 @@ The `submit` command prints the sbatch script to logs at DEBUG level. Use `--log
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `ImportError: No module named 'sglang'` | GPU extra not installed | `pip install -e ".[gpu]"` |
-| `Only shard 0 runs locally` | `loading_params.shard_id: "$SLURM_ARRAY_TASK_ID"` falls back to `0` when the env var is unset | Set `loading_params.shard_id` explicitly, or run `anonlib run --shard-id N` when testing locally |
+| `Only shard 0 runs locally` | `loading_params.shard_id: "$SLURM_ARRAY_TASK_ID"` falls back to `0` when the env var is unset | Set `loading_params.shard_id` explicitly, or run `mmirage run --shard-id N` when testing locally |
 | `FileNotFoundError` for EDF env | `edf_env` path does not exist | Remove `edf_env` from config or fix the path |
 
 ---

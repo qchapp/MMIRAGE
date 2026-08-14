@@ -4,7 +4,7 @@ This experiment was prepared against the current public documentation and source
 
 ## Primary Comparison Stack
 
-- AnonLib repository commit: captured at run time with `git rev-parse HEAD`.
+- MMIRAGE repository commit: captured at run time with `git rev-parse HEAD`.
 - NeMo Curator documentation: `latest`, listed as `v1.3.0 (26.07)` in `https://docs.nvidia.com/nemo/curator/llms.txt`.
 - NeMo Curator source/tag: `v1.3.0`, commit `6b956ce8965820de1b638fedf6de0cbcf0cc46ba`.
 - NeMo Curator integrated Data Designer dependency: `data-designer==0.5.5`, from Curator `v1.3.0` `pyproject.toml` `sdg_cpu` extra.
@@ -25,6 +25,6 @@ This experiment was prepared against the current public documentation and source
 - Current standalone Data Designer `v0.9.1` expands multimodal context to image/audio/video. Curator's officially pinned `data-designer==0.5.5` supports image context relevant to ChartQA.
 - Data Designer structured generation produces structured column values, but Curator's integrated path naturally returns an enriched dataframe. Rendering an arbitrary nested training-data JSONL record is therefore implemented as a small Curator `ProcessingStage` after `DataDesignerStage`, rather than claiming Data Designer alone is a final nested-schema renderer.
 
-## Scientific Interpretation Guardrail
+## Scope of Interpretation
 
-Do not claim that NeMo Curator/Data Designer cannot perform declarative multimodal transformation. The meaningful comparison here is the amount of framework-specific machinery needed to express and execute this particular source-field mapping, dependent custom processing, VLM generation, post-processing, nested record rendering, materialization, and instrumentation workload.
+NeMo Curator/Data Designer supports declarative multimodal transformation. This comparison measures the framework-specific machinery required for one defined workload: source-field mapping, dependent custom processing, VLM generation, post-processing, nested record rendering, materialization, and instrumentation. Its results do not establish a general expressiveness difference between the frameworks.

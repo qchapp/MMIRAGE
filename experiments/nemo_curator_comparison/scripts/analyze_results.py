@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Analyze AnonLib vs NeMo Curator comparison outputs."""
+"""Analyze MMIRAGE vs NeMo Curator comparison outputs."""
 
 from __future__ import annotations
 
@@ -12,9 +12,9 @@ from pathlib import Path
 from typing import Any
 
 FRAMEWORK_FILES = {
-    "anonlib": [
-        "experiments/nemo_curator_comparison/configs/anonlib_chartqa.yaml",
-        "experiments/nemo_curator_comparison/scripts/run_anonlib_with_openai_vision_endpoint.py",
+    "mmirage": [
+        "experiments/nemo_curator_comparison/configs/mmirage_chartqa.yaml",
+        "experiments/nemo_curator_comparison/scripts/run_mmirage_with_openai_vision_endpoint.py",
     ],
     "nemo": [
         "experiments/nemo_curator_comparison/scripts/run_nemo_curator_pipeline.py",
@@ -22,7 +22,7 @@ FRAMEWORK_FILES = {
     ],
 }
 
-PIPELINE_COMPONENTS = {"anonlib": 4, "nemo": 5}
+PIPELINE_COMPONENTS = {"mmirage": 4, "nemo": 5}
 
 
 def parse_args() -> argparse.Namespace:
@@ -203,7 +203,7 @@ def implementation_footprint() -> list[dict[str, Any]]:
     return rows
 
 
-def extract_anonlib_tokens(run_dir: Path) -> tuple[int | None, float | None, float | None]:
+def extract_mmirage_tokens(run_dir: Path) -> tuple[int | None, float | None, float | None]:
     status_files = sorted((run_dir / "state").rglob("status.json"))
     tokens = 0
     model_load = 0.0
@@ -269,7 +269,7 @@ def collect(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict[s
         order_correct = ids == expected_ids[: len(ids)]
         launcher = read_json(run_dir / "launcher_summary.json")
         summary = read_json(run_dir / "run_summary.json")
-        tokens, generation_wall, model_load = extract_anonlib_tokens(run_dir)
+        tokens, generation_wall, model_load = extract_mmirage_tokens(run_dir)
         if framework == "nemo":
             tokens = None
             generation_wall = None
@@ -317,7 +317,7 @@ def collect(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict[s
 
 def latex_table(summary_rows: list[dict[str, Any]], footprint_rows: list[dict[str, Any]]) -> str:
     footprint = {row["framework"]: row for row in footprint_rows}
-    names = {"anonlib": "AnonLib", "nemo": "NeMo Curator + Data Designer"}
+    names = {"mmirage": "MMIRAGE", "nemo": "NeMo Curator + Data Designer"}
     latex_break = " " + ("\\" * 2)
     lines = [
         "Framework & Valid outputs & tok/s/GPU & End-to-end time & Setup time & Declarative LOC & Glue Python LOC" + latex_break,

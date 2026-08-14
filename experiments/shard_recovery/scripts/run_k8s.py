@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Kubernetes shard-recovery controller run from the ANONLIB container terminal."""
+"""Kubernetes shard-recovery controller run from the MMIRAGE container terminal."""
 
 from __future__ import annotations
 
@@ -16,17 +16,15 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 import yaml
 
-
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_CONTAINER_REPO = Path("/workspace/ANONLIB")
-DEFAULT_SHARED_ROOT = "/workspace/anonlib-recovery"
+DEFAULT_CONTAINER_REPO = Path("/workspace/MMIRAGE")
+DEFAULT_SHARED_ROOT = "/workspace/mmirage-recovery"
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from anonlib.cli_utils.status import check_failed_shards, status_exit_code  # noqa: E402
-from anonlib.config.utils import load_anonlib_config  # noqa: E402
-from anonlib.shard_utils import read_status, shard_state_dir  # noqa: E402
-
+from mmirage.cli_utils.status import check_failed_shards, status_exit_code  # noqa: E402
+from mmirage.config.utils import load_mmirage_config  # noqa: E402
+from mmirage.shard_utils import read_status, shard_state_dir  # noqa: E402
 
 CONDITION_FAILURE_SHARDS = {
     "baseline": [],
@@ -48,9 +46,9 @@ def parse_args() -> argparse.Namespace:
         p.add_argument("--namespace", required=True)
         p.add_argument("--pvc", required=True)
         p.add_argument("--image", required=True)
-        p.add_argument("--shared-root", default=os.environ.get("ANONLIB_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-        p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "anonlib_recovery.yaml"))
-        p.add_argument("--config-in-container", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "anonlib_recovery.yaml"))
+        p.add_argument("--shared-root", default=os.environ.get("MMIRAGE_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
+        p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "mmirage_recovery.yaml"))
+        p.add_argument("--config-in-container", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "mmirage_recovery.yaml"))
         p.add_argument("--repo-dir-in-container", default=str(DEFAULT_CONTAINER_REPO))
         p.add_argument("--image-pull-policy", default="IfNotPresent")
         p.add_argument("--service-account", default=None)
@@ -71,17 +69,17 @@ def parse_args() -> argparse.Namespace:
     run_p.add_argument("--kill-after-seconds", type=float, default=None)
     run_p.add_argument("--baseline-rep", type=int, default=1)
 
-    retry_p = subparsers.add_parser("retry", help="Relaunch only shards ANONLIB marks incomplete")
+    retry_p = subparsers.add_parser("retry", help="Relaunch only shards MMIRAGE marks incomplete")
     add_common(retry_p)
     retry_p.add_argument("--condition", choices=["fail_1", "fail_4", "fail_8"], required=True)
     retry_p.add_argument("--rep", type=int, default=1)
     retry_p.add_argument("--max-rounds", type=int, default=3)
 
-    status_p = subparsers.add_parser("status", help="Print ANONLIB shard status for one run")
+    status_p = subparsers.add_parser("status", help="Print MMIRAGE shard status for one run")
     status_p.add_argument("--condition", choices=sorted(CONDITION_FAILURE_SHARDS), required=True)
     status_p.add_argument("--rep", type=int, default=1)
-    status_p.add_argument("--shared-root", default=os.environ.get("ANONLIB_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-    status_p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "anonlib_recovery.yaml"))
+    status_p.add_argument("--shared-root", default=os.environ.get("MMIRAGE_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
+    status_p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "mmirage_recovery.yaml"))
 
     return parser.parse_args()
 
@@ -95,7 +93,7 @@ def require_container_terminal(args: argparse.Namespace) -> None:
     config = getattr(args, "config", None)
     if config and not Path(config).exists():
         raise RuntimeError(
-            f"ANONLIB config not found at {config}. Run this from the ANONLIB container terminal "
+            f"MMIRAGE config not found at {config}. Run this from the MMIRAGE container terminal "
             f"with the repository available at {DEFAULT_CONTAINER_REPO}, or pass --config explicitly."
         )
     if shutil.which("kubectl") is None:
@@ -113,11 +111,11 @@ def run_dir(shared_root: str, condition: str, rep: int) -> Path:
 def runtime_env(shared_root: str, condition: str, rep: int) -> Dict[str, str]:
     rd = run_dir(shared_root, condition, rep)
     return {
-        "ANONLIB_RECOVERY_ROOT": shared_root,
-        "ANONLIB_RECOVERY_RUN_DIR": str(rd),
-        "ANONLIB_RECOVERY_INPUT_JSONL": str(Path(shared_root) / "data" / "ultrachat_200k" / "subset.jsonl"),
-        "ANONLIB_RECOVERY_STATE_DIR": str(rd / "state"),
-        "ANONLIB_RECOVERY_OUTPUT_DIR": str(rd / "output"),
+        "MMIRAGE_RECOVERY_ROOT": shared_root,
+        "MMIRAGE_RECOVERY_RUN_DIR": str(rd),
+        "MMIRAGE_RECOVERY_INPUT_JSONL": str(Path(shared_root) / "data" / "ultrachat_200k" / "subset.jsonl"),
+        "MMIRAGE_RECOVERY_STATE_DIR": str(rd / "state"),
+        "MMIRAGE_RECOVERY_OUTPUT_DIR": str(rd / "output"),
         "HF_HOME": str(Path(shared_root) / "hf"),
     }
 
@@ -126,7 +124,7 @@ def load_cfg(config: str, env: Dict[str, str]) -> Any:
     old = os.environ.copy()
     os.environ.update(env)
     try:
-        return load_anonlib_config(config)
+        return load_mmirage_config(config)
     finally:
         os.environ.clear()
         os.environ.update(old)
@@ -155,17 +153,17 @@ def run_label(condition: str, rep: int) -> str:
 
 
 def pod_name(condition: str, rep: int, phase: str, shard: int) -> str:
-    return f"anonlib-rec-{condition.replace('_', '-')}-r{rep:02d}-{phase}-s{shard}"
+    return f"mmirage-rec-{condition.replace('_', '-')}-r{rep:02d}-{phase}-s{shard}"
 
 
 def pod_manifest(args: argparse.Namespace, condition: str, rep: int, phase: str, shard: int) -> Dict[str, Any]:
     rd = run_dir(args.shared_root, condition, rep)
     labels = {
-        "app.kubernetes.io/name": "anonlib-shard-recovery",
-        "anonlib.run": run_label(condition, rep),
-        "anonlib.condition": condition,
-        "anonlib.phase": phase,
-        "anonlib.shard-id": str(shard),
+        "app.kubernetes.io/name": "mmirage-shard-recovery",
+        "mmirage.run": run_label(condition, rep),
+        "mmirage.condition": condition,
+        "mmirage.phase": phase,
+        "mmirage.shard-id": str(shard),
     }
     container = {
         "name": "shard",
@@ -182,12 +180,12 @@ def pod_manifest(args: argparse.Namespace, condition: str, rep: int, phase: str,
         ],
         "env": [
             {"name": "SLURM_ARRAY_TASK_ID", "value": str(shard)},
-            {"name": "ANONLIB_COLLECT_STATS", "value": "1"},
-            {"name": "ANONLIB_RECOVERY_ROOT", "value": args.shared_root},
-            {"name": "ANONLIB_RECOVERY_RUN_DIR", "value": str(rd)},
-            {"name": "ANONLIB_RECOVERY_INPUT_JSONL", "value": str(Path(args.shared_root) / "data" / "ultrachat_200k" / "subset.jsonl")},
-            {"name": "ANONLIB_RECOVERY_STATE_DIR", "value": str(rd / "state")},
-            {"name": "ANONLIB_RECOVERY_OUTPUT_DIR", "value": str(rd / "output")},
+            {"name": "MMIRAGE_COLLECT_STATS", "value": "1"},
+            {"name": "MMIRAGE_RECOVERY_ROOT", "value": args.shared_root},
+            {"name": "MMIRAGE_RECOVERY_RUN_DIR", "value": str(rd)},
+            {"name": "MMIRAGE_RECOVERY_INPUT_JSONL", "value": str(Path(args.shared_root) / "data" / "ultrachat_200k" / "subset.jsonl")},
+            {"name": "MMIRAGE_RECOVERY_STATE_DIR", "value": str(rd / "state")},
+            {"name": "MMIRAGE_RECOVERY_OUTPUT_DIR", "value": str(rd / "output")},
             {"name": "HF_HOME", "value": str(Path(args.shared_root) / "hf")},
             {"name": "TRANSFORMERS_CACHE", "value": str(Path(args.shared_root) / "hf" / "transformers")},
         ],
@@ -230,7 +228,7 @@ def apply_pods(args: argparse.Namespace, condition: str, rep: int, phase: str, s
 
 
 def pod_json(args: argparse.Namespace, condition: str, rep: int, phase: str) -> Dict[str, Any]:
-    selector = f"anonlib.run={run_label(condition, rep)},anonlib.phase={phase}"
+    selector = f"mmirage.run={run_label(condition, rep)},mmirage.phase={phase}"
     result = kubectl(args, ["get", "pods", "-n", args.namespace, "-l", selector, "-o", "json"], check=True)
     return json.loads(result.stdout)
 
@@ -350,7 +348,7 @@ def hashlib_sha256() -> Any:
 def snapshot_completed(args: argparse.Namespace, condition: str, rep: int, cfg: Any, label: str) -> None:
     rd = run_dir(args.shared_root, condition, rep)
     state_root = cfg.loading_params.get_state_root()
-    output_root = Path(os.environ["ANONLIB_RECOVERY_OUTPUT_DIR"])
+    output_root = Path(os.environ["MMIRAGE_RECOVERY_OUTPUT_DIR"])
     rows = []
     for shard_id in range(cfg.loading_params.get_num_shards()):
         status = read_status(shard_state_dir(shard_id, state_root))
@@ -429,13 +427,13 @@ def handle_run_condition(args: argparse.Namespace) -> int:
     old = os.environ.copy()
     os.environ.update(env)
     try:
-        cfg = load_anonlib_config(args.config)
+        cfg = load_mmirage_config(args.config)
         fail_shards = CONDITION_FAILURE_SHARDS[args.condition]
         kill_after = baseline_kill_after(args.shared_root, args.baseline_rep, args.kill_after_seconds) if fail_shards else None
         summary = run_phase(args, args.condition, args.rep, "initial", list(range(cfg.loading_params.get_num_shards())), fail_shards, kill_after)
         failed, status_summary = check_failed_shards(cfg)
-        summary["anonlib_status_after_phase"] = status_summary.__dict__
-        summary["anonlib_retryable_shards_after_phase"] = failed
+        summary["mmirage_status_after_phase"] = status_summary.__dict__
+        summary["mmirage_retryable_shards_after_phase"] = failed
         write_json(rd / "controller" / "phase_initial.json", summary)
         if fail_shards:
             snapshot_completed(args, args.condition, args.rep, cfg, "before_retry")
@@ -452,8 +450,7 @@ def handle_retry(args: argparse.Namespace) -> int:
     old = os.environ.copy()
     os.environ.update(env)
     try:
-        cfg = load_anonlib_config(args.config)
-        rd = run_dir(args.shared_root, args.condition, args.rep)
+        cfg = load_mmirage_config(args.config)
         for round_idx in range(1, args.max_rounds + 1):
             failed, summary = check_failed_shards(cfg)
             if status_exit_code(failed, summary) == 0:

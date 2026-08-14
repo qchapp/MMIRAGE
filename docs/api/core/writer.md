@@ -1,9 +1,9 @@
-# `anonlib.core.writer` — Writer
+# `mmirage.core.writer` — Writer
 
 ## Template renderer
 
 ```{eval-rst}
-.. automodule:: anonlib.core.writer.renderer
+.. automodule:: mmirage.core.writer.renderer
    :members:
    :undoc-members:
    :show-inheritance:

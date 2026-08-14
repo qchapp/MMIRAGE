@@ -130,7 +130,7 @@ def main() -> None:
         "warmup_rows": args.warmup_rows,
         "warmup_rows_reused_from_measured": warmup_reused_from_measured,
         "prompt_text_template": DEFAULT_PROMPT_TEXT_TEMPLATE,
-        "prompt_construction": "AnonLib LLMProcessor behavior: Jinja prompt_text, then tokenizer.apply_chat_template(..., add_generation_prompt=True). Raw client uses the resulting prompt field.",
+        "prompt_construction": "MMIRAGE LLMProcessor behavior: Jinja prompt_text, then tokenizer.apply_chat_template(..., add_generation_prompt=True). Raw client uses the resulting prompt field.",
         "measured_prompts_jsonl": str(output_dir / "prompts.jsonl"),
         "warmup_prompts_jsonl": str(output_dir / "warmup_prompts.jsonl"),
     }

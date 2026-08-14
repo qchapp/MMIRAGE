@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare the public text workload for the ANONLIB recovery experiment."""
+"""Prepare the public text workload for the MMIRAGE recovery experiment."""
 
 from __future__ import annotations
 
@@ -12,13 +12,12 @@ from typing import Any, Dict, Iterable, Optional
 
 from datasets import load_dataset
 
-
 DEFAULT_DATASET = "HuggingFaceH4/ultrachat_200k"
 DEFAULT_SPLIT = "train_sft"
 DEFAULT_MODEL = "Qwen/Qwen3-4B"
 DEFAULT_NUM_RECORDS = 65536
 DEFAULT_SEED = 20260813
-DEFAULT_CONTAINER_ROOT = "/workspace/anonlib-recovery"
+DEFAULT_CONTAINER_ROOT = "/workspace/mmirage-recovery"
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,7 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-root",
         default=None,
-        help=f"Shared experiment root inside the container. Defaults to $ANONLIB_RECOVERY_ROOT or {DEFAULT_CONTAINER_ROOT}.",
+        help=f"Shared experiment root inside the container. Defaults to $MMIRAGE_RECOVERY_ROOT or {DEFAULT_CONTAINER_ROOT}.",
     )
     parser.add_argument("--dataset", default=DEFAULT_DATASET)
     parser.add_argument("--split", default=DEFAULT_SPLIT)
@@ -42,7 +41,7 @@ def parse_args() -> argparse.Namespace:
 def default_output_root() -> Path:
     import os
 
-    env_root = os.environ.get("ANONLIB_RECOVERY_ROOT")
+    env_root = os.environ.get("MMIRAGE_RECOVERY_ROOT")
     if env_root:
         return Path(env_root)
     return Path(DEFAULT_CONTAINER_ROOT)
@@ -130,7 +129,7 @@ def extract_prompt(row: Dict[str, Any], source_index: int) -> str:
 def build_prompt(source_prompt: str, max_source_chars: int) -> str:
     clipped = source_prompt[:max_source_chars]
     return (
-        "You are generating text for a reproducible ANONLIB systems benchmark.\n"
+        "You are generating text for a reproducible MMIRAGE systems benchmark.\n"
         "Answer the public user request below in exactly three numbered paragraphs. "
         "Each paragraph should contain three to four complete sentences. "
         "Do not mention benchmarking, datasets, or these instructions.\n\n"
@@ -162,9 +161,9 @@ def main() -> None:
     for order_index, row in enumerate(selected):
         source_index = int(row["__source_index"])
         source_prompt = extract_prompt(dict(row), source_index)
-        anonlib_id = f"{args.dataset}:{args.split}:{dataset_revision or args.revision or 'unresolved'}:{source_index}"
+        mmirage_id = f"{args.dataset}:{args.split}:{dataset_revision or args.revision or 'unresolved'}:{source_index}"
         record = {
-            "anonlib_id": anonlib_id,
+            "mmirage_id": mmirage_id,
             "order_index": order_index,
             "source_index": source_index,
             "source_dataset": args.dataset,
@@ -177,7 +176,7 @@ def main() -> None:
         order_rows.append(
             {
                 "order_index": order_index,
-                "anonlib_id": anonlib_id,
+                "mmirage_id": mmirage_id,
                 "source_index": source_index,
             }
         )
@@ -206,7 +205,7 @@ def main() -> None:
         "subset_sha256": subset_checksum,
         "id_order_jsonl": str(order_path),
         "id_order_sha256": order_checksum,
-        "fallback_dataset_policy": "If HuggingFaceH4/ultrachat_200k is unavailable or its schema no longer exposes text/messages, choose another public text dataset and record the reason in this manifest before running ANONLIB.",
+        "fallback_dataset_policy": "If HuggingFaceH4/ultrachat_200k is unavailable or its schema no longer exposes text/messages, choose another public text dataset and record the reason in this manifest before running MMIRAGE.",
     }
     manifest_path = data_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")

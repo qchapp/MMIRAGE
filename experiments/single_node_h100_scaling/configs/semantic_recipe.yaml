@@ -1,4 +1,4 @@
-# Fixed ANONLIB semantic recipe for the single-node H100 strong-scaling experiment.
+# Fixed MMIRAGE semantic recipe for the single-node H100 strong-scaling experiment.
 # Keep this file identical for 1, 2, and 4 GPU points. The runner fills only
 # loading/execution placeholders such as paths, shard_id, num_shards, and output dirs.
 
@@ -17,14 +17,14 @@ processors:
       max_new_tokens: 256
 
 loading_params:
-  state_dir: ${ANONLIB_SCALING_STATE_DIR}
+  state_dir: ${MMIRAGE_SCALING_STATE_DIR}
   datasets:
-    - path: ${ANONLIB_SCALING_WORKLOAD_JSONL}
+    - path: ${MMIRAGE_SCALING_WORKLOAD_JSONL}
       type: JSONL
-      output_dir: ${ANONLIB_SCALING_OUTPUT_DIR}
-  num_shards: ${ANONLIB_SCALING_NUM_SHARDS}
-  shard_id: ${ANONLIB_SCALING_SHARD_ID}
-  batch_size: ${ANONLIB_SCALING_BATCH_SIZE}
+      output_dir: ${MMIRAGE_SCALING_OUTPUT_DIR}
+  num_shards: ${MMIRAGE_SCALING_NUM_SHARDS}
+  shard_id: ${MMIRAGE_SCALING_SHARD_ID}
+  batch_size: ${MMIRAGE_SCALING_BATCH_SIZE}
 
 processing_params:
   inputs:

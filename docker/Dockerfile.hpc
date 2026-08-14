@@ -33,20 +33,20 @@ RUN wget -q http://ports.ubuntu.com/pool/main/o/openldap/libldap-2.4-2_2.4.49+df
 RUN python3.12 -m venv /opt/venv
 RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel
 
-WORKDIR /workspace/AnonLib
+WORKDIR /workspace/MMIRAGE
 
 COPY requirements-hpc-lock.txt ./
 
 # Use PyTorch CUDA 12.9 index so torch==2.9.1+cu129 resolves.
 # Make sure requirements-hpc-lock.txt does NOT contain:
-#   anonlib @ file:///workspace/AnonLib
+#   mmirage @ file:///workspace/MMIRAGE
 RUN pip install --no-cache-dir \
     --extra-index-url https://download.pytorch.org/whl/cu129 \
     -r requirements-hpc-lock.txt
 
 COPY . .
 
-# Install AnonLib itself without re-resolving dependencies.
+# Install MMIRAGE itself without re-resolving dependencies.
 RUN pip install --no-cache-dir --no-deps .
 
 ENTRYPOINT ["/bin/bash"]
