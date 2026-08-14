@@ -1,0 +1,47 @@
+# Native DataTrove settings for the ChartQA comparison.
+# DataTrove is included as a native-mode baseline with an explicit multimodal
+# adapter boundary because its documented inference benchmark path is text-first.
+
+framework: datatrove
+native_mode: true
+task:
+  name: chartqa_nested_multimodal_transformation
+  workload_jsonl: experiments/nemo_curator_comparison/workload/chartqa/chartqa_subset.jsonl
+  image_base_path: experiments/nemo_curator_comparison/workload/chartqa
+  model: Qwen/Qwen2.5-VL-7B-Instruct
+  base_output_schema:
+    - id
+    - messages
+    - metadata.reference_answer
+    - metadata.generated_answer_normalized
+    - metadata.source
+  decoding:
+    temperature: 0.0
+    top_p: 1.0
+    max_tokens: 256
+  validation:
+    - row_count_matches_input
+    - ids_match_input
+    - no_duplicate_ids
+    - row_order_matches_input
+    - nested_message_schema_valid
+    - reference_answer_preserved
+
+native_backend:
+  preferred: DataTrove native inference pipeline with vLLM where multimodal message content is supported
+  fallback_boundary: If native DataTrove cannot pass image content to the LLM backend, use the thinnest benchmark adapter that preserves DataTrove reading/writing/materialization while calling a native VLM client.
+  claim_boundary: Do not claim first-class DataTrove multimodal parity unless the native API path runs without adapter glue.
+
+execution:
+  output_root: experiments/nemo_curator_comparison/results
+  run_dir_pattern: datatrove_rep{rep}
+  repetitions: 3
+  environment: experiments/nemo_curator_comparison/environment/datatrove_uv_requirements.txt
+  command_template: >-
+    {python} experiments/nemo_curator_comparison/scripts/run_datatrove_pipeline.py
+    --input-jsonl {workload_jsonl}
+    --image-base-path {image_base_path}
+    --output-dir {run_dir}/output
+    --summary-json {run_dir}/run_summary.json
+    --model Qwen/Qwen2.5-VL-7B-Instruct
+    --max-tokens 256

@@ -20,9 +20,13 @@ FRAMEWORK_FILES = {
         "experiments/nemo_curator_comparison/scripts/run_nemo_curator_pipeline.py",
         "experiments/nemo_curator_comparison/configs/nemo_data_designer.yaml",
     ],
+    "datatrove": [
+        "experiments/nemo_curator_comparison/scripts/run_datatrove_pipeline.py",
+        "experiments/nemo_curator_comparison/configs/datatrove_native_chartqa.yaml",
+    ],
 }
 
-PIPELINE_COMPONENTS = {"mmirage": 4, "nemo": 5}
+PIPELINE_COMPONENTS = {"mmirage": 4, "nemo": 5, "datatrove": 4}
 
 
 def parse_args() -> argparse.Namespace:
@@ -270,7 +274,7 @@ def collect(args: argparse.Namespace) -> tuple[list[dict[str, Any]], list[dict[s
         launcher = read_json(run_dir / "launcher_summary.json")
         summary = read_json(run_dir / "run_summary.json")
         tokens, generation_wall, model_load = extract_mmirage_tokens(run_dir)
-        if framework == "nemo":
+        if framework in {"nemo", "datatrove"}:
             tokens = None
             generation_wall = None
             model_load = None

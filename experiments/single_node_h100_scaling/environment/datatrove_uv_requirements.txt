@@ -1,0 +1,5 @@
+datatrove[vllm]==0.9.0
+vllm
+datasets
+pyarrow
+transformers

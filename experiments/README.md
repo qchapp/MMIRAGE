@@ -13,6 +13,8 @@ Run every command from the repository root unless an experiment README says othe
 | `single_node_h100_scaling` | Measures single-node multi-GPU strong scaling with independent one-GPU shard workers. | `experiments/single_node_h100_scaling/README.md` |
 | `nemo_curator_comparison` | Compares MMIRAGE with NeMo Curator/Data Designer on a matched LLM-only multimodal ChartQA transformation. | `experiments/nemo_curator_comparison/README.md` |
 
+Native competitor completion settings now live inside the relevant experiment folders. `single_node_h100_scaling` plans DataTrove, NeMo Curator, Distilabel, Ray Data LLM, and raw SGLang baselines; `shard_recovery` plans DataTrove, NeMo Curator, Distilabel, and Ray Data LLM recovery-equivalent baselines; `nemo_curator_comparison` adds a DataTrove ChartQA baseline with an explicit native multimodal adapter boundary.
+
 ## Repository Policy
 
 - Keep fixed recipes and execution configs under `experiments/<name>/configs/`.

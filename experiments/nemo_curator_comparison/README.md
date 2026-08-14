@@ -29,16 +29,18 @@ This is not a ChartQA accuracy evaluation, a VLM quality evaluation, or a multi-
 |---|---|
 | `configs/mmirage_chartqa.yaml` | MMIRAGE ChartQA transformation recipe. |
 | `configs/nemo_data_designer.yaml` | Inspectable Data Designer column graph equivalent to the NeMo runner. |
+| `configs/datatrove_native_chartqa.yaml` | Native-mode DataTrove completion settings and multimodal adapter boundary for the same ChartQA task. |
 | `configs/sglang_server.json` | Shared-server settings to reproduce. |
 | `scripts/prepare_workload.py` | Downloads the pinned ChartQA subset, image assets, manifest, and checksums. |
-| `scripts/run_comparison.py` | Balanced repetition runner for MMIRAGE and NeMo. |
+| `scripts/run_comparison.py` | Balanced repetition runner for MMIRAGE, NeMo, and the planned DataTrove baseline. |
 | `scripts/run_mmirage_with_openai_vision_endpoint.py` | Benchmark adapter that forwards MMIRAGE SGLang calls to an external OpenAI-compatible VLM endpoint without changing `src/`. |
 | `scripts/run_nemo_curator_pipeline.py` | NeMo Curator/Data Designer pipeline plus final nested-record renderer. |
+| `scripts/run_datatrove_pipeline.py` | Dry-run-safe native DataTrove ChartQA scaffold and output-contract manifest. |
 | `scripts/analyze_results.py` | Validates outputs, computes summaries, counts footprint, reads setup timings, and writes paper-ready files. |
 | `scripts/measure_setup.py` | Times fresh environment creation and dependency installation per framework. |
 | `scripts/launch_sglang_server.sh` | Shared SGLang server launcher. |
 | `scripts/mock_openai_vlm_server.py` | Tiny OpenAI-compatible mock for schema and command smoke checks. |
-| `environment/` | Isolated dependency pins for MMIRAGE and NeMo/Data Designer. |
+| `environment/` | Isolated dependency pins for MMIRAGE, NeMo/Data Designer, SGLang, and DataTrove. |
 | `results/` | Generated run outputs and analysis; ignored by git. |
 | `setup_times/` | Generated setup-time measurements; ignored by git. |
 | `notes/` | Experiment protocol and follow-up plan. |
@@ -91,6 +93,16 @@ python3 -c "import nemo_curator, data_designer; print(nemo_curator.__version__)"
 deactivate
 ```
 
+DataTrove native-mode environment for the planned ChartQA baseline:
+
+```bash
+uv venv .venv-datatrove --python 3.12
+source .venv-datatrove/bin/activate
+uv pip install -r experiments/nemo_curator_comparison/environment/datatrove_uv_requirements.txt
+python3 -c "import datatrove; print('datatrove ok')"
+deactivate
+```
+
 Separate SGLang environment, used by the shared server in step 4. Skip it only if you already have an
 environment with `sglang==0.5.10` and `transformers==5.3.0`, and activate that one in step 4 instead:
 
@@ -111,6 +123,29 @@ python3 experiments/nemo_curator_comparison/scripts/measure_setup.py --framework
 python3 experiments/nemo_curator_comparison/scripts/measure_setup.py --framework nemo --overwrite
 deactivate
 ```
+
+DataTrove setup timing should be added only after the native multimodal execution path or documented adapter path is finalized.
+
+## DataTrove Native-Mode Completion Plan
+
+The DataTrove addition is intentionally native-mode, not shared-endpoint mode. DataTrove should use its documented inference stack where possible. Because the public DataTrove benchmark path is text-first, the DataTrove ChartQA baseline has an explicit adapter boundary in `configs/datatrove_native_chartqa.yaml`:
+
+- Prefer a native DataTrove multimodal inference path if it can pass image content to the VLM backend.
+- If that path is unavailable, use the thinnest benchmark adapter that keeps DataTrove responsible for reading, partitioning, writing, and materialization while the adapter calls the VLM.
+- Do not claim first-class DataTrove multimodal parity unless the native API path runs without adapter glue.
+
+Dry-run the planned command through the balanced runner without executing the framework:
+
+```bash
+python experiments/nemo_curator_comparison/scripts/run_comparison.py \
+  --order datatrove \
+  --repetitions 1 \
+  --dry-run
+```
+
+The DataTrove output must still materialize the same nested schema and pass the existing analyzer checks for row count, IDs, duplicates, order, and schema validity.
+
+After implementation, include DataTrove in the full balanced order rather than comparing it against stale AnonLib/NeMo runs.
 
 ## 2. Prepare ChartQA
 

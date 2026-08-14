@@ -16,6 +16,13 @@ This experiment was prepared against the current public documentation and source
 - Data Designer source/tag: `v0.9.1`, commit `27acf141170eceb1e8242c132d56b49107462fce`.
 - Important mismatch: Curator `v1.3.0` does not pin `data-designer==0.9.1` in its official `sdg_*` extras. The comparison implementation therefore uses Curator's official integrated Data Designer version by default, not standalone latest.
 
+## Native Competitor Planning References
+
+- DataTrove native baseline pin: `datatrove==0.9.0` with its documented vLLM inference benchmark path.
+- Distilabel native baseline pin for text-only scaling/recovery planning: `distilabel==1.5.3`.
+- Ray Data LLM native baseline pin for text-only scaling/recovery planning: `ray[data]==2.57.0` plus vLLM where the Ray Data LLM processor is available.
+- These native competitor pins are completion settings, not measured results. Reconfirm exact package metadata and licenses in the final result archive.
+
 ## Verified Capability Summary
 
 - Curator integrates Data Designer through `nemo_curator.stages.synthetic.nemo_data_designer.data_designer.DataDesignerStage`.
@@ -28,3 +35,5 @@ This experiment was prepared against the current public documentation and source
 ## Scope of Interpretation
 
 NeMo Curator/Data Designer supports declarative multimodal transformation. This comparison measures the framework-specific machinery required for one defined workload: source-field mapping, dependent custom processing, VLM generation, post-processing, nested record rendering, materialization, and instrumentation. Its results do not establish a general expressiveness difference between the frameworks.
+
+For the added DataTrove native-mode ChartQA plan, do not claim native multimodal support unless the implementation uses a documented DataTrove path that accepts image-bearing VLM messages without benchmark-specific adapter glue.

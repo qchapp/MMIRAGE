@@ -1,0 +1,86 @@
+# Native competitor settings for equivalent shard-recovery experiments.
+# These settings keep the same workload, shard IDs, failure conditions, and
+# merge/validation contract as the MMIRAGE shard-recovery runbook.
+
+task:
+  name: ultrachat_shard_recovery
+  source_workload: /workspace/anonlib-recovery/data/ultrachat_200k/subset.jsonl
+  expected_id_order: /workspace/anonlib-recovery/data/ultrachat_200k/id_order.jsonl
+  mmirage_recipe: experiments/shard_recovery/configs/anonlib_recovery.yaml
+  model: Qwen/Qwen3-4B
+  total_shards: 16
+  max_active_shards: 4
+  decoding:
+    temperature: 0.0
+    max_new_tokens: 256
+  output_contract:
+    final_row_order: must_match_expected_id_order
+    required_fields:
+      - anonlib_id
+      - prompt_text
+      - answer
+    validation:
+      - no_missing_ids
+      - no_duplicate_ids
+      - no_unexpected_ids
+      - completed_shard_outputs_unchanged_after_retry
+      - retry_only_incomplete_or_killed_shards
+
+conditions:
+  baseline: []
+  fail_1: [3]
+  fail_4: [1, 5, 9, 13]
+  fail_8: [0, 2, 4, 6, 8, 10, 12, 14]
+
+execution:
+  native_mode: true
+  shared_root: /workspace/anonlib-recovery
+  output_root: /workspace/anonlib-recovery/native_competitors
+  retry_policy: relaunch_shards_without_valid_completion_marker
+  artifact_policy: generated_outputs_are_ignored_and_not_committed
+  command_template: >-
+    {python} experiments/shard_recovery/scripts/run_native_recovery_competitor.py
+    --framework {framework}
+    --condition {condition}
+    --rep {rep}
+    --shared-root {shared_root}
+    --gpu-ids {gpu_ids}
+    --max-active-shards {max_active_shards}
+    --dry-run
+
+frameworks:
+  datatrove:
+    useful_for: text_generation_recovery_with_chunk_checkpointing
+    native_backend: DataTrove local or Slurm executor with vLLM inference path
+    environment: experiments/shard_recovery/environment/datatrove_uv_requirements.txt
+    boundary: DataTrove checkpointing is framework-native, but the killed-shard retry set is normalized by this benchmark harness.
+  nemo_curator:
+    useful_for: pipeline_execution_with_native_curator_materialization
+    native_backend: NeMo Curator/Data Designer executor
+    environment: experiments/shard_recovery/environment/nemo_curator_uv_requirements.txt
+    boundary: Retry equivalence is measured at the benchmark shard-marker level unless native Curator APIs expose identical shard state.
+  distilabel:
+    useful_for: declarative_text_generation_pipeline_recovery
+    native_backend: Distilabel native pipeline with local vLLM-backed LLM task
+    environment: experiments/shard_recovery/environment/distilabel_uv_requirements.txt
+    boundary: Distilabel does not define MMIRAGE shard state; the harness supplies shard completion markers.
+  ray_data_llm:
+    useful_for: distributed_dataset_execution_and_actor_retry
+    native_backend: Ray Data LLM native processor with vLLM engine processor where available
+    environment: experiments/shard_recovery/environment/ray_data_llm_uv_requirements.txt
+    boundary: Ray task retry and benchmark shard retry must be reported separately.
+
+metrics:
+  primary:
+    - shards_recomputed_count
+    - completed_shards_reused
+    - rows_recomputed
+    - fraction_of_total_workload_recomputed
+    - failure_plus_recovery_wall_time_seconds
+  validation:
+    - final_row_count
+    - missing_id_count
+    - duplicate_id_count
+    - unexpected_id_count
+    - order_after_merge_matches_original_input_order
+    - completed_shard_outputs_unchanged_after_retry

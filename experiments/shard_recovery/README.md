@@ -34,11 +34,15 @@ This experiment does not measure native Kubernetes fault tolerance, scheduler qu
 | Path | Purpose |
 |---|---|
 | `configs/mmirage_recovery.yaml` | Fixed 16-shard MMIRAGE workload. |
+| `configs/native_competitors.yaml` | Native-mode completion settings for DataTrove, NeMo Curator, Distilabel, and Ray Data LLM recovery-equivalent baselines. |
 | `scripts/prepare_workload.py` | Downloads and freezes the public Hugging Face workload. |
 | `scripts/run_k8s.py` | Kubernetes controller. |
 | `scripts/run_local.py` | Optional local fallback runner with the same output layout. |
 | `scripts/run_pod.py` | One-shard wrapper used by Kubernetes pods and the local fallback. |
 | `scripts/extract_results.py` | Aggregates final CSV and JSON results. |
+| `scripts/plan_native_competitor_recovery.py` | Emits dry-run manifests for native competitor recovery-equivalent runs. |
+| `scripts/run_native_recovery_competitor.py` | Dry-run-safe native competitor recovery scaffold. |
+| `environment/` | Optional native competitor environment pins. |
 
 ## Prerequisites
 
@@ -97,6 +101,32 @@ if [ -n "${GPU_PRODUCT_LABEL:-}" ]; then
   COMMON_K8S_ARGS+=(--gpu-product-label "$GPU_PRODUCT_LABEL")
 fi
 ```
+
+## Native Competitor Recovery Plan
+
+The native competitor settings in `configs/native_competitors.yaml` define equivalent recovery experiments for DataTrove, NeMo Curator/Data Designer, Distilabel, and Ray Data LLM. These are useful for the text-generation recovery task because all four systems can express or execute text-generation data pipelines, but they do not expose MMIRAGE's exact shard-state semantics.
+
+The comparison therefore uses a benchmark-level equivalence contract:
+
+- same prepared input workload and expected ID order
+- same 16 logical shard IDs
+- same killed shard sets for `baseline`, `fail_1`, `fail_4`, and `fail_8`
+- same model family and decoding settings where the framework exposes them
+- retry only shards without a valid completion marker
+- preserve completed shard output hashes across retry
+- merge outputs in original input order
+
+Inspect the planned competitor recovery runs without creating pods or launching inference:
+
+```bash
+python experiments/shard_recovery/scripts/plan_native_competitor_recovery.py \
+  --framework all \
+  --condition all \
+  --rep 1 \
+  --gpu-ids 0,1,2,3
+```
+
+Report Ray task retry, DataTrove checkpointing, NeMo pipeline retry, and Distilabel pipeline retry separately from the normalized benchmark shard retry. Do not claim any competitor has native MMIRAGE-equivalent shard state unless the final implementation uses that competitor's own public API to expose it.
 
 ## 1. Create Or Confirm The PVC
 

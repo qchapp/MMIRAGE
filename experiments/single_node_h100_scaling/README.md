@@ -34,12 +34,15 @@ This experiment does not measure multi-node scaling, tensor parallelism, Kuberne
 | `configs/execution_1gpu.yaml` | Execution settings for the 1-GPU point. |
 | `configs/execution_2gpu.yaml` | Execution settings for the 2-GPU point. |
 | `configs/execution_4gpu.yaml` | Execution settings for the 4-GPU point. |
+| `configs/native_competitors.yaml` | Native-mode completion settings for DataTrove, NeMo Curator, Distilabel, Ray Data LLM, and raw SGLang baselines on the same task. |
 | `scripts/prepare_workload.py` | Builds the deterministic UltraChat JSONL workload. |
 | `scripts/run.py` | Launches shard workers and aggregates summaries. |
 | `scripts/run_1gpu.sh` | Wrapper for the 1-GPU point. |
 | `scripts/run_2gpu.sh` | Wrapper for the 2-GPU point. |
 | `scripts/run_4gpu.sh` | Wrapper for the 4-GPU point. |
+| `scripts/plan_native_competitors.py` | Emits dry-run manifests for native competitor runs without launching GPU work. |
 | `scripts/plot.py` | Regenerates plots from `summary.csv`. |
+| `environment/` | Optional native competitor environment pins. |
 
 ## Prerequisites
 
@@ -93,6 +96,17 @@ bash experiments/single_node_h100_scaling/scripts/run_4gpu.sh --dry-run
 ```
 
 Expected result: JSON listing four shard commands and configs under `experiments/single_node_h100_scaling/results/runs/gpu_4/dry_run/`.
+
+To inspect the planned native competitor commands without launching any framework or inference backend:
+
+```bash
+python experiments/single_node_h100_scaling/scripts/plan_native_competitors.py \
+  --framework all \
+  --gpu-count all \
+  --visible-gpus 0,1,2,3
+```
+
+The native competitor settings cover DataTrove, NeMo Curator/Data Designer, Distilabel, Ray Data LLM, and raw SGLang. They use the same UltraChat workload, prompt, model family, GPU points, shard split, and output schema. They do not report results until each native runner is wired and executed in its own framework environment.
 
 ## 3. Run The Three Scaling Points
 
