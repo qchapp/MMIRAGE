@@ -13,6 +13,14 @@ and READMEs.
 | `task_comparison/text_shortening` | Article→summary transformation with MMIRAGE/DataTrove/NeMo Curator | per-framework wall time and throughput at fixed workload | `experiments/task_comparison/text_shortening/README.md` |
 | `task_comparison/vlm_enrichment` | Image-caption enrichment with MMIRAGE/SGLang/DataTrove/NeMo Curator | per-framework wall time and throughput at fixed workload | `experiments/task_comparison/vlm_enrichment/README.md` |
 
+## Running everything unattended
+
+`bash experiments/run_all.sh` runs the whole suite end to end without human
+intervention: preflight checks (venv, 4 GPUs, HF token, competitor
+interpreters), then smoke → calibrate → every experiment, each stage isolated
+with its own log under `experiments/run_all_logs/` and a final status table.
+`--only`/`--skip` select stages (e.g. `bash experiments/run_all.sh --skip vlm`).
+
 ## Sizes and the smoke calibrator
 
 Each experiment's default workload size lives in its `configs/workload_size.yaml`
