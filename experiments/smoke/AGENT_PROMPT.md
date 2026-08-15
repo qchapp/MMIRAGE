@@ -52,6 +52,17 @@ uv pip install "setuptools<76"
 export SETUPTOOLS_USE_DISTUTILS=local
 ```
 
+`sglang` does not bound `flash-attn-4` or `nvidia-cutlass-dsl`, so a fresh resolve
+can build a combination that fails at H100 attention-backend init with
+`AttributeError: module 'cutlass._mlir.dialects.nvvm' has no attribute
+'RoundingModeKind'`. If the MMIRAGE install or a server fails that way, reinstall
+with prereleases allowed and pin the recorded versions:
+
+```
+uv pip install --prerelease=allow -e .
+uv pip install "flash-attn-4==4.0.0b15" "nvidia-cutlass-dsl==4.5.2" "apache-tvm-ffi==0.1.11"
+```
+
 Create the competitor venvs exactly as the per-experiment
 `environment/*_uv_requirements.txt` files describe (datatrove, nemo_curator,
 distilabel, ray_data_llm, raw_sglang). Each runner's README names the venv it

@@ -81,8 +81,22 @@ successful recovery reports zero missing/duplicate/unexpected IDs per condition.
 `run_k8s.py` provides the same commands against real pods (requires a
 `ReadWriteMany` PVC mounted at the same path in controller and shard pods,
 namespace RBAC, and the MMIRAGE GPU image). It is the paper's original harness;
-`run_local.py` is the in-pod equivalent. See the K8s README history for the full
-`COMMON_K8S_ARGS` construction if you need it.
+`run_local.py` is the in-pod equivalent.
+
+Confirm RBAC before preparing data — the controller creates one bare `Pod` per
+shard, `exec`s into it to send `SIGTERM`, and reads its logs:
+
+```bash
+kubectl auth can-i create pods -n "$NAMESPACE"
+kubectl auth can-i create pods/exec -n "$NAMESPACE"
+kubectl auth can-i get pods/log -n "$NAMESPACE"
+```
+
+If any prints `no`, use the `run_local.py` path above instead; it runs the same
+conditions with local `SIGTERM` signals and writes the layout
+`extract_results.py` reads. When the image mounts the repo at a different path
+than your working tree, pass `--repo-dir-in-container` (and `--config-in-container`
+for the YAML) so pod-side commands find the config; see `run_k8s.py --help`.
 
 ## Native competitor recovery
 

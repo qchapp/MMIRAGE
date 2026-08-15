@@ -30,6 +30,10 @@ launched commands; `--overwrite` replaces existing repetition dirs;
 existing `rep_summary.json` files. `scripts/plot.py --summary-csv results/summary.csv
 --output-dir results` regenerates plots.
 
+`matplotlib` is not part of any MMIRAGE extra; install it separately
+(`python -m pip install matplotlib`). Without it a run still writes every
+summary but produces no PNG plot files.
+
 ## Outputs
 
 `results/summary.json`, `results/summary.csv`, `results/raw_results.csv`,
