@@ -37,7 +37,7 @@ from experiments._shared.native_frameworks import (
 )
 from experiments._shared.sglang_client import image_data_url
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MAX_NEW_TOKENS = 1024
 DEFAULT_TEMPERATURE = 0.1
 DEFAULT_TOP_P = 0.9
@@ -76,10 +76,13 @@ def _runner_status(stats: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _contract_rows(rows: List[Dict[str, Any]], answers: Dict[str, str], id_field: str) -> List[Dict[str, Any]]:
-    return [
-        {id_field: row[id_field], "formatted_description": answers.get(str(row[id_field]), "")}
-        for row in rows
-    ]
+    contract: List[Dict[str, Any]] = []
+    for row in rows:
+        item = {id_field: row[id_field], "formatted_description": answers.get(str(row[id_field]), "")}
+        if "source_index" in row:
+            item["source_index"] = row["source_index"]
+        contract.append(item)
+    return contract
 
 
 def _write_contract(output_path: Path, rows: List[Dict[str, Any]], answers: Dict[str, str], id_field: str) -> None:
@@ -264,7 +267,7 @@ def run_datatrove_vlm(
         image_path = Path(str(document.metadata.get(image_field, "")))
         full_path = image_path if image_path.is_absolute() else image_base / image_path
         if full_path.exists():
-            content.append({"type": "image_url", "image_url": {"url": image_data_url(full_path, image_base)}})
+            content.append({"type": "image_url", "image_url": {"url": image_data_url(image_path, image_base)}})
         content.append({"type": "text", "text": document.text})
         result = await generate({"messages": [{"role": "user", "content": content}]})
         shared[document.id] = result.text
@@ -336,13 +339,11 @@ def run_nemo_curator_vlm(
     from nemo_curator.tasks import DocumentBatch
 
     class CaptionStage(ProcessingStage[DocumentBatch, DocumentBatch]):
+        name = "native_vlm_caption"
+
         def __init__(self, base_url: str, api_key: str = "unused"):
             super().__init__()
             self.client = OpenAIClient(base_url=base_url, api_key=api_key)
-
-        @property
-        def name(self) -> str:
-            return "native_vlm_caption"
 
         def inputs(self) -> tuple[list[str], list[str]]:
             return ["data"], []
@@ -358,7 +359,7 @@ def run_nemo_curator_vlm(
                 full_path = image_path if image_path.is_absolute() else image_base / image_path
                 content: List[Dict[str, Any]] = []
                 if full_path.exists():
-                    content.append({"type": "image_url", "image_url": {"url": image_data_url(full_path, image_base)}})
+                    content.append({"type": "image_url", "image_url": {"url": image_data_url(image_path, image_base)}})
                 content.append({"type": "text", "text": str(row.get(text_field, ""))})
                 result = self.client.query_model(
                     messages=[{"role": "user", "content": content}],
@@ -396,7 +397,7 @@ def run_nemo_curator_vlm(
             write_jsonl(input_path, rows)
             pipeline = Pipeline(name="native_vlm_caption", description="Native VLM caption via NeMo Curator")
             pipeline.add_stage(JsonlReader(file_paths=str(input_path)))
-            pipeline.add_stage(CaptionStage(base_url=base_url))
+            pipeline.add_stage(CaptionStage(base_url=f"{base_url}/v1"))
             pipeline.add_stage(JsonlWriter(path=str(output_dir)))
             pipeline.run(executor=RayDataExecutor())
             for file_path in sorted(output_dir.glob("*.jsonl*")):
