@@ -1,0 +1,48 @@
+{
+  "created_at": "2026-08-15T11:19:07.328701+00:00",
+  "failed": [],
+  "next": "python experiments/smoke/calibrate.py --apply",
+  "runs": {
+    "raw_sglang_overhead": {
+      "generation_seconds": 30.66391,
+      "model_load_seconds": 38.050984,
+      "rows_smoke": 96,
+      "scope": "per_cell",
+      "timing_source": "experiments/raw_sglang_overhead/results/summary.json",
+      "wall_seconds": 68.714894
+    },
+    "shard_recovery": {
+      "generation_seconds": 179.846,
+      "model_load_seconds": 0.0,
+      "rows_smoke": 256,
+      "scope": "whole_command",
+      "timing_source": "/workspace/mmirage-recovery/runs/baseline/rep_01/controller/phase_initial.json",
+      "wall_seconds": 179.846
+    },
+    "single_node_h100_scaling": {
+      "generation_seconds": 24.232349,
+      "model_load_seconds": 31.514,
+      "rows_smoke": 1024,
+      "scope": "per_cell",
+      "timing_source": "experiments/single_node_h100_scaling/results/runs/gpu_1/rep_1/rep_summary.json",
+      "wall_seconds": 55.746349
+    },
+    "task_comparison/text_shortening": {
+      "generation_seconds": 13.651887,
+      "model_load_seconds": 33.736,
+      "rows_smoke": 1024,
+      "scope": "per_cell",
+      "timing_source": "experiments/task_comparison/text_shortening/results/runs/gpu_4/rep_1/rep_summary.json",
+      "wall_seconds": 47.387887
+    },
+    "task_comparison/vlm_enrichment": {
+      "generation_seconds": 73.257742,
+      "model_load_seconds": 65.15,
+      "rows_smoke": 64,
+      "scope": "per_cell",
+      "timing_source": "experiments/task_comparison/vlm_enrichment/results/runs/gpu_4/rep_1/rep_summary.json",
+      "wall_seconds": 138.407742
+    }
+  },
+  "shared_root": "/workspace/mmirage-recovery"
+}

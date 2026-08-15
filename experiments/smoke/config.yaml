@@ -45,7 +45,10 @@ experiments:
     cells: 4
     recovery_factor: 1.0
     notes: 1 repetition per path (fast-run deviation); the raw/mmirage/datatrove/nemo
-      throughput comparison needs no repetition.
+      throughput comparison needs no repetition. The budget models every cell on the
+      raw_sglang timing, but the nemo_curator path is row-sequential (~15x slower
+      per row on H100), so the full 4-path command lands well over target_seconds;
+      treat target_seconds here as the budget for the three concurrent-client paths.
     size:
       key: num_rows
       fallback: 1000
