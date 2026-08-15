@@ -82,6 +82,19 @@ def main() -> int:
             prompt_style=args.prompt_style,
             id_field=args.id_field,
         )
+        processed = int((stats or {}).get("rows_processed") or 0)
+        if rows and processed == 0:
+            write_json(
+                status_path,
+                {
+                    "status": "error",
+                    "gpu_id": args.gpu_id,
+                    "framework": args.framework,
+                    "error": f"framework runner returned 0 processed rows for {len(rows)} input rows; see worker.log",
+                    "stats": stats,
+                },
+            )
+            return 1
         status = {
             "status": "success",
             "gpu_id": args.gpu_id,

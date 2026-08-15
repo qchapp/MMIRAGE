@@ -330,10 +330,19 @@ def handle_run_condition(args: argparse.Namespace) -> int:
         failed, status_summary = check_failed_shards(cfg)
         summary["mmirage_status_after_phase"] = status_summary.__dict__
         summary["mmirage_retryable_shards_after_phase"] = failed
+        unexpected = sorted(set(failed) - set(fail_shards))
+        summary["unexpected_failed_shards"] = unexpected
         write_json(rd / "controller" / "phase_initial.json", summary)
         if fail_shards:
             snapshot_completed(args, args.condition, args.rep, cfg, "before_retry")
         print(json.dumps(summary, indent=2, sort_keys=True))
+        if unexpected:
+            print(
+                f"run-condition: {len(unexpected)} shard(s) failed that were not deliberately "
+                f"terminated: {unexpected}; see raw_logs/ and state/shard_<id>/status.json",
+                file=sys.stderr,
+            )
+            return 1
         return 0
     finally:
         os.environ.clear()

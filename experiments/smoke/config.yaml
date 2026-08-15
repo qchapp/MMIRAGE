@@ -60,6 +60,7 @@ experiments:
       python experiments/single_node_h100_scaling/scripts/run.py
       --execution-config experiments/single_node_h100_scaling/configs/execution_1gpu.yaml
       --repetitions 1
+      --overwrite
     timing:
       file: experiments/single_node_h100_scaling/results/runs/gpu_1/rep_1/rep_summary.json
       path: row
@@ -89,6 +90,7 @@ experiments:
       --max-active-shards 4
       --gpu-ids 0,1,2,3
       --wait-timeout-seconds 3600
+      --overwrite
     timing:
       file: "{shared_root}/runs/baseline/rep_01/controller/phase_initial.json"
       path: ""
@@ -115,6 +117,7 @@ experiments:
       python experiments/single_node_h100_scaling/scripts/run.py
       --execution-config experiments/task_comparison/text_shortening/configs/execution_4gpu.yaml
       --repetitions 1
+      --overwrite
     timing:
       file: experiments/task_comparison/text_shortening/results/runs/gpu_4/rep_1/rep_summary.json
       path: row
@@ -140,6 +143,7 @@ experiments:
       python experiments/task_comparison/vlm_enrichment/scripts/run_mmirage_vlm.py
       --execution-config experiments/task_comparison/vlm_enrichment/configs/execution_4gpu.yaml
       --repetitions 1
+      --overwrite
     timing:
       file: experiments/task_comparison/vlm_enrichment/results/runs/gpu_4/rep_1/rep_summary.json
       path: row

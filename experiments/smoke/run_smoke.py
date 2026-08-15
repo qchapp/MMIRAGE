@@ -152,14 +152,26 @@ def main() -> int:
             flush=True,
         )
 
+    timing_path = Path(args.timing)
+    previous_runs: Dict[str, Any] = {}
+    previous_failed: list[str] = []
+    if timing_path.exists():
+        try:
+            previous = json.loads(timing_path.read_text(encoding="utf-8"))
+            previous_runs = dict(previous.get("runs") or {})
+            previous_failed = list(previous.get("failed") or [])
+        except (OSError, json.JSONDecodeError):
+            pass
+    merged_runs = {name: run for name, run in previous_runs.items() if name not in names}
+    merged_runs.update(results)
+    merged_failed = sorted((set(previous_failed) - set(names)) | set(failures))
     payload = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "shared_root": shared_root,
-        "runs": results,
-        "failed": failures,
+        "runs": merged_runs,
+        "failed": merged_failed,
         "next": "python experiments/smoke/calibrate.py --apply",
     }
-    timing_path = Path(args.timing)
     timing_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 1 if failures else 0

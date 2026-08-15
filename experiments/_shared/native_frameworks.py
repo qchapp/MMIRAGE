@@ -428,13 +428,11 @@ def run_nemo_curator(
     from nemo_curator.tasks import DocumentBatch
 
     class RewriteStage(ProcessingStage[DocumentBatch, DocumentBatch]):
+        name = "native_rewrite_llm"
+
         def __init__(self, base_url: str, api_key: str = "unused"):
             super().__init__()
             self.client = OpenAIClient(base_url=base_url, api_key=api_key)
-
-        @property
-        def name(self) -> str:
-            return "native_rewrite_llm"
 
         def inputs(self) -> tuple[list[str], list[str]]:
             return ["data"], []
@@ -481,7 +479,7 @@ def run_nemo_curator(
             _write_output(input_path, rows)
             pipeline = Pipeline(name="native_rewrite_ultrachat", description="Native text rewrite via NeMo Curator")
             pipeline.add_stage(JsonlReader(file_paths=str(input_path)))
-            pipeline.add_stage(RewriteStage(base_url=base_url))
+            pipeline.add_stage(RewriteStage(base_url=f"{base_url}/v1"))
             pipeline.add_stage(JsonlWriter(path=str(output_dir)))
             pipeline.run(executor=RayDataExecutor())
             result_rows = []

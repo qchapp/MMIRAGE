@@ -123,6 +123,18 @@ def parse_args() -> argparse.Namespace:
         help="Physical GPU index to pin via CUDA_VISIBLE_DEVICES for the whole run "
         "(server and clients). Unset on single-GPU nodes.",
     )
+    parser.add_argument(
+        "--datatrove-python",
+        default=None,
+        help="Python interpreter with datatrove+vllm for the datatrove path "
+        "(default: $MMIRAGE_DATATROVE_PYTHON, else this interpreter).",
+    )
+    parser.add_argument(
+        "--nemo-curator-python",
+        default=None,
+        help="Python interpreter with nemo-curator+vllm for the nemo_curator path "
+        "(default: $MMIRAGE_NEMO_CURATOR_PYTHON, else this interpreter).",
+    )
     parser.add_argument("--concurrency", type=int, default=64)
     parser.add_argument("--port", type=int, default=30000)
     parser.add_argument("--host", default="127.0.0.1")
@@ -404,6 +416,19 @@ def run_mmirage(
     )
 
 
+def native_worker_python(args: argparse.Namespace, framework: str) -> str:
+    """Interpreter for a native-framework shard worker.
+
+    The datatrove/nemo_curator paths need their framework (and a vllm CLI)
+    importable, which lives in a separate venv from the MMIRAGE runtime.
+    """
+    flag = {
+        "datatrove": args.datatrove_python,
+        "nemo_curator": args.nemo_curator_python,
+    }[framework]
+    return flag or os.environ.get(f"MMIRAGE_{framework.upper()}_PYTHON") or sys.executable
+
+
 def run_native(
     args: argparse.Namespace,
     framework: str,
@@ -446,7 +471,7 @@ def run_native(
         / "native_shard_worker.py"
     )
     command = [
-        sys.executable,
+        native_worker_python(args, framework),
         str(worker),
         "--framework",
         framework,
