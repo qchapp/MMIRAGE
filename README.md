@@ -61,6 +61,15 @@ experiments fail that way, pin the versions recorded in `requirements-hpc-lock.t
 pip install flash-attn-4==4.0.0b15 nvidia-cutlass-dsl==4.5.2 apache-tvm-ffi==0.1.11
 ```
 
+The `sgl-kernel` and `sglang-kernel` wheels both ship an overlapping `deep_gemm/` module, so the
+install-order of the two decides which files land in `site-packages`. A mixed set fails at server
+start with `'_OpNamespace' 'deep_gemm' object has no attribute 'm_grouped_bf16_gemm_nn_contiguous'`.
+If that happens, force-reinstall `sgl-kernel` last so all `deep_gemm` files come from one wheel:
+
+```bash
+pip install --force-reinstall --no-deps sgl-kernel==0.3.21
+```
+
 Install the SGLang diffusion extra when MMIRAGE should launch an image-generation server:
 
 ```bash

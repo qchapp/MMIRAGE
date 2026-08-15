@@ -34,41 +34,55 @@ and `experiments/*/results/` is git-ignored; never commit those.
   `cnn_dailymail`, and `UCSC-VLAA/MedTrinity-25M` may need pre-downloading into
   the shared `HF_HOME`; the downloads are cached on the pod after the first run.
 
-Create one venv with the MMIRAGE runtime:
+Create one venv with the MMIRAGE runtime. The GPU stack lives in the `[gpu]`
+extra (a bare `-e .` installs no torch/sglang), CUDA torch must be installed
+first (root README "GPU install"), and `--prerelease=allow` is required because
+`sglang` pins `flash-attn-4` to a prerelease build that uv refuses by default:
 
 ```
 export HF_HOME=/workspace/mmirage-hf
 export MMIRAGE_RECOVERY_ROOT=/workspace/mmirage-recovery
-source /lightscratch/users/nemo/.local/bin/uv 2>/dev/null || export PATH=/lightscratch/users/nemo/.local/bin:$PATH #may change depending on the actual environment, adapt accordingly
+export PATH=/lightscratch/users/nemo/.local/bin:$PATH   # pod-local uv, if `which uv` finds none; adapt to the actual environment
 cd /workspace/MMIRAGE
-uv venv .venv
+uv venv .venv --python 3.12
 source .venv/bin/activate
-# MMIRAGE dependencies (see pyproject/setup); pins sglang + vLLM + mmirage itself
-uv pip install -e . 
-```
-
-Pinned sglang versions need `setuptools<76` and `SETUPTOOLS_USE_DISTUTILS=local`:
-
-```
 uv pip install "setuptools<76"
 export SETUPTOOLS_USE_DISTUTILS=local
+uv pip install --index-url https://download.pytorch.org/whl/cu129 \
+  torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1
+uv pip install --prerelease=allow -e ".[gpu]"
 ```
 
-`sglang` does not bound `flash-attn-4` or `nvidia-cutlass-dsl`, so a fresh resolve
-can build a combination that fails at H100 attention-backend init with
+`sglang` does not bound `flash-attn-4` or `nvidia-cutlass-dsl`, so a fresh
+resolve can build a combination that fails at H100 attention-backend init with
 `AttributeError: module 'cutlass._mlir.dialects.nvvm' has no attribute
-'RoundingModeKind'`. If the MMIRAGE install or a server fails that way, reinstall
-with prereleases allowed and pin the recorded versions:
+'RoundingModeKind'` (2026-08-15: a fresh resolve picks `flash-attn-4 4.0.0b19`).
+Pin the recorded versions right after the install:
 
 ```
-uv pip install --prerelease=allow -e .
-uv pip install "flash-attn-4==4.0.0b15" "nvidia-cutlass-dsl==4.5.2" "apache-tvm-ffi==0.1.11"
+uv pip install --prerelease=allow "flash-attn-4==4.0.0b15" "nvidia-cutlass-dsl==4.5.2" "apache-tvm-ffi==0.1.11"
+```
+
+`sgl-kernel` and `sglang-kernel` both ship an overlapping `deep_gemm/` module and
+the install order decides which files win; a mixed set fails every server start
+with `'_OpNamespace' 'deep_gemm' object has no attribute
+'m_grouped_bf16_gemm_nn_contiguous'` (observed with uv on 2026-08-15). Reinstall
+`sgl-kernel` last so all `deep_gemm` files come from one wheel:
+
+```
+uv pip install --prerelease=allow --reinstall sgl-kernel==0.3.21
 ```
 
 Create the competitor venvs exactly as the per-experiment
 `environment/*_uv_requirements.txt` files describe (datatrove, nemo_curator,
 distilabel, ray_data_llm, raw_sglang). Each runner's README names the venv it
-expects.
+expects. Then point the raw_sglang_overhead runner's native paths at the
+datatrove and nemo_curator interpreters:
+
+```
+export MMIRAGE_DATATROVE_PYTHON=/workspace/MMIRAGE/.venv-datatrove/bin/python
+export MMIRAGE_NEMO_CURATOR_PYTHON=/workspace/MMIRAGE/.venv-nemo_curator/bin/python
+```
 
 ## Verify the repo
 
@@ -115,12 +129,17 @@ literal runbook; the commands below are the summary.
 
 ### 1. raw_sglang_overhead (1 GPU, 4 paths, 1 rep each)
 
+The datatrove/nemo_curator paths run in their own venvs via
+`MMIRAGE_DATATROVE_PYTHON` / `MMIRAGE_NEMO_CURATOR_PYTHON` (exported above).
+
 ```
 python experiments/raw_sglang_overhead/scripts/prepare_workload.py \
   --output-dir experiments/raw_sglang_overhead/workload
 python experiments/raw_sglang_overhead/scripts/run.py \
   --workload-dir experiments/raw_sglang_overhead/workload \
-  --output-dir experiments/raw_sglang_overhead/results
+  --output-dir experiments/raw_sglang_overhead/results \
+  --frameworks raw_sglang,mmirage_sglang,datatrove,nemo_curator \
+  --repetitions 1
 ```
 
 Outputs `results/summary.json` (throughput_retention, relative_orchestration_overhead),

@@ -2,7 +2,7 @@
 
 Same MedTrinity demo subset, prompt, model (`Qwen/Qwen3-VL-4B-Instruct`), and 4-GPU point for MMIRAGE, SGLang, DataTrove, and NeMo Curator. MMIRAGE runs through `mmirage.shard_process`; the natives run the shared VLM runners in `experiments/_shared/vlm_runners.py`.
 
-Workload size lives in `configs/workload_size.yaml` (`num_rows`, written by the calibrator). Set `HF_TOKEN` for the demo config.
+Workload size lives in `configs/workload_size.yaml` (`num_rows`, written by the calibrator). `UCSC-VLAA/MedTrinity-25M` is a gated dataset (auto-approved): request access once with your account on its Hub page, then set `HF_TOKEN` so the demo config can download (~8 GB).
 
 ## 1. Prepare workload
 

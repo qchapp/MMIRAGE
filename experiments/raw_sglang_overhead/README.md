@@ -35,6 +35,14 @@ Add `--gpu-index <n>` on a multi-GPU node, or `--server-extra-args-json
 the H100-recorded `flashinfer` backend. `--dry-run` prints the server command
 without starting SGLang.
 
+The default `--frameworks raw_sglang,mmirage_sglang` runs entirely in the
+MMIRAGE venv. The `datatrove` / `nemo_curator` paths need their framework (plus
+a `vllm` CLI) importable, which lives in a separate venv per
+`../single_node_h100_scaling/environment/<name>_uv_requirements.txt`; point the
+runner at those interpreters with `--datatrove-python` / `--nemo-curator-python`
+or the `MMIRAGE_DATATROVE_PYTHON` / `MMIRAGE_NEMO_CURATOR_PYTHON` environment
+variables, then add `--frameworks raw_sglang,mmirage_sglang,datatrove,nemo_curator`.
+
 ## Outputs
 
 `summary.json` (throughput retention + overhead + environment metadata),
