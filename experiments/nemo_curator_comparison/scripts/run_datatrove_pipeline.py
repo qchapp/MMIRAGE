@@ -26,7 +26,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 OUTPUT_CONTRACT = {
     "required_fields": ["id", "messages", "metadata"],
     "metadata_fields": ["reference_answer", "generated_answer_normalized", "source"],
-    "validation": ["row_count_matches_input", "ids_match_input", "no_duplicate_ids", "row_order_matches_input", "nested_message_schema_valid"],
+    "validation": ["row_count_matches_input", "ids_match_input", "no_duplicate_ids", "row_order_matches_input", "nested_message_schema_valid", "reference_answer_preserved"],
 }
 
 
@@ -213,6 +213,7 @@ def main() -> int:
 
     output_ids = [item["id"] for item in output_rows]
     expected_ids = [row["id"] for row in rows]
+    reference_by_id = {row["id"]: row.get("reference_answer") for row in rows}
     validation = {
         "row_count_matches_input": len(output_rows) == len(rows),
         "ids_match_input": not missing_ids,
@@ -226,6 +227,9 @@ def main() -> int:
             and isinstance(item["messages"][0].get("content"), list)
             and len(item["messages"][0]["content"]) >= 2
             for item in output_rows
+        ),
+        "reference_answer_preserved": all(
+            item["metadata"].get("reference_answer") == reference_by_id.get(item["id"]) for item in output_rows
         ),
         "missing_ids": missing_ids,
         "unexpected_ids": sorted(set(output_ids) - set(expected_ids)),

@@ -170,7 +170,7 @@ python experiments/task_comparison/vlm_enrichment/scripts/run_native_vlm_competi
 
 For every completed run, confirm before recording it:
 
-- `results/summary.json` parses and its `summary` rows are populated.
+- `results/summary.json` parses and its `summary` rows (scaling/text/vlm) or `metrics` (raw) are populated.
 - Per-repetition `validation.json` has `"valid": true` (native competitors).
 - `processed_rows` equals the prepared workload row count.
 - No shard failed (`failed_shards` empty) and exit codes were 0.

@@ -95,7 +95,7 @@ def main() -> None:
         args.repo_id,
         args.config_name,
         split=args.split,
-        revision=args.dataset_revision,
+        revision=dataset_revision,
     )
     if args.seed >= 0:
         ds = ds.shuffle(seed=args.seed)

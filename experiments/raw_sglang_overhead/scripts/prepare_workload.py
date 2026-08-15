@@ -72,11 +72,14 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    dataset_revision = resolved_revision(args.dataset, "dataset", args.dataset_revision)
+    model_revision = resolved_revision(args.model_path, "model", args.model_revision)
+
     total_rows = args.num_rows + args.warmup_rows
     ds = load_dataset(
         args.dataset,
         split=f"{args.split}[{args.start_index}:{args.start_index + total_rows}]",
-        revision=args.dataset_revision,
+        revision=dataset_revision,
     )
     if len(ds) < args.num_rows:
         raise RuntimeError(
@@ -85,7 +88,7 @@ def main() -> None:
 
     tokenizer = AutoTokenizer.from_pretrained(
         args.model_path,
-        revision=args.model_revision,
+        revision=model_revision,
         trust_remote_code=True,
     )
 
@@ -124,14 +127,10 @@ def main() -> None:
         "dataset": args.dataset,
         "split": args.split,
         "dataset_revision_requested": args.dataset_revision,
-        "dataset_revision_resolved": resolved_revision(
-            args.dataset, "dataset", args.dataset_revision
-        ),
+        "dataset_revision_resolved": dataset_revision,
         "model_path": args.model_path,
         "model_revision_requested": args.model_revision,
-        "model_revision_resolved": resolved_revision(
-            args.model_path, "model", args.model_revision
-        ),
+        "model_revision_resolved": model_revision,
         "start_index": args.start_index,
         "num_rows": args.num_rows,
         "warmup_rows": args.warmup_rows,

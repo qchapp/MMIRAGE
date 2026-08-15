@@ -152,65 +152,67 @@ def run_sglang_vlm(
     server = _spawn_sglang_server(model, port, server_log)
     model_load_seconds = 0.0
     runtime_seconds = 0.0
-    prompts_path = Path(tempfile.mkdtemp(prefix="sglang_vlm_")) / "prompts.jsonl"
-    summary_path = Path(tempfile.mkdtemp(prefix="sglang_vlm_")) / "summary.json"
-    output_rows_path = Path(tempfile.mkdtemp(prefix="sglang_vlm_")) / "outputs.jsonl"
     try:
-        started = time.perf_counter()
-        _wait_for_http(f"http://127.0.0.1:{port}/v1/models", server, timeout=900.0)
-        model_load_seconds = time.perf_counter() - started
-        write_jsonl(prompts_path, rows)
-        command = [
-            sys.executable,
-            "-m",
-            "experiments._shared.sglang_client",
-            "--prompts-jsonl",
-            str(prompts_path),
-            "--output-jsonl",
-            str(output_rows_path),
-            "--summary-json",
-            str(summary_path),
-            "--base-url",
-            f"http://127.0.0.1:{port}",
-            "--model",
-            model,
-            "--tokenizer",
-            model,
-            "--chat",
-            "--text-field",
-            text_field,
-            "--image-field",
-            image_field,
-            "--image-base-path",
-            str(image_base),
-            "--id-field",
-            id_field,
-            "--max-tokens",
-            str(max_new_tokens),
-            "--temperature",
-            str(temperature),
-            "--top-p",
-            str(top_p),
-            "--concurrency",
-            str(concurrency),
-            "--gpu-count",
-            str(gpu_count),
-            "--path",
-            "sglang_vlm",
-        ]
-        wall = time.perf_counter()
-        subprocess.run(command, check=True, cwd=str(PROJECT_ROOT))
-        generation_seconds = time.perf_counter() - wall
-        summary = json.loads(summary_path.read_text(encoding="utf-8"))
-        runtime_seconds = model_load_seconds + generation_seconds
-        answers: Dict[str, str] = {}
-        for item in read_jsonl(output_rows_path):
-            if item.get("status") == "success":
-                answers[str(item.get(id_field))] = item.get("output_text", "")
-        _write_contract(output_path, rows, answers, id_field)
-        output_tokens = int(summary.get("total_output_tokens") or _output_tokens(answers, model))
-        stats = _runner_stats(rows, 0, output_tokens, model_load_seconds, runtime_seconds)
-        return stats
+        with tempfile.TemporaryDirectory(prefix="sglang_vlm_") as scratch:
+            scratch_dir = Path(scratch)
+            prompts_path = scratch_dir / "prompts.jsonl"
+            summary_path = scratch_dir / "summary.json"
+            output_rows_path = scratch_dir / "outputs.jsonl"
+            started = time.perf_counter()
+            _wait_for_http(f"http://127.0.0.1:{port}/v1/models", server, timeout=900.0)
+            model_load_seconds = time.perf_counter() - started
+            write_jsonl(prompts_path, rows)
+            command = [
+                sys.executable,
+                "-m",
+                "experiments._shared.sglang_client",
+                "--prompts-jsonl",
+                str(prompts_path),
+                "--output-jsonl",
+                str(output_rows_path),
+                "--summary-json",
+                str(summary_path),
+                "--base-url",
+                f"http://127.0.0.1:{port}",
+                "--model",
+                model,
+                "--tokenizer",
+                model,
+                "--chat",
+                "--text-field",
+                text_field,
+                "--image-field",
+                image_field,
+                "--image-base-path",
+                str(image_base),
+                "--id-field",
+                id_field,
+                "--max-tokens",
+                str(max_new_tokens),
+                "--temperature",
+                str(temperature),
+                "--top-p",
+                str(top_p),
+                "--concurrency",
+                str(concurrency),
+                "--gpu-count",
+                str(gpu_count),
+                "--path",
+                "sglang_vlm",
+            ]
+            wall = time.perf_counter()
+            subprocess.run(command, check=True, cwd=str(PROJECT_ROOT))
+            generation_seconds = time.perf_counter() - wall
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            runtime_seconds = model_load_seconds + generation_seconds
+            answers: Dict[str, str] = {}
+            for item in read_jsonl(output_rows_path):
+                if item.get("status") == "success":
+                    answers[str(item.get(id_field))] = item.get("output_text", "")
+            _write_contract(output_path, rows, answers, id_field)
+            output_tokens = int(summary.get("total_output_tokens") or _output_tokens(answers, model))
+            stats = _runner_stats(rows, 0, output_tokens, model_load_seconds, runtime_seconds)
+            return stats
     finally:
         _terminate_sglang_server(server)
 

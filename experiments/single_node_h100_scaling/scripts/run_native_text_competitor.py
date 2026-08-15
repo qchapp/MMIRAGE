@@ -265,7 +265,7 @@ def run_repetitions(args: argparse.Namespace, output_root: Path) -> None:
     gpu_ids = [item.strip() for item in args.visible_gpus.split(",") if item.strip()][: args.gpu_count]
 
     for repetition in range(1, args.repetitions + 1):
-        run_dir = output_root / "runs" / f"gpu_{args.gpu_count}" / f"rep_{repetition:02d}"
+        run_dir = output_root / "runs" / f"gpu_{args.gpu_count}" / f"rep_{repetition}"
         if run_dir.exists() and any(run_dir.iterdir()):
             if not args.overwrite:
                 raise SystemExit(f"Run directory already exists: {run_dir} (pass --overwrite to replace it)")

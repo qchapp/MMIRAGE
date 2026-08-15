@@ -111,7 +111,7 @@ def main() -> None:
     dataset_revision = resolved_revision(args.dataset, "dataset", args.dataset_revision)
     model_revision = resolved_revision(args.model_path, "model", args.model_revision)
 
-    ds = load_dataset(args.dataset, split=args.split, revision=args.dataset_revision)
+    ds = load_dataset(args.dataset, split=args.split, revision=dataset_revision)
     if args.seed >= 0:
         ds = ds.shuffle(seed=args.seed)
 

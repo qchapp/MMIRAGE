@@ -157,7 +157,7 @@ def main() -> None:
     dataset_revision = resolved_revision(args.dataset, "dataset", args.revision)
     model_revision = resolved_revision(args.model_path, "model", args.model_revision)
 
-    ds = load_dataset(args.dataset, split=args.split, revision=args.revision)
+    ds = load_dataset(args.dataset, split=args.split, revision=dataset_revision)
     ds = ds.add_column("__source_index", list(range(len(ds))))
     selected = ds.shuffle(seed=args.seed).select(range(args.num_records))
 
