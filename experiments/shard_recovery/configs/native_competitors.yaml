@@ -46,7 +46,6 @@ execution:
     --shared-root {shared_root}
     --gpu-ids {gpu_ids}
     --max-active-shards {max_active_shards}
-    --dry-run
 
 frameworks:
   datatrove:

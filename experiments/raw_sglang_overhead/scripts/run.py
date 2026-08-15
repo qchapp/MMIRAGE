@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Run raw SGLang and MMIRAGE-over-SGLang overhead repetitions."""
+"""Run per-path overhead repetitions for the hardware comparison experiment.
+
+Each repetition starts a fresh serving stack per path and measures the path
+end-to-end: raw SGLang and MMIRAGE over one SGLang server, and DataTrove / NeMo
+Curator as native one-GPU workers with their own vLLM server. Run the same
+``--output-dir`` command on an A100 and an H100 pod and compare the summary.
+"""
 
 from __future__ import annotations
 
@@ -105,6 +111,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--gpu-count", type=int, default=1)
     parser.add_argument(
+        "--frameworks",
+        default="raw_sglang,mmirage_sglang",
+        help="Comma-separated paths to run per repetition: "
+        "raw_sglang, mmirage_sglang, datatrove, nemo_curator.",
+    )
+    parser.add_argument(
         "--gpu-index",
         type=int,
         default=None,
@@ -130,6 +142,15 @@ def project_root() -> Path:
 
 def read_json(path: Path) -> Dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_jsonl(path: Path) -> List[Dict[str, Any]]:
+    rows = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                rows.append(json.loads(line))
+    return rows
 
 
 def write_json(path: Path, payload: Dict[str, Any]) -> None:
@@ -383,6 +404,84 @@ def run_mmirage(
     )
 
 
+def run_native(
+    args: argparse.Namespace,
+    framework: str,
+    prompts_jsonl: Path,
+    run_dir: Path,
+) -> tuple[float, Dict[str, Any]]:
+    """One-GPU native framework path (self-managed vLLM server) on the same workload.
+
+    The s1K workload rows are mapped onto the native contract fields
+    (``stable_id`` / ``source_index`` / ``prompt_sha256`` / ``prompt_text``) and
+    passed to the shared shard worker with ``--prompt-style raw`` so the model
+    receives exactly the prepared ``prompt_text``.
+    """
+    import hashlib
+
+    native_prompts = run_dir / "state" / "native_prompts.jsonl"
+    native_prompts.parent.mkdir(parents=True, exist_ok=True)
+    with native_prompts.open("w", encoding="utf-8") as handle:
+        for row in load_jsonl(prompts_jsonl):
+            prompt_text = row["prompt_text"]
+            handle.write(
+                json.dumps(
+                    {
+                        "stable_id": str(row.get("source_index", row.get("stable_id"))),
+                        "source_index": row.get("source_index"),
+                        "prompt_sha256": hashlib.sha256(prompt_text.encode("utf-8")).hexdigest(),
+                        "prompt_text": prompt_text,
+                        "prompt": row.get("prompt"),
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+    worker = (
+        PROJECT_ROOT
+        / "experiments"
+        / "single_node_h100_scaling"
+        / "scripts"
+        / "native_shard_worker.py"
+    )
+    command = [
+        sys.executable,
+        str(worker),
+        "--framework",
+        framework,
+        "--input-jsonl",
+        str(native_prompts),
+        "--output-jsonl",
+        str(run_dir / "outputs.jsonl"),
+        "--status-json",
+        str(run_dir / "status.json"),
+        "--model",
+        args.model_path,
+        "--temperature",
+        str(args.temperature),
+        "--max-new-tokens",
+        str(args.max_tokens),
+        "--concurrency",
+        str(args.concurrency),
+        "--prompt-style",
+        "raw",
+        "--gpu-id",
+        str(args.gpu_index if args.gpu_index is not None else 0),
+    ]
+    poller = GpuPoller()
+    poller.start()
+    wall = timed_subprocess(command)
+    gpu = poller.stop()
+    status = read_json(run_dir / "status.json")
+    stats = status.get("stats") or {}
+    return wall, {
+        **stats,
+        "success_count": stats.get("rows_processed"),
+        "gpu_utilization_pct": gpu["mean"],
+    }
+
+
 def mmirage_metrics(run_dir: Path, full_wall_seconds: float) -> Dict[str, Any]:
     status = read_json(run_dir / "state" / "shard_0" / "status.json")
     stats = status.get("stats") or {}
@@ -444,9 +543,9 @@ def mean_std(values: Iterable[Any]) -> Dict[str, Optional[float]]:
 def build_summary(
     rows: List[Dict[str, Any]], metadata: Dict[str, Any]
 ) -> Dict[str, Any]:
-    grouped = {"raw_sglang": [], "mmirage_sglang": []}
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
     for row in rows:
-        grouped[row["path"]].append(row)
+        grouped.setdefault(row["path"], []).append(row)
     metric_names = [
         "output_tokens_per_second_per_gpu",
         "rows_per_second",
@@ -463,13 +562,17 @@ def build_summary(
         }
         for path_name, path_rows in grouped.items()
     }
-    raw_mean = metrics["raw_sglang"]["output_tokens_per_second_per_gpu"]["mean"]
-    mm_mean = metrics["mmirage_sglang"]["output_tokens_per_second_per_gpu"]["mean"]
-    retention = round(mm_mean / raw_mean, 6) if raw_mean and mm_mean else None
-    overhead = round(1.0 - retention, 6) if retention is not None else None
+    retention: Optional[float] = None
+    overhead: Optional[float] = None
+    if "raw_sglang" in metrics and "mmirage_sglang" in metrics:
+        raw_mean = metrics["raw_sglang"]["output_tokens_per_second_per_gpu"]["mean"]
+        mm_mean = metrics["mmirage_sglang"]["output_tokens_per_second_per_gpu"]["mean"]
+        retention = round(mm_mean / raw_mean, 6) if raw_mean and mm_mean else None
+        overhead = round(1.0 - retention, 6) if retention is not None else None
     return {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "interpretation": "end-to-end empirical overhead estimate, not a pure CPU orchestration microbenchmark",
+        "paths": sorted(grouped),
         "metrics": metrics,
         "throughput_retention": retention,
         "relative_orchestration_overhead": overhead,
@@ -504,24 +607,27 @@ def latex_cell(value: Dict[str, Optional[float]]) -> str:
 
 
 def write_latex_table(path: Path, summary: Dict[str, Any]) -> None:
-    raw = summary["metrics"]["raw_sglang"]
-    mm = summary["metrics"]["mmirage_sglang"]
     line_end = "\\\\"
-    table = "\n".join(
-        [
-            "\\begin{tabular}{lrrrr}",
-            "\\toprule",
-            f"Path & Output tok/s/GPU & Rows/s & Gen. wall (s) & Success count {line_end}",
-            "\\midrule",
-            f"Raw SGLang & {latex_cell(raw['output_tokens_per_second_per_gpu'])} & {latex_cell(raw['rows_per_second'])} & {latex_cell(raw['generation_wall_seconds'])} & {latex_cell(raw['success_count'])} {line_end}",
-            f"MMIRAGE over SGLang & {latex_cell(mm['output_tokens_per_second_per_gpu'])} & {latex_cell(mm['rows_per_second'])} & {latex_cell(mm['generation_wall_seconds'])} & {latex_cell(mm['success_count'])} {line_end}",
-            "\\bottomrule",
-            "\\end{tabular}",
-            f"% Throughput retention: {summary['throughput_retention']}",
-            f"% Relative orchestration overhead: {summary['relative_orchestration_overhead']}",
-        ]
-    )
-    path.write_text(table + "\n", encoding="utf-8")
+    lines = [
+        "\\begin{tabular}{lrrrr}",
+        "\\toprule",
+        f"Path & Output tok/s/GPU & Rows/s & Gen. wall (s) & Success count {line_end}",
+        "\\midrule",
+    ]
+    for path_name in sorted(summary["metrics"]):
+        metrics = summary["metrics"][path_name]
+        lines.append(
+            f"{path_name} & {latex_cell(metrics['output_tokens_per_second_per_gpu'])} & "
+            f"{latex_cell(metrics['rows_per_second'])} & "
+            f"{latex_cell(metrics['generation_wall_seconds'])} & "
+            f"{latex_cell(metrics['success_count'])} {line_end}"
+        )
+    lines.extend(["\\bottomrule", "\\end{tabular}"])
+    if summary.get("throughput_retention") is not None:
+        lines.append(f"% Throughput retention (MMIRAGE / raw SGLang): {summary['throughput_retention']}")
+    if summary.get("relative_orchestration_overhead") is not None:
+        lines.append(f"% Relative orchestration overhead: {summary['relative_orchestration_overhead']}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def write_plot_script(path: Path) -> None:
@@ -536,12 +642,11 @@ root = Path(__file__).resolve().parent
 with (root / "raw_results.csv").open(newline="", encoding="utf-8") as handle:
     rows = list(csv.DictReader(handle))
 
-labels = ["Raw SGLang", "MMIRAGE"]
-keys = ["raw_sglang", "mmirage_sglang"]
-data = [[float(row["output_tokens_per_second_per_gpu"]) for row in rows if row["path"] == key] for key in keys]
-plt.boxplot(data, labels=labels)
-plt.ylabel("Output tok/s/GPU")
-plt.title("Raw SGLang vs MMIRAGE over SGLang")
+labels = sorted({row["path"] for row in rows})
+data = [[float(row["output_tokens_per_second_per_gpu"]) for row in rows if row["path"] == label] for label in labels]
+plt.boxplot(data, labels=labels, vert=False)
+plt.xlabel("Output tok/s/GPU")
+plt.title("Serving-stack throughput by path")
 plt.tight_layout()
 plt.savefig(root / "throughput_boxplot.png", dpi=200)
 """,
@@ -565,6 +670,11 @@ def main() -> None:
     command = server_command(args)
     gpu_info = nvidia_metadata()
     gpu_label = "/".join(gpu_info.get("gpu_names") or ["unknown"])
+    selected_paths = [item.strip() for item in args.frameworks.split(",") if item.strip()]
+    valid_paths = {"raw_sglang", "mmirage_sglang", "datatrove", "nemo_curator"}
+    unknown = sorted(set(selected_paths) - valid_paths)
+    if unknown:
+        raise ValueError(f"Unknown --frameworks path(s): {unknown}; valid: {sorted(valid_paths)}")
     metadata = {
         "mmirage_commit": command_output(["git", "rev-parse", "HEAD"]),
         "sglang_version": command_output(
@@ -578,6 +688,7 @@ def main() -> None:
         "dataset_revision": workload_metadata.get("dataset_revision_resolved"),
         "gpu_cuda_driver": gpu_info,
         "server_arguments": command,
+        "frameworks": selected_paths,
         "generation_settings": {
             "temperature": args.temperature,
             "max_tokens": args.max_tokens,
@@ -587,7 +698,7 @@ def main() -> None:
         "workload": workload_metadata,
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "environment": (
-            f"one {gpu_label} target, Run:ai pod, no Slurm, same pod for both paths; "
+            f"one {gpu_label} target, Run:ai pod, no Slurm, same pod for all paths; "
             f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES', '(unset)')}"
         ),
     }
@@ -604,9 +715,34 @@ def main() -> None:
 
     rows: List[Dict[str, Any]] = []
     for rep in range(1, args.repetitions + 1):
-        for path_name in ("raw_sglang", "mmirage_sglang"):
+        for path_name in selected_paths:
             run_dir = output_dir / f"rep_{rep}" / path_name
             run_dir.mkdir(parents=True, exist_ok=True)
+            if path_name in ("datatrove", "nemo_curator"):
+                native_wall, native_metrics = run_native(args, path_name, prompts_jsonl, run_dir)
+                full_wall = native_wall
+                row = {
+                    "repetition": rep,
+                    "path": path_name,
+                    "output_tokens_per_second_per_gpu": round(
+                        native_metrics.get("output_tokens", 0) / (full_wall * args.gpu_count), 6
+                    )
+                    if full_wall > 0
+                    else None,
+                    "rows_per_second": round(native_metrics.get("rows_processed", 0) / full_wall, 6)
+                    if full_wall > 0
+                    else None,
+                    "total_output_tokens": native_metrics.get("output_tokens"),
+                    "gpu_utilization_pct": native_metrics.get("gpu_utilization_pct"),
+                    "model_loading_seconds": native_metrics.get("model_load_seconds"),
+                    "generation_wall_seconds": native_metrics.get("inference_runtime_seconds"),
+                    "full_end_to_end_wall_seconds": round(full_wall, 6),
+                    "success_count": native_metrics.get("success_count"),
+                    "server_command": f"native_shard_worker {path_name} (self-managed vLLM server)",
+                }
+                rows.append(row)
+                write_raw_results_csv(output_dir / "raw_results.csv", rows)
+                continue
             proc, startup_seconds, base_url, server_cmd = start_server(args, run_dir)
             warmup_wall = 0.0
             try:

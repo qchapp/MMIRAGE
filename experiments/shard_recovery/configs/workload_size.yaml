@@ -1,0 +1,3 @@
+# Workload size written by experiments/smoke/calibrate.py.
+# Divisible by 16 so every shard has the same row count.
+num_records: 40000

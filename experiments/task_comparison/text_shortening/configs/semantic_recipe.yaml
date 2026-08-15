@@ -1,6 +1,6 @@
-# Fixed MMIRAGE semantic recipe for the single-node H100 strong-scaling experiment.
-# Keep this file identical for 1, 2, and 4 GPU points. The runner fills only
-# loading/execution placeholders such as paths, shard_id, num_shards, and output dirs.
+# Fixed MMIRAGE semantic recipe for the text_shortening task (cnn_dailymail).
+# The runner fills only loading/execution placeholders such as paths, shard_id,
+# num_shards, and output dirs.
 
 processors:
   - type: llm
@@ -14,17 +14,17 @@ processors:
         mem_fraction_static: 0.88
     default_sampling_params:
       temperature: 0.0
-      max_new_tokens: 256
+      max_new_tokens: 128
 
 loading_params:
-  state_dir: ${MMIRAGE_SCALING_STATE_DIR}
+  state_dir: ${MMIRAGE_TEXT_SHORT_STATE_DIR}
   datasets:
-    - path: ${MMIRAGE_SCALING_WORKLOAD_JSONL}
+    - path: ${MMIRAGE_TEXT_SHORT_WORKLOAD_JSONL}
       type: JSONL
-      output_dir: ${MMIRAGE_SCALING_OUTPUT_DIR}
-  num_shards: ${MMIRAGE_SCALING_NUM_SHARDS}
-  shard_id: ${MMIRAGE_SCALING_SHARD_ID}
-  batch_size: ${MMIRAGE_SCALING_BATCH_SIZE}
+      output_dir: ${MMIRAGE_TEXT_SHORT_OUTPUT_DIR}
+  num_shards: ${MMIRAGE_TEXT_SHORT_NUM_SHARDS}
+  shard_id: ${MMIRAGE_TEXT_SHORT_SHARD_ID}
+  batch_size: ${MMIRAGE_TEXT_SHORT_BATCH_SIZE}
 
 processing_params:
   inputs:
@@ -42,12 +42,10 @@ processing_params:
       type: llm
       output_type: plain
       prompt: |
-        You are helping construct a public text dataset.
+        Summarize the following news article in 2 to 3 sentences.
+        Keep the summary faithful to the facts in the article.
 
-        Rewrite the following user request into a helpful assistant response of 4 to 6 sentences.
-        Preserve the user's intent.
-
-        User request:
+        Article:
         {{ prompt_text }}
 
   remove_columns: false

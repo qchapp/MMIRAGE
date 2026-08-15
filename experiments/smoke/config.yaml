@@ -1,0 +1,158 @@
+# Per-experiment smoke measurement + calibration settings for MMIRAGE fast runs.
+#
+# rows_smoke:       subset size used for the smoke cell (the full run command on
+#                   a tiny workload).
+# target_seconds:   wall-clock budget for the slowest single run command of the
+#                   experiment (including model/server startup), i.e. a
+#                   <= ~10 minute session per command.
+# cells:            number of (startup + generation) units in that run command
+#                   (paths * repetitions for text/vlm/raw, repetitions for one
+#                   scaling GPU point, 1 for one recovery condition run).
+# recovery_factor:  multiplier on the baseline run for the slowest recovery
+#                   condition (1.5 for shard_recovery: fail_8 reruns half the
+#                   shards; 1.0 elsewhere).
+# size:             key written into <experiment>/configs/workload_size.yaml.
+#                   The calibrator clamps its recommendation to the smoke row
+#                   count at the low end and ``max`` at the high end; it only
+#                   falls back to ``preferred`` when generation time is ~0.
+# prepare/measure:  shell templates. {rows} is the smoke row count and
+#                   {shared_root} expands to the recovery shared root.
+# timing:           where to read the smoke cell timing. ``path`` is a dotted key
+#                   path into the JSON file; ``wall``/``load`` name the metric
+#                   keys (a metric may be a scalar or a {"mean": ...} dict).
+
+experiments:
+  raw_sglang_overhead:
+    prepare: >
+      python experiments/raw_sglang_overhead/scripts/prepare_workload.py
+      --output-dir experiments/raw_sglang_overhead/workload
+      --num-rows {rows}
+    measure: >
+      python experiments/raw_sglang_overhead/scripts/run.py
+      --workload-dir experiments/raw_sglang_overhead/workload
+      --output-dir experiments/raw_sglang_overhead/results
+      --frameworks raw_sglang,mmirage_sglang,datatrove,nemo_curator
+      --repetitions 1
+      --gpu-count 1
+    timing:
+      file: experiments/raw_sglang_overhead/results/summary.json
+      path: metrics.raw_sglang
+      wall: full_end_to_end_wall_seconds
+      load: model_loading_seconds
+      scope: per_cell
+    rows_smoke: 96
+    target_seconds: 480
+    cells: 4
+    recovery_factor: 1.0
+    notes: 1 repetition per path (fast-run deviation); the raw/mmirage/datatrove/nemo
+      throughput comparison needs no repetition.
+    size:
+      key: num_rows
+      fallback: 1000
+      preferred: 1000
+      max: 1500
+  single_node_h100_scaling:
+    prepare: >
+      python experiments/single_node_h100_scaling/scripts/prepare_workload.py
+      --output-dir experiments/single_node_h100_scaling/workload
+      --num-rows {rows}
+    measure: >
+      python experiments/single_node_h100_scaling/scripts/run.py
+      --execution-config experiments/single_node_h100_scaling/configs/execution_1gpu.yaml
+      --repetitions 1
+    timing:
+      file: experiments/single_node_h100_scaling/results/runs/gpu_1/rep_1/rep_summary.json
+      path: row
+      wall: end_to_end_wall_seconds
+      load: model_loading_seconds
+      scope: per_cell
+    rows_smoke: 1024
+    target_seconds: 480
+    cells: 3
+    recovery_factor: 1.0
+    notes: calibrates the 1-GPU point (slowest); 2-GPU and 4-GPU points then run faster.
+    size:
+      key: num_rows
+      fallback: 20000
+      preferred: 6000
+      max: 12000
+  shard_recovery:
+    prepare: >
+      python experiments/shard_recovery/scripts/prepare_workload.py
+      --output-root {shared_root}
+      --num-records {rows}
+    measure: >
+      python experiments/shard_recovery/scripts/run_local.py
+      run-condition
+      --condition baseline
+      --rep 1
+      --max-active-shards 4
+      --gpu-ids 0,1,2,3
+      --wait-timeout-seconds 3600
+    timing:
+      file: "{shared_root}/runs/baseline/rep_01/controller/phase_initial.json"
+      path: ""
+      wall: wall_seconds
+      load: ""
+      scope: whole_command
+    rows_smoke: 256
+    target_seconds: 600
+    cells: 1
+    recovery_factor: 1.5
+    notes: calibrates the baseline so the worst condition (fail_8) stays under
+      the budget (fail_8 ~= 1.5x baseline including retry waves).
+    size:
+      key: num_records
+      fallback: 40000
+      preferred: 4000
+      max: 16000
+  task_comparison/text_shortening:
+    prepare: >
+      python experiments/task_comparison/text_shortening/scripts/prepare_workload.py
+      --output-dir experiments/task_comparison/text_shortening/workload
+      --num-rows {rows}
+    measure: >
+      python experiments/single_node_h100_scaling/scripts/run.py
+      --execution-config experiments/task_comparison/text_shortening/configs/execution_4gpu.yaml
+      --repetitions 1
+    timing:
+      file: experiments/task_comparison/text_shortening/results/runs/gpu_4/rep_1/rep_summary.json
+      path: row
+      wall: end_to_end_wall_seconds
+      load: model_loading_seconds
+      scope: per_cell
+    rows_smoke: 1024
+    target_seconds: 480
+    cells: 3
+    recovery_factor: 1.0
+    notes: calibrates the MMIRAGE 4-GPU point (slowest single command).
+    size:
+      key: num_rows
+      fallback: 40000
+      preferred: 40000
+      max: 80000
+  task_comparison/vlm_enrichment:
+    prepare: >
+      python experiments/task_comparison/vlm_enrichment/scripts/prepare_workload.py
+      --output-dir experiments/task_comparison/vlm_enrichment/workload
+      --num-rows {rows}
+    measure: >
+      python experiments/task_comparison/vlm_enrichment/scripts/run_mmirage_vlm.py
+      --execution-config experiments/task_comparison/vlm_enrichment/configs/execution_4gpu.yaml
+      --repetitions 1
+    timing:
+      file: experiments/task_comparison/vlm_enrichment/results/runs/gpu_4/rep_1/rep_summary.json
+      path: row
+      wall: end_to_end_wall_seconds
+      load: model_loading_seconds
+      scope: per_cell
+    rows_smoke: 64
+    target_seconds: 480
+    cells: 3
+    recovery_factor: 1.0
+    notes: calibrates the MMIRAGE 4-GPU point (slowest single command).
+    size:
+      key: num_rows
+      fallback: 400
+      preferred: 400
+      max: 1200

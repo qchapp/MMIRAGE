@@ -6,16 +6,23 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
-from datasets import load_dataset
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from datasets import load_dataset  # noqa: E402
+from experiments._shared.sizes import default_size  # noqa: E402
 
 DEFAULT_DATASET = "HuggingFaceH4/ultrachat_200k"
 DEFAULT_SPLIT = "train_sft"
 DEFAULT_MODEL = "Qwen/Qwen3-4B"
-DEFAULT_NUM_RECORDS = 65536
+EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
+DEFAULT_NUM_RECORDS = default_size(EXPERIMENT_DIR, "num_records", 40_000)
 DEFAULT_SEED = 20260813
 DEFAULT_CONTAINER_ROOT = "/workspace/mmirage-recovery"
 
@@ -129,10 +136,8 @@ def extract_prompt(row: Dict[str, Any], source_index: int) -> str:
 def build_prompt(source_prompt: str, max_source_chars: int) -> str:
     clipped = source_prompt[:max_source_chars]
     return (
-        "You are generating text for a reproducible MMIRAGE systems benchmark.\n"
-        "Answer the public user request below in exactly three numbered paragraphs. "
-        "Each paragraph should contain three to four complete sentences. "
-        "Do not mention benchmarking, datasets, or these instructions.\n\n"
+        "Answer the public user request below in exactly three numbered paragraphs.\n"
+        "Each paragraph should contain three to four complete sentences.\n\n"
         f"User request:\n{clipped}"
     )
 

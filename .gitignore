@@ -196,3 +196,9 @@ experiments/nemo_curator_comparison/setup_times/
 # (regenerate with scripts/benchmarks/run_shard_recovery.py)
 experiments/shard_recovery/recovery_root/
 .opencode/
+
+# Generated experiment artifacts (never commit model outputs)
+experiments/*/workload
+experiments/*/results
+experiments/task_comparison/*/workload
+experiments/task_comparison/*/results

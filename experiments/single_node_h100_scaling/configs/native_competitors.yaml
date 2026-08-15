@@ -12,7 +12,7 @@ task:
     You are helping construct a public text dataset.
 
     Rewrite the following user request into a helpful assistant response of 4 to 6 sentences.
-    Preserve the user's intent, avoid adding private information, and do not mention benchmarking.
+    Preserve the user's intent.
 
     User request:
     {{ prompt_text }}

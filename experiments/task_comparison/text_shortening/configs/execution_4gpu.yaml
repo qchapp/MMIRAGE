@@ -1,0 +1,9 @@
+semantic_recipe: experiments/task_comparison/text_shortening/configs/semantic_recipe.yaml
+workload_jsonl: experiments/task_comparison/text_shortening/workload/workload.jsonl
+output_root: experiments/task_comparison/text_shortening/results
+gpu_count: 4
+visible_gpus: [0, 1, 2, 3]
+repetitions: 3
+batch_size: 256
+environment:
+  TOKENIZERS_PARALLELISM: "false"

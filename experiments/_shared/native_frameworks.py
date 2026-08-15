@@ -25,28 +25,14 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
+from experiments._shared.io import read_jsonl, write_jsonl
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
-
-def _ensure_distutils_shim() -> None:
-    """Keep ``distutils`` importable on Python 3.12 even when the parent shell
-    exports ``SETUPTOOLS_USE_DISTUTILS=stdlib`` (distutils was removed from the
-    standard library). Harmless when setuptools is not installed."""
-    try:
-        os.environ["SETUPTOOLS_USE_DISTUTILS"] = "local"
-        import _distutils_hack
-
-        _distutils_hack.add_shim()
-    except ImportError:
-        pass
-
-
-_ensure_distutils_shim()
 
 REWRITE_PROMPT_TEMPLATE = (
     "You are helping construct a public text dataset.\n\n"
     "Rewrite the following user request into a helpful assistant response of 4 to 6 sentences.\n"
-    "Preserve the user's intent, avoid adding private information, and do not mention benchmarking.\n\n"
+    "Preserve the user's intent.\n\n"
     "User request:\n"
     "{prompt_text}"
 )
@@ -154,8 +140,7 @@ def _spawn_vllm_server(model: str, port: int, max_model_len: int, log_path: Opti
     """Launch ``vllm serve`` (vLLM 0.23-compatible flags) in its own process group.
 
     Returns the Popen handle; the caller must terminate it. The child inherits
-    ``SETUPTOOLS_USE_DISTUTILS=local`` so Python 3.12 + setuptools works even if
-    the parent shell exported ``SETUPTOOLS_USE_DISTUTILS=stdlib``.
+    ``SETUPTOOLS_USE_DISTUTILS=local`` so DataTrove/NeMo work on Python 3.12.
     """
     vllm_bin = shutil.which("vllm") or str(Path(sys.prefix) / "bin" / "vllm")
     cmd = [
@@ -534,19 +519,11 @@ FRAMEWORK_RUNNERS: dict[str, Callable[..., dict[str, Any]]] = {
 
 
 def _write_output(path: Path, rows: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        for row in rows:
-            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
+    write_jsonl(path, rows)
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
-    rows = []
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            if line.strip():
-                rows.append(json.loads(line))
-    return rows
+    return read_jsonl(path)
 
 
 def validate_contract(
