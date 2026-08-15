@@ -2,8 +2,10 @@
 
 You are an agent running inside an EPFL Run:ai GPU pod for the
 `fabnemEPFL/MMIRAGE` repository, branch `experiment/fast-runs`. Your job is to
-execute the MMIRAGE fast-run experiments described below, verify them, and push
-the results back to the branch. Everything you generate under `experiments/*/workload/`
+execute the MMIRAGE fast-run experiments described below, verify them, and save the
+the results as a single ZIP file alongside a prompt for an agent to read, for analyzing
+the results and integrating them into a publication showcasing MMIRAGE.
+Everything you generate under `experiments/*/workload/`
 and `experiments/*/results/` is git-ignored; never commit those.
 
 ## Hard rules
@@ -21,10 +23,10 @@ and `experiments/*/results/` is git-ignored; never commit those.
    errors); always use a uv venv python.
 5. If a step fails, diagnose from the logs and retry once. If it fails again,
    record the failure verbatim in `RUNLOG.md` and move on; do not loop.
+6. Never change the code in the `src/` folder.
 
 ## Environment
 
-- `uv` is available at `/lightscratch/users/nemo/.local/bin/uv` (add it to PATH).
 - The active job (`meditron-fab-h100`, 4x H100) is yours to use; do not create
   jobs.
 - Set `export HF_TOKEN=<your token>` so MedTrinity and gated datasets download.
@@ -37,7 +39,7 @@ Create one venv with the MMIRAGE runtime:
 ```
 export HF_HOME=/workspace/mmirage-hf
 export MMIRAGE_RECOVERY_ROOT=/workspace/mmirage-recovery
-source /lightscratch/users/nemo/.local/bin/uv 2>/dev/null || export PATH=/lightscratch/users/nemo/.local/bin:$PATH
+source /lightscratch/users/nemo/.local/bin/uv 2>/dev/null || export PATH=/lightscratch/users/nemo/.local/bin:$PATH #may change depending on the actual environment, adapt accordingly
 cd /workspace/MMIRAGE
 uv venv .venv
 source .venv/bin/activate
