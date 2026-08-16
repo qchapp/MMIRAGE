@@ -35,6 +35,34 @@ _ACTIVE_SERVERS: list[subprocess.Popen] = []
 _HANDLER_INSTALLED = False
 
 
+def _SamplingParamsCompat(base: type) -> type:
+    """Build a drop-in replacement for ``vllm.SamplingParams``.
+
+    distilabel 1.5.3 always passes ``logits_processors`` to ``SamplingParams``,
+    but modern vLLM removed that field. The class is an msgspec ``Struct`` so it
+    cannot be subclassed, and no structured output is used here, so dropping the
+    kwarg is behaviour-neutral. The replacement is a plain class whose ``__new__``
+    pops the kwarg and returns a real instance; a metaclass ``__getattr__``
+    forwards class-level access (e.g. ``SamplingParams.for_sampler_warmup()``) to
+    the real class, and because it is a class, runtime unions such as
+    ``SamplingParams | PoolingParams`` keep working.
+    """
+
+    class _CompatMeta(type):
+        def __getattr__(cls, name):
+            return getattr(base, name)
+
+    class _Compat(metaclass=_CompatMeta):
+        __module__ = base.__module__
+
+        def __new__(cls, *args, **kwargs):
+            kwargs.pop("logits_processors", None)
+            return base(*args, **kwargs)
+
+    _Compat.__name__ = base.__name__
+    return _Compat
+
+
 def _install_server_cleanup_handler() -> None:
     """Ensure SIGTERM/SIGINT also terminate any spawned vLLM servers.
 
@@ -330,10 +358,17 @@ def run_distilabel(
     id_field: str = "stable_id",
 ) -> dict[str, Any]:
     """Distilabel pipeline with a native local vLLM-backed LLM task."""
-    from datasets import Dataset
+    import vllm
+    from datasets import Dataset, DatasetDict
     from distilabel.llms import vLLM
     from distilabel.pipeline import Pipeline
     from distilabel.steps.tasks import TextGeneration
+
+    _SamplingParams = vllm.SamplingParams
+    try:
+        _SamplingParams(temperature=0.0, max_tokens=1, logits_processors=[])
+    except TypeError:
+        vllm.SamplingParams = _SamplingParamsCompat(_SamplingParams)
 
     records = []
     for row in rows:
@@ -352,12 +387,18 @@ def run_distilabel(
     started = time.perf_counter()
     with Pipeline() as pipeline:
         step = TextGeneration(
-            llm=vLLM(model=model, trust_remote_code=True),
+            llm=vLLM(
+                model=model,
+                trust_remote_code=True,
+                extra_kwargs={"gpu_memory_utilization": 0.85},
+            ),
             columns=["prompt"],
+            template="{{ prompt }}",
             output_mappings={"generation": "answer"},
         )
     distiset = pipeline.run(
         dataset=dataset,
+        use_cache=False,
         parameters={
             step.name: {
                 "llm": {"generation_kwargs": {"temperature": temperature, "max_new_tokens": max_new_tokens}},
@@ -366,17 +407,23 @@ def run_distilabel(
         },
     )
     split_name = next(iter(distiset.keys()))
-    output_rows = []
-    for item in distiset[split_name].to_list():
-        output_rows.append(
-            {
-                id_field: item[id_field],
-                "source_index": item["source_index"],
-                "prompt_sha256": item.get("prompt_sha256"),
-                "prompt_text": item["prompt_text"],
-                "answer": item.get("answer", "") or "",
-            }
-        )
+    leaf_dataset = distiset[split_name]
+    if isinstance(leaf_dataset, DatasetDict):
+        output_rows = []
+        for split_dataset in leaf_dataset.values():
+            output_rows.extend(split_dataset.to_list())
+    else:
+        output_rows = leaf_dataset.to_list()
+    output_rows = [
+        {
+            id_field: item[id_field],
+            "source_index": item["source_index"],
+            "prompt_sha256": item.get("prompt_sha256"),
+            "prompt_text": item["prompt_text"],
+            "answer": item.get("answer", "") or "",
+        }
+        for item in output_rows
+    ]
     output_rows.sort(key=lambda item: int(item["source_index"]))
     runtime = time.perf_counter() - started
     output_tokens = sum(len(tokenizer.encode(item["answer"])) for item in output_rows)

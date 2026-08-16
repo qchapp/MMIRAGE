@@ -6,3 +6,4 @@ pyarrow
 pillow
 openai
 orjson
+beautifulsoup4
