@@ -181,6 +181,7 @@ def launch_worker(
     env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     env["HF_HOME"] = str(Path(args.shared_root) / "hf")
     env["TRANSFORMERS_CACHE"] = str(Path(args.shared_root) / "hf" / "transformers")
+    env["HF_HUB_OFFLINE"] = "1"
     env["PYTHONUNBUFFERED"] = "1"
     state_dir = args.state_dir
     command = [
@@ -232,6 +233,74 @@ def wait_for_running(args: argparse.Namespace, shard_id: int, proc: subprocess.P
         time.sleep(1)
 
 
+def orphaned_engine_cores() -> List[int]:
+    """Return PIDs of ``VLLM::EngineCore`` processes whose parent is dead.
+
+    vLLM 0.27 launches each engine in a detached subprocess; when the owning
+    worker is killed (the deliberate fail-shard SIGTERM) or exits abnormally,
+    the engine is reparented to PID 1 and keeps holding GPU memory. Any such
+    orphan blocks later waves with vLLM's "Free memory ... less than desired
+    GPU memory utilization" startup check.
+    """
+    pids = []
+    for pid in Path("/proc").iterdir():
+        if not pid.name.isdigit():
+            continue
+        try:
+            stat = (pid / "stat").read_text(errors="replace")
+        except OSError:
+            continue
+        parts = stat.split(")")
+        if len(parts) < 2:
+            continue
+        comm = parts[0].rsplit(" ", 1)[-1].lstrip("(")
+        tail = parts[1].split()
+        if len(tail) < 2 or comm != "VLLM::EngineCore":
+            continue
+        ppid = int(tail[0])
+        if ppid <= 1:
+            pids.append(int(pid.name))
+    return pids
+
+
+def sweep_orphaned_engine_cores(args: argparse.Namespace, max_wait_seconds: int = 90) -> List[int]:
+    """Kill orphaned vLLM engine cores and wait for GPU memory to drain."""
+    orphans = orphaned_engine_cores()
+    if not orphans:
+        return []
+    for pid in orphans:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    deadline = time.monotonic() + 12
+    for pid in list(orphans):
+        try:
+            os.kill(pid, 0)
+            if time.monotonic() < deadline:
+                time.sleep(0.5)
+            else:
+                os.kill(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+    freed_at = None
+    while time.monotonic() - (freed_at or 0) < max_wait_seconds:
+        try:
+            mem_used = subprocess.run(
+                ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=10,
+            ).stdout.split()
+        except (subprocess.SubprocessError, FileNotFoundError):
+            break
+        if all(int(m) <= 500 for m in mem_used):
+            return orphans
+        time.sleep(5)
+    return orphans
+
+
 def kill_worker(proc: subprocess.Popen[str]) -> None:
     try:
         os.killpg(proc.pid, signal.SIGTERM)
@@ -262,6 +331,7 @@ def run_phase(
     pod_records: List[Dict[str, Any]] = []
     for wave_index, wave_shards in enumerate(chunked(list(shards), args.max_active_shards), start=1):
         wave_phase = f"{phase}_w{wave_index:02d}"
+        sweep_orphaned_engine_cores(args)
         procs: Dict[int, subprocess.Popen[str]] = {}
         gpu_by_shard: Dict[int, str] = {}
         launched_at: Dict[int, float] = {}
@@ -366,6 +436,7 @@ def main() -> int:
     fail_shards = CONDITION_FAILURE_SHARDS[args.condition]
 
     overall_started = time.monotonic()
+    sweep_orphaned_engine_cores(args)
     initial = run_phase(args, "initial", list(range(TOTAL_SHARDS)), fail_shards, expected_by_shard)
     snapshot = snapshot_completed_shards(args, expected_by_shard)
     completed_before_retry = {int(k): v["output_sha256"] for k, v in snapshot["snapshot"].items()}
