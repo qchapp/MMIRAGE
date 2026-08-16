@@ -1,9 +1,11 @@
 # Pod agent runbook for MMIRAGE fast runs
 
 > **Superseded**: this runbook predates the consolidated A matrix. The current
-> entry point is `bash experiments/run_all.sh` (smoke → calibrate → scaling →
-> recovery → text → vlm), or `run_setup.py --pod pod_a` / `--pod pod_b` for a
-> two-pod split — see `experiments/a_matrix/README.md`. The per-experiment
+> entry point is `bash experiments/run_all.sh`, which runs everything on one
+> 4-GPU pod with **no pod_a / pod_b separation** (smoke → calibrate → scaling
+> → recovery → text → vlm). `run_setup.py --pod pod_a` / `--pod pod_b` is only
+> an optional manual split of the same cells across two nodes — see
+> `experiments/a_matrix/README.md`. The per-experiment
 > sections below are kept as reference for the runner commands; the recovery
 > conditions are now `baseline` / `fail_1` / `fail_4` (no `fail_8`).
 
@@ -83,13 +85,23 @@ uv pip install --prerelease=allow --reinstall sgl-kernel==0.3.21
 Create the competitor venvs exactly as the per-experiment
 `environment/*_uv_requirements.txt` files describe (datatrove, nemo_curator,
 distilabel, ray_data_llm, raw_sglang). Each runner's README names the venv it
-expects. Then point the raw_sglang_overhead runner's native paths at the
-datatrove and nemo_curator interpreters:
+expects. Then point the runners at the framework interpreters:
 
 ```
 export MMIRAGE_DATATROVE_PYTHON=/workspace/MMIRAGE/.venv-datatrove/bin/python
 export MMIRAGE_NEMO_CURATOR_PYTHON=/workspace/MMIRAGE/.venv-nemo_curator/bin/python
+export MMIRAGE_DISTILABEL_PYTHON=/workspace/MMIRAGE/.venv-distilabel/bin/python
+export MMIRAGE_RAY_DATA_LLM_PYTHON=/workspace/MMIRAGE/.venv-ray_data_llm/bin/python
 ```
+
+`SETUPTOOLS_USE_DISTUTILS` must stay `local` (as exported above) for the
+Python 3.12 venvs: `distilabel` and `ray_data_llm` workers import vllm via
+`torch.utils.cpp_extension` → `setuptools` → `distutils.filelist`, and Python
+3.12 ships no stdlib `distutils`. If a shell exports
+`SETUPTOOLS_USE_DISTUTILS=stdlib`, the distutils `.pth` shim is skipped at
+interpreter startup and those workers die with "vLLM is not installed" even
+though vllm is present. `run_setup.py` and `run_all.sh` force `local` on every
+launch, so this only matters for manual interpreter invocations.
 
 ## Verify the repo
 

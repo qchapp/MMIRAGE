@@ -18,18 +18,19 @@ and output contract.
 
 ## Run
 
-One 4-GPU pod (the default): `bash experiments/run_all.sh` runs smoke →
-calibrate → scaling → recovery → text → vlm, delegating the run stages to
+`bash experiments/run_all.sh` is the single entry point: on one 4-GPU pod it
+runs the whole matrix **with no pod separation** — smoke → calibrate → scaling
+(all GPU points 1/2/4) → recovery → text → vlm, delegating the run stages to
 `scripts/run_setup.py`. `--only`/`--skip` select stages. By default the
 MMIRAGE-only cells already covered by the 2026-08-15 fast-runs reproduction are
 reused, not rerun — see [Reusing the 2026-08-15 fast-runs](#reusing-the-2026-08-15-fast-runs).
 `bash experiments/run_all.sh --rerun-reused` reruns every cell from scratch.
 
-Two 4-GPU pods (recommended, half the wall clock): on pod A run
-`run_setup.py --pod pod_a --reuse-fastruns` (scaling 1/2-GPU + recovery), on
-pod B run `run_setup.py --pod pod_b --reuse-fastruns` (scaling 4-GPU + text +
-vlm). The pod assignment is `schedule.yaml`. Workload preparation happens on
-pod A first:
+Optional parallelism: the identical work can be split across two 4-GPU nodes
+with `run_setup.py --pod pod_a --reuse-fastruns` (scaling 1/2-GPU + recovery)
+and `run_setup.py --pod pod_b --reuse-fastruns` (scaling 4-GPU + text + vlm),
+per `schedule.yaml`. This is purely a manual optimization — nothing requires
+the split. Run the shared workload preparation once first:
 
 ```
 python experiments/a_matrix/scripts/prepare_workload.py \
@@ -40,6 +41,15 @@ python experiments/a_matrix/scripts/prepare_workload.py \
 The 4x A100 point runs on its own node with `bash experiments/run_a100.sh`
 (= `run_setup.py --setup a100_4gpu`); it reuses the same workload and sizes.
 No fast-run exists on A100, so all four cells there are new.
+
+Monitor a live run with `python experiments/progress_tracker.py` (`--once` for
+a single snapshot, `--json` for machine-readable output). Recovery additionally
+needs the distilabel and ray_data_llm venvs on top of datatrove/nemo_curator;
+their interpreters come from `MMIRAGE_DISTILABEL_PYTHON` /
+`MMIRAGE_RAY_DATA_LLM_PYTHON` (run_all.sh sets defaults). Python 3.12 requires
+`SETUPTOOLS_USE_DISTUTILS=local` (forced by run_all.sh and run_setup.py), or
+the distilabel/ray_data_llm vllm imports fail on the missing stdlib `distutils` —
+never export `SETUPTOOLS_USE_DISTUTILS=stdlib` in the launching shell.
 
 `run_setup.py` supports `--dry-run` (prints the plan, verifies templates),
 `--setup <name>` to run one setup, `--prepare`, `--extract`, `--overwrite`,

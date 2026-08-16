@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
-# Run every fast-run experiment end to end: preflight, then
+# Run every fast-run experiment end to end in one pass: preflight, then
 # smoke -> calibrate -> scaling -> recovery -> text -> vlm.
+#
+# This is the single entry point for the whole A matrix on one 4-GPU pod:
+# scaling runs all three GPU points (1/2/4), recovery runs the MMIRAGE and
+# native (raw_sglang/datatrove/nemo_curator/distilabel/ray_data_llm) cells,
+# and text_shortening + vlm_enrichment run the Comparison B tasks. There is
+# no pod_a / pod_b separation here - everything runs together.
+#
 # Stages are isolated and log to experiments/run_all_logs/<stage>.log.
 # Usage: run_all.sh [--only stage,stage] [--skip stage,stage] [--rerun-reused]
 # Requirements: see "Running everything unattended" in experiments/README.md.
 #
 # The scaling/recovery/text/vlm stages delegate to
 # experiments/a_matrix/scripts/run_setup.py, which schedules the per-GPU-point
-# and per-framework units and pinpoints GPUs. For two concurrent 4-GPU pods,
-# run pod A and pod B separately with run_setup.py --pod pod_a / --pod pod_b
-# instead of this script (see experiments/a_matrix/README.md).
+# and per-framework units and pinpoints GPUs. The optional --pod pod_a / --pod
+# pod_b flags of run_setup.py are only for splitting the same work across two
+# nodes manually; run_all.sh always runs the full union on one pod.
 #
 # By default the MMIRAGE-only cells already covered by the 2026-08-15 fast-runs
 # reproduction (gpu_scaling mmirage 1/2/4 GPU, text mmirage, vlm mmirage) are
@@ -26,6 +33,9 @@ cd "$REPO_ROOT"
 export MMIRAGE_RECOVERY_ROOT="${MMIRAGE_RECOVERY_ROOT:-/workspace/mmirage-recovery}"
 export MMIRAGE_DATATROVE_PYTHON="${MMIRAGE_DATATROVE_PYTHON:-$REPO_ROOT/.venv-datatrove/bin/python}"
 export MMIRAGE_NEMO_CURATOR_PYTHON="${MMIRAGE_NEMO_CURATOR_PYTHON:-$REPO_ROOT/.venv-nemo_curator/bin/python}"
+export MMIRAGE_DISTILABEL_PYTHON="${MMIRAGE_DISTILABEL_PYTHON:-$REPO_ROOT/.venv-distilabel/bin/python}"
+export MMIRAGE_RAY_DATA_LLM_PYTHON="${MMIRAGE_RAY_DATA_LLM_PYTHON:-$REPO_ROOT/.venv-ray_data_llm/bin/python}"
+export SETUPTOOLS_USE_DISTUTILS=local
 export TOKENIZERS_PARALLELISM=false
 
 LOG_DIR="$REPO_ROOT/experiments/run_all_logs"
@@ -75,11 +85,12 @@ from huggingface_hub import get_token; import sys; sys.exit(0 if get_token() els
     echo "preflight: no Hugging Face token (set HF_TOKEN or 'hf auth login')." >&2
     fail=1
   fi
-  for var in MMIRAGE_DATATROVE_PYTHON MMIRAGE_NEMO_CURATOR_PYTHON; do
+  for var in MMIRAGE_DATATROVE_PYTHON MMIRAGE_NEMO_CURATOR_PYTHON MMIRAGE_DISTILABEL_PYTHON MMIRAGE_RAY_DATA_LLM_PYTHON; do
     if want_stage scaling || want_stage recovery || want_stage text || want_stage vlm; then
       if [[ ! -x "${!var}" ]]; then
         echo "preflight: $var=${!var} is not executable - build the competitor" \
-             "venvs (experiments/single_node_h100_scaling/environment/) or" \
+             "venvs (experiments/single_node_h100_scaling/environment/ or" \
+             "experiments/nemo_curator_comparison/environment/) or" \
              "point $var at the right interpreter." >&2
         fail=1
       fi
@@ -110,7 +121,7 @@ stage_scaling() {
 }
 
 stage_recovery() {
-  rm -rf "$MMIRAGE_RECOVERY_ROOT/runs"
+  rm -rf "$MMIRAGE_RECOVERY_ROOT"/runs "$MMIRAGE_RECOVERY_ROOT"/native_competitors "$MMIRAGE_RECOVERY_ROOT"/results
   python experiments/a_matrix/scripts/run_setup.py --setup recovery
   python experiments/a_matrix/scripts/run_setup.py --setup recovery --extract
 }

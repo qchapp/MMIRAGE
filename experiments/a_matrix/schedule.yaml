@@ -1,10 +1,15 @@
-# Two-pod parallel execution of the A matrix.
+# Optional two-node split of the A matrix.
 #
-# Each pod is one 4xH100 node. The workload is disjoint across pods: a run is
-# assigned to exactly one pod, so nothing is duplicated. Pod A takes the 1-GPU
-# and 2-GPU points of gpu_scaling plus the whole recovery setup; Pod B takes the
-# 4-GPU point of gpu_scaling (which doubles as the H100 reference for S2) plus
-# the text_shortening and vlm_enrichment experiments of Comparison B.
+# The default entry point is `bash experiments/run_all.sh`, which runs the
+# whole A matrix (scaling 1/2/4, recovery, text, vlm) on ONE 4-GPU pod with no
+# pod separation. The pod assignment below exists only as a manual parallelism
+# optimization: run `run_setup.py --pod pod_a` on one node and
+# `run_setup.py --pod pod_b` on another, and each runs a disjoint subset of the
+# same cells that run_all.sh runs. The workload is disjoint across pods, so
+# nothing is duplicated. Pod A takes the 1-GPU and 2-GPU points of gpu_scaling
+# plus the whole recovery setup; Pod B takes the 4-GPU point of gpu_scaling
+# (which doubles as the H100 reference for S2) plus the text_shortening and
+# vlm_enrichment experiments of Comparison B.
 #
 # The 4xA100 node is driven separately by --setup a100_4gpu (run_a100.sh), not
 # by either pod.

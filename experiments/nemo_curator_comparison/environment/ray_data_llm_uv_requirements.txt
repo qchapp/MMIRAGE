@@ -1,0 +1,8 @@
+ray[data,llm]
+vllm
+datasets
+pandas
+pyarrow
+pillow
+openai
+orjson

@@ -18,16 +18,29 @@ engine; the raw_sglang path is one framework of the scaling matrix).
 ## Running everything unattended
 
 `bash experiments/run_all.sh` runs the whole suite end to end without human
-intervention: preflight checks (venv, 4 GPUs, HF token, competitor
-interpreters), then smoke → calibrate → every experiment, each stage isolated
-with its own log under `experiments/run_all_logs/` and a final status table.
-`--only`/`--skip` select stages (e.g. `bash experiments/run_all.sh --skip vlm`).
+intervention and **without any pod_a / pod_b split**: preflight checks (venv,
+4 GPUs, HF token, all competitor interpreters), then smoke → calibrate → every
+experiment on one 4-GPU pod, each stage isolated with its own log under
+`experiments/run_all_logs/` and a final status table. `--only`/`--skip` select
+stages (e.g. `bash experiments/run_all.sh --skip vlm`).
 
 By default the MMIRAGE-only cells already covered by the 2026-08-15 fast-run
 reproduction are reused, not rerun (see
 `experiments/a_matrix/README.md#reusing-the-2026-08-15-fast-runs`): those
 results are preserved, and `run_setup.py --reuse-fastruns` skips the
 corresponding units. `--rerun-reused` reruns every cell from scratch.
+
+The only node that runs separately is the 4x A100 point
+(`bash experiments/run_a100.sh`); everything else (scaling 1/2/4, recovery,
+text, vlm) is driven by run_all.sh on the 4x H100 pod.
+
+## Monitoring
+
+`python experiments/progress_tracker.py` renders a live dashboard for the
+`run_setup.py` scheduler: per-unit status derived from the per-cell logs,
+elapsed vs. expected time, GPU usage, and recovery progress. `--once` prints a
+single snapshot, `--json` emits machine-readable output, `--setup <name>` /
+`--pod pod_a|pod_b` filter the view.
 
 ## Sizes and the smoke calibrator
 

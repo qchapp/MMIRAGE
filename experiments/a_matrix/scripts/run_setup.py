@@ -7,6 +7,12 @@ command (or, for MMIRAGE shard recovery, the run-condition -> retry -> merge
 sequence). Each unit declares how many GPUs it needs; the scheduler pins it to
 free physical GPUs via the existing ``--visible-gpus`` / ``--gpu-ids`` flags.
 
+The default entry point is ``bash experiments/run_all.sh``, which runs the
+whole matrix (scaling 1/2/4, recovery, text, vlm) on one pod with no pod
+separation. ``--pod`` is an optional manual split of the same cells across two
+4-GPU nodes; with no ``--pod`` and no ``--setup``, run_all.sh passes an
+explicit ``--setup`` per stage.
+
 Concurrency rules (kept deliberately simple to avoid correctness bugs):
   * at most one scaling unit per framework at a time, because the scaling
     runners write ``experiment_metadata.json`` / ``summary.json`` at a
@@ -15,6 +21,8 @@ Concurrency rules (kept deliberately simple to avoid correctness bugs):
   * 4-GPU units (recovery, text, vlm) therefore run one at a time.
 
 Usage:
+  python experiments/a_matrix/scripts/run_setup.py --setup gpu_scaling --dry-run
+  python experiments/a_matrix/scripts/run_setup.py --setup recovery
   python experiments/a_matrix/scripts/run_setup.py --pod pod_a [--dry-run]
   python experiments/a_matrix/scripts/run_setup.py --pod pod_b --prepare
   python experiments/a_matrix/scripts/run_setup.py --setup a100_4gpu --dry-run
@@ -27,6 +35,11 @@ re-runs extraction/aggregation. Templates are verified byte-identical against
 the shared prompt definitions before anything launches. ``--reuse-fastruns``
 skips the units already satisfied by the 2026-08-15 fast-runs archive
 (configs/reused_units.yaml); run_all.sh passes it by default (see ``--rerun-reused``).
+
+``SETUPTOOLS_USE_DISTUTILS`` is forced to ``local`` at startup: the Python 3.12
+venvs have no stdlib ``distutils``, and distilabel/ray_data_llm workers import
+vllm (via setuptools) which needs the setuptools-provided shim. A shell
+exporting ``=stdlib`` (or unsetting it before launch) breaks those workers.
 """
 
 from __future__ import annotations
@@ -224,7 +237,7 @@ def _scaling_mmirage_cmds(setup: str, gpu_count: int, gpus: Sequence[str], repet
 
 
 def _scaling_native_cmds(setup: str, framework: str, gpu_count: int, gpus: Sequence[str], repetitions: int, overwrite: bool) -> List[List[str]]:
-    venv_env = {"datatrove": "MMIRAGE_DATATROVE_PYTHON", "nemo_curator": "MMIRAGE_NEMO_CURATOR_PYTHON"}.get(framework)
+    venv_env = {"datatrove": "MMIRAGE_DATATROVE_PYTHON", "nemo_curator": "MMIRAGE_NEMO_CURATOR_PYTHON", "distilabel": "MMIRAGE_DISTILABEL_PYTHON", "ray_data_llm": "MMIRAGE_RAY_DATA_LLM_PYTHON"}.get(framework)
     python = _python(venv_env) if venv_env else sys.executable
     return [
         [
@@ -286,6 +299,8 @@ def _recovery_mmirage_cmds(condition: str, gpus: Sequence[str], overwrite: bool)
                 "1",
                 "--shared-root",
                 shared_root,
+                "--config",
+                str(A_MATRIX_DIR / "configs" / "mmirage_recovery.yaml"),
             ]
         )
     commands.append(
@@ -302,7 +317,7 @@ def _recovery_mmirage_cmds(condition: str, gpus: Sequence[str], overwrite: bool)
 
 
 def _recovery_native_cmds(framework: str, condition: str, gpus: Sequence[str], overwrite: bool) -> List[List[str]]:
-    venv_env = {"datatrove": "MMIRAGE_DATATROVE_PYTHON", "nemo_curator": "MMIRAGE_NEMO_CURATOR_PYTHON"}.get(framework)
+    venv_env = {"datatrove": "MMIRAGE_DATATROVE_PYTHON", "nemo_curator": "MMIRAGE_NEMO_CURATOR_PYTHON", "distilabel": "MMIRAGE_DISTILABEL_PYTHON", "ray_data_llm": "MMIRAGE_RAY_DATA_LLM_PYTHON"}.get(framework)
     python = _python(venv_env) if venv_env else sys.executable
     return [
         [
@@ -342,7 +357,7 @@ def _text_mmirage_cmds(gpus: Sequence[str], overwrite: bool) -> List[List[str]]:
 
 
 def _text_native_cmds(framework: str, repetitions: int, gpus: Sequence[str], overwrite: bool) -> List[List[str]]:
-    venv_env = {"datatrove": "MMIRAGE_DATATROVE_PYTHON", "nemo_curator": "MMIRAGE_NEMO_CURATOR_PYTHON"}[framework]
+    venv_env = {"datatrove": "MMIRAGE_DATATROVE_PYTHON", "nemo_curator": "MMIRAGE_NEMO_CURATOR_PYTHON", "distilabel": "MMIRAGE_DISTILABEL_PYTHON", "ray_data_llm": "MMIRAGE_RAY_DATA_LLM_PYTHON"}[framework]
     return [
         [
             _python(venv_env),
@@ -381,7 +396,7 @@ def _vlm_mmirage_cmds(gpus: Sequence[str], overwrite: bool) -> List[List[str]]:
 
 
 def _vlm_native_cmds(framework: str, repetitions: int, gpus: Sequence[str], overwrite: bool) -> List[List[str]]:
-    venv_env = {"datatrove": "MMIRAGE_DATATROVE_PYTHON", "nemo_curator": "MMIRAGE_NEMO_CURATOR_PYTHON"}.get(framework)
+    venv_env = {"datatrove": "MMIRAGE_DATATROVE_PYTHON", "nemo_curator": "MMIRAGE_NEMO_CURATOR_PYTHON", "distilabel": "MMIRAGE_DISTILABEL_PYTHON", "ray_data_llm": "MMIRAGE_RAY_DATA_LLM_PYTHON"}.get(framework)
     command = [
         sys.executable,
         str(VLM_DIR / "scripts" / "run_native_vlm_competitor.py"),
@@ -716,6 +731,10 @@ def run_scheduler(units: List[Unit], gpu_ids: List[str], dry_run: bool) -> int:
                     continue
                 gpus = free_gpus[: unit.gpus_needed]
                 free_gpus = free_gpus[unit.gpus_needed:]
+                for cmd in unit.commands:
+                    for i, arg in enumerate(cmd):
+                        if arg == "--visible-gpus" and i + 1 < len(cmd):
+                            cmd[i + 1] = ",".join(gpus)
                 item = _RunningUnit(unit=unit, gpus=gpus, proc=None, pending_commands=list(unit.commands), started_at=time.monotonic())
                 if unit.setup == "gpu_scaling":
                     active_frameworks[unit.framework] = unit.label
@@ -793,6 +812,7 @@ def selected_setups(args: argparse.Namespace) -> List[str]:
 
 
 def main() -> int:
+    os.environ["SETUPTOOLS_USE_DISTUTILS"] = "local"
     args = parse_args()
     gpu_ids = [item.strip() for item in args.gpus.split(",") if item.strip()]
     if not gpu_ids:
@@ -835,6 +855,12 @@ def main() -> int:
     if missing:
         print(f"run_setup: missing executables: {sorted(set(missing))}", file=sys.stderr)
         return 1
+
+    if args.overwrite:
+        for unit in units:
+            unit.log_path.parent.mkdir(parents=True, exist_ok=True)
+            unit.log_path.open("wb").close()
+            print(f"  CLEAR {unit.label} log")
 
     return run_scheduler(units, gpu_ids, dry_run=False)
 

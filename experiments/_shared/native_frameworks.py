@@ -16,6 +16,8 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import signal
+import concurrent.futures
 import socket
 import subprocess
 import sys
@@ -28,6 +30,34 @@ from typing import Any, Callable, Iterable, Optional
 from experiments._shared.io import read_jsonl, write_jsonl
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+_ACTIVE_SERVERS: list[subprocess.Popen] = []
+_HANDLER_INSTALLED = False
+
+
+def _install_server_cleanup_handler() -> None:
+    """Ensure SIGTERM/SIGINT also terminate any spawned vLLM servers.
+
+    Recovery experiments kill shard workers with a process-group SIGTERM. The
+    vLLM servers this module spawns run in their own session
+    (``start_new_session=True``), so they survive the worker's group kill and
+    leak GPU memory. A handler inside the worker process is the only reliable
+    way to tear them down.
+    """
+    global _HANDLER_INSTALLED
+    if _HANDLER_INSTALLED:
+        return
+    _HANDLER_INSTALLED = True
+
+    def _cleanup_and_reraise(signum: int, _frame: Any) -> None:
+        for proc in list(_ACTIVE_SERVERS):
+            _terminate_server(proc)
+        signal.signal(signum, signal.SIG_DFL)
+        os.kill(os.getpid(), signum)
+
+    signal.signal(signal.SIGTERM, _cleanup_and_reraise)
+    signal.signal(signal.SIGINT, _cleanup_and_reraise)
+
 
 REWRITE_PROMPT_TEMPLATE = (
     "You are helping construct a public text dataset.\n\n"
@@ -172,6 +202,8 @@ def _spawn_vllm_server(model: str, port: int, max_model_len: int, log_path: Opti
         proc = subprocess.Popen(cmd, stdout=log_fh, stderr=log_fh, env=env, start_new_session=True)
     else:
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env, start_new_session=True)
+    _install_server_cleanup_handler()
+    _ACTIVE_SERVERS.append(proc)
     return proc
 
 
@@ -205,6 +237,9 @@ def _terminate_server(proc: subprocess.Popen) -> None:
             os.killpg(proc.pid, signal.SIGKILL)
         except Exception:
             pass
+    finally:
+        if proc in _ACTIVE_SERVERS:
+            _ACTIVE_SERVERS.remove(proc)
 
 
 def run_datatrove(
@@ -451,25 +486,33 @@ def run_nemo_curator(
 
         def process(self, batch: DocumentBatch) -> DocumentBatch:
             df = batch.to_pandas().copy()
-            answers: list[str] = []
-            for row in df.to_dict(orient="records"):
-                prompt = build_prompt(str(row.get("prompt_text", "")), prompt_style)
-                result = self.client.query_model(
-                    messages=[{"role": "user", "content": prompt}],
-                    model=model,
-                    generation_config={
-                        "temperature": temperature,
-                        "max_tokens": max_new_tokens,
-                        "n": 1,
-                        "seed": None,
-                        "stop": None,
-                        "stream": False,
-                        "top_p": 1.0,
-                        "top_k": None,
-                        "extra_kwargs": {},
-                    },
-                )
-                answers.append(result[0] if result else "")
+            rows = df.to_dict(orient="records")
+            prompts = [build_prompt(str(row.get("prompt_text", "")), prompt_style) for row in rows]
+            answers: list[str] = [""] * len(rows)
+            generation_config = {
+                "temperature": temperature,
+                "max_tokens": max_new_tokens,
+                "n": 1,
+                "seed": None,
+                "stop": None,
+                "stream": False,
+                "top_p": 1.0,
+                "top_k": None,
+                "extra_kwargs": {},
+            }
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
+                futures = {
+                    i: pool.submit(
+                        self.client.query_model,
+                        messages=[{"role": "user", "content": prompt}],
+                        model=model,
+                        generation_config=generation_config,
+                    )
+                    for i, prompt in enumerate(prompts)
+                }
+                for i, future in futures.items():
+                    result = future.result()
+                    answers[i] = result[0] if result else ""
             df["answer"] = answers
             return DocumentBatch(dataset_name=batch.dataset_name, data=df, _metadata=batch._metadata, _stage_perf=batch._stage_perf)
 

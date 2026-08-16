@@ -26,7 +26,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 EXPERIMENT_DIR = SCRIPT_DIR.parent
-REPO_ROOT = EXPERIMENT_DIR.parents[2]
+REPO_ROOT = EXPERIMENT_DIR.parents[1]
 SHARED_DIR = REPO_ROOT / "experiments" / "_shared"
 WORKER_SCRIPT = REPO_ROOT / "experiments" / "single_node_h100_scaling" / "scripts" / "native_shard_worker.py"
 
@@ -173,6 +173,7 @@ def launch_worker(
     phase: str,
 ) -> subprocess.Popen[str]:
     env = os.environ.copy()
+    env["SETUPTOOLS_USE_DISTUTILS"] = "local"
     existing_pythonpath = env.get("PYTHONPATH")
     env["PYTHONPATH"] = (
         f"{REPO_ROOT}{os.pathsep}{SHARED_DIR}{os.pathsep}{existing_pythonpath}" if existing_pythonpath else f"{REPO_ROOT}{os.pathsep}{SHARED_DIR}"
@@ -372,7 +373,8 @@ def main() -> int:
     retried_shards: List[int] = []
     retry_summaries = []
     rounds_needed = 0
-    incomplete = [shard_id for shard_id in range(TOTAL_SHARDS) if not shard_complete(args, shard_id, expected_by_shard[shard_id])]
+    initial_incomplete = [shard_id for shard_id in range(TOTAL_SHARDS) if not shard_complete(args, shard_id, expected_by_shard[shard_id])]
+    incomplete = list(initial_incomplete)
     for round_idx in range(1, args.max_rounds + 1):
         incomplete = [shard_id for shard_id in range(TOTAL_SHARDS) if not shard_complete(args, shard_id, expected_by_shard[shard_id])]
         if not incomplete:
@@ -410,7 +412,7 @@ def main() -> int:
             changed_completed.append(shard_id)
             only_incomplete_or_killed = False
     for shard_id in retried_shards:
-        if shard_id not in incomplete and shard_id not in killed:
+        if shard_id not in initial_incomplete and shard_id not in killed:
             only_incomplete_or_killed = False
     unchanged = True
     for shard_id, sha_before in completed_before_retry.items():

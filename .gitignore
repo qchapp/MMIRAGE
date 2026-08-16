@@ -204,3 +204,7 @@ experiments/task_comparison/*/workload
 experiments/task_comparison/*/results
 # Orchestration logs produced by run_all.sh / run_setup.py
 experiments/run_all_logs/
+
+# Local run/launch artifacts (never commit)
+/run_*.out
+/pod_b_*.txt

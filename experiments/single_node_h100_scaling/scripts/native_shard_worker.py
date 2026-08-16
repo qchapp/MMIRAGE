@@ -15,11 +15,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import traceback
 from pathlib import Path
 from typing import Any
+
+os.environ.setdefault("SETUPTOOLS_USE_DISTUTILS", "local")
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(_PROJECT_ROOT) not in sys.path:

@@ -225,9 +225,18 @@ def run_sglang_vlm(
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
             runtime_seconds = model_load_seconds + generation_seconds
             answers: Dict[str, str] = {}
+            failed_rows: List[Dict[str, Any]] = []
             for item in read_jsonl(output_rows_path):
                 if item.get("status") == "success":
                     answers[str(item.get(id_field))] = item.get("output_text", "")
+                else:
+                    failed_rows.append(item)
+            if rows and not answers and failed_rows:
+                samples = "; ".join(str(r.get("error")) for r in failed_rows[:3])
+                raise RuntimeError(
+                    f"sglang_vlm returned 0/{len(rows)} successful rows; first errors: {samples}. "
+                    f"Server log: {server_log}"
+                )
             _write_contract(output_path, rows, answers, id_field)
             output_tokens = int(summary.get("total_output_tokens") or _output_tokens(answers, model))
             stats = _runner_stats(rows, 0, output_tokens, model_load_seconds, runtime_seconds)

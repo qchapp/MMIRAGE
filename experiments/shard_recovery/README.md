@@ -102,12 +102,14 @@ for the YAML) so pod-side commands find the config; see `run_k8s.py --help`.
 `run_native_recovery_competitor.py` runs the same conditions with DataTrove /
 NeMo Curator / Distilabel / Ray Data LLM workers (no Kubernetes), using the
 scaling experiment's `native_shard_worker.py --prompt-style raw --id-field
-mmirage_id`, each framework in its own venv (see the scaling README section on
-environments). Benchmark-level equivalence contract: same input + expected ID
-order, same shard sets, `SIGTERM` emulated kills, retry only incomplete shards,
-completed-shard hashes preserved, merge in input order. `--dry-run` prints the
-manifest. Report framework-native retry semantics separately from the normalized
-benchmark shard retry.
+stable_id`, each framework in its own venv (see the scaling README section on
+environments). The worker is launched with `SETUPTOOLS_USE_DISTUTILS=local`
+forced so the distilabel / ray_data_llm vllm imports work on Python 3.12 (no
+stdlib `distutils`). Benchmark-level equivalence contract: same input + expected
+ID order, same shard sets, `SIGTERM` emulated kills, retry only incomplete
+shards, completed-shard hashes preserved, merge in input order. `--dry-run`
+prints the manifest. Report framework-native retry semantics separately from the
+normalized benchmark shard retry.
 
 ## Common failures
 
@@ -117,6 +119,7 @@ benchmark shard retry.
 | `merge-dir` fails | Shard output dirs missing/incomplete. | `status`, retry, re-merge. |
 | Extractor reports missing/duplicate IDs | Merge doesn't match prepared input order. | Preserve the run dir, inspect `merged/` + `id_order.jsonl`; don't overwrite before diagnosing. |
 | GPU OOM / crash on 4-way concurrency | Wrong GPU or memory pressure. | Check `nvidia-smi`; run `--max-active-shards 2` and record it in metadata. |
+| distilabel / ray_data_llm worker fails with `"vLLM is not installed"` | Python 3.12 venv missing the `distutils` shim: `SETUPTOOLS_USE_DISTUTILS=stdlib` (or unset) in the launching shell skips the `.pth` shim, so `setuptools` → `distutils.filelist` fails and vllm looks absent. | Launch via `run_setup.py` / `run_all.sh` (they force `local`), or export `SETUPTOOLS_USE_DISTUTILS=local` in the shell; see the log `.../shard_0/status.json` traceback ending in `setuptools/monkey.py`. |
 
 ## Reproducibility
 

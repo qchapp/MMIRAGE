@@ -163,6 +163,8 @@ def launch_and_wait(args: argparse.Namespace, run_dir: Path, gpu_ids: list[str])
             str(args.concurrency),
             "--gpu-count",
             "1",
+            "--log-dir",
+            str(logs_dir),
         ]
         log_path = logs_dir / f"shard_{shard_id}.log"
         log_handle = log_path.open("wb")
