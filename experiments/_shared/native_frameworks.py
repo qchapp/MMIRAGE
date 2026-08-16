@@ -385,7 +385,10 @@ def run_distilabel(
     tokenizer = _tokenizer(model)
     input_tokens = sum(len(tokenizer.encode(record["prompt"])) for record in records)
     started = time.perf_counter()
-    with Pipeline() as pipeline:
+    cache_dir = output_path.parent / "distilabel_cache"
+    if cache_dir.exists():
+        shutil.rmtree(cache_dir)
+    with Pipeline(cache_dir=cache_dir) as pipeline:
         step = TextGeneration(
             llm=vLLM(
                 model=model,
