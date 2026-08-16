@@ -6,12 +6,13 @@
 #                   experiment (including model/server startup), i.e. a
 #                   <= ~10 minute session per command.
 # cells:            number of (startup + generation) units in that run command
-#                   (paths * repetitions for text/vlm/raw, repetitions for one
+#                   (paths * repetitions for text/vlm, repetitions for one
 #                   scaling GPU point, 1 for one recovery condition run).
 # recovery_factor:  multiplier on the baseline run for the slowest recovery
-#                   condition (1.5 for shard_recovery: fail_8 reruns half the
-#                   shards; 1.0 elsewhere).
-# size:             key written into <experiment>/configs/workload_size.yaml.
+#                   condition (1.3 for a_matrix recovery: fail_4 reruns a
+#                   quarter of the shards; 1.0 elsewhere).
+# size:             key written into the config file named by ``size_file``
+#                   (default <experiment>/configs/workload_size.yaml).
 #                   The calibrator clamps its recommendation to the smoke row
 #                   count at the low end and ``max`` at the high end; it only
 #                   falls back to ``preferred`` when generation time is ~0.
@@ -22,50 +23,21 @@
 #                   keys (a metric may be a scalar or a {"mean": ...} dict).
 
 experiments:
-  raw_sglang_overhead:
+  a_matrix/gpu_scaling:
     prepare: >
-      python experiments/raw_sglang_overhead/scripts/prepare_workload.py
-      --output-dir experiments/raw_sglang_overhead/workload
-      --num-rows {rows}
-    measure: >
-      python experiments/raw_sglang_overhead/scripts/run.py
-      --workload-dir experiments/raw_sglang_overhead/workload
-      --output-dir experiments/raw_sglang_overhead/results
-      --frameworks raw_sglang,mmirage_sglang,datatrove,nemo_curator
-      --repetitions 1
-      --gpu-count 1
-    timing:
-      file: experiments/raw_sglang_overhead/results/summary.json
-      path: metrics.raw_sglang
-      wall: full_end_to_end_wall_seconds
-      load: model_loading_seconds
-      scope: per_cell
-    rows_smoke: 96
-    target_seconds: 480
-    cells: 4
-    recovery_factor: 1.0
-    notes: 1 repetition per path (fast-run deviation); the raw/mmirage/datatrove/nemo
-      throughput comparison needs no repetition. The budget models every cell on the
-      raw_sglang timing, but the nemo_curator path is row-sequential (~15x slower
-      per row on H100), so the full 4-path command lands well over target_seconds;
-      treat target_seconds here as the budget for the three concurrent-client paths.
-    size:
-      key: num_rows
-      fallback: 1000
-      preferred: 1000
-      max: 1500
-  single_node_h100_scaling:
-    prepare: >
-      python experiments/single_node_h100_scaling/scripts/prepare_workload.py
-      --output-dir experiments/single_node_h100_scaling/workload
+      python experiments/a_matrix/scripts/prepare_workload.py
+      --output-dir experiments/a_matrix/workload
       --num-rows {rows}
     measure: >
       python experiments/single_node_h100_scaling/scripts/run.py
-      --execution-config experiments/single_node_h100_scaling/configs/execution_1gpu.yaml
+      --execution-config experiments/a_matrix/configs/execution.yaml
+      --output-root experiments/a_matrix/results/gpu_scaling/mmirage
+      --gpu-count 1
+      --visible-gpus 0
       --repetitions 1
       --overwrite
     timing:
-      file: experiments/single_node_h100_scaling/results/runs/gpu_1/rep_1/rep_summary.json
+      file: experiments/a_matrix/results/gpu_scaling/mmirage/runs/gpu_1/rep_1/rep_summary.json
       path: row
       wall: end_to_end_wall_seconds
       load: model_loading_seconds
@@ -74,17 +46,20 @@ experiments:
     target_seconds: 480
     cells: 3
     recovery_factor: 1.0
-    notes: calibrates the 1-GPU point (slowest); 2-GPU and 4-GPU points then run faster.
+    notes: calibrates the 1-GPU point (slowest); 2-GPU and 4-GPU points then run
+      faster. The same num_rows also sizes the a100_4gpu point (identical workload).
     size:
       key: num_rows
       fallback: 20000
       preferred: 6000
       max: 12000
-  shard_recovery:
+  a_matrix/recovery:
     prepare: >
-      python experiments/shard_recovery/scripts/prepare_workload.py
-      --output-root {shared_root}
-      --num-records {rows}
+      python experiments/a_matrix/scripts/prepare_workload.py
+      --output-dir experiments/a_matrix/workload
+      --shared-root {shared_root}
+      --num-rows {rows}
+      --recovery-rows {rows}
     measure: >
       python experiments/shard_recovery/scripts/run_local.py
       run-condition
@@ -94,6 +69,7 @@ experiments:
       --gpu-ids 0,1,2,3
       --wait-timeout-seconds 3600
       --overwrite
+      --config experiments/a_matrix/configs/mmirage_recovery.yaml
     timing:
       file: "{shared_root}/runs/baseline/rep_01/controller/phase_initial.json"
       path: ""
@@ -103,11 +79,13 @@ experiments:
     rows_smoke: 256
     target_seconds: 600
     cells: 1
-    recovery_factor: 1.5
-    notes: calibrates the baseline so the worst condition (fail_8) stays under
-      the budget (fail_8 ~= 1.5x baseline including retry waves).
+    recovery_factor: 1.3
+    notes: calibrates the baseline so the worst condition (fail_4) stays under
+      the budget (fail_4 ~= 1.3x baseline including retry waves). The recovery
+      subset size is independent of the scaling workload size.
     size:
-      key: num_records
+      key: recovery_num_rows
+      size_file: experiments/a_matrix/configs/recovery_size.yaml
       fallback: 40000
       preferred: 4000
       max: 16000

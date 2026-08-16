@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shared-root", default=os.environ.get("MMIRAGE_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
     parser.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "mmirage_recovery.yaml"))
-    parser.add_argument("--conditions", default="baseline,fail_1,fail_4,fail_8")
+    parser.add_argument("--conditions", default="baseline,fail_1,fail_4")
     parser.add_argument("--reps", default="1")
     parser.add_argument("--output-dir", default=None)
     return parser.parse_args()
@@ -115,7 +115,7 @@ def expected_ids(shared_root: str) -> List[str]:
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
             if line.strip():
-                ids.append(json.loads(line)["mmirage_id"])
+                ids.append(json.loads(line)["stable_id"])
     return ids
 
 
@@ -125,7 +125,7 @@ def load_merged_ids(rd: Path) -> Dict[str, Any]:
         return {"final_row_count": None, "ids": [], "error": f"Missing merged dataset at {merged_dir}"}
     try:
         ds = load_from_disk(str(merged_dir))
-        ids = list(ds["mmirage_id"])
+        ids = list(ds["stable_id"])
         return {"final_row_count": len(ids), "ids": ids, "error": None}
     except Exception as exc:
         return {"final_row_count": None, "ids": [], "error": str(exc)}

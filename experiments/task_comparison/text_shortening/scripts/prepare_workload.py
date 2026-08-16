@@ -3,8 +3,10 @@
 
 Rows carry the shared native contract fields (``stable_id``, ``source_index``,
 ``prompt_sha256``, ``prompt_text``) so the single-node scaling runners and the
-framework-native shard workers consume them unchanged. ``prompt_text`` asks the
-model to summarize the article in 2 to 3 sentences.
+framework-native shard workers consume them unchanged. ``prompt_text`` holds the
+raw article (clipped to ``--max-source-chars``); the summarize instruction is
+applied exactly once per framework (MMIRAGE recipe prompt, native
+``SUMMARIZE_PROMPT_TEMPLATE``), so every framework sees byte-identical input.
 """
 
 from __future__ import annotations
@@ -115,7 +117,7 @@ def main() -> None:
         if not isinstance(article, str) or not article.strip():
             continue
         article = normalize_text(article[: args.max_source_chars])
-        prompt_text = SUMMARY_TEMPLATE.format(article=article)
+        prompt_text = article
         prompt_sha = sha256_text(prompt_text)
         if prompt_sha in seen_hashes:
             continue
@@ -168,7 +170,8 @@ def main() -> None:
         "num_rows": args.num_rows,
         "warmup_rows": args.warmup_rows,
         "max_source_chars": args.max_source_chars,
-        "prompt_template": SUMMARY_TEMPLATE,
+        "prompt_text_is": "raw article; the summarize instruction is applied once per framework (MMIRAGE recipe prompt, native SUMMARIZE_PROMPT_TEMPLATE)",
+        "summarize_prompt_template": SUMMARY_TEMPLATE,
         "workload_jsonl": str(workload_path),
         "workload_sha256": sha256_file(workload_path),
         "warmup_jsonl": str(warmup_path),

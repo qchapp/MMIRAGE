@@ -77,7 +77,7 @@ def parse_args() -> argparse.Namespace:
 
     retry_p = subparsers.add_parser("retry", help="Relaunch only shards MMIRAGE marks incomplete")
     add_common(retry_p)
-    retry_p.add_argument("--condition", choices=["fail_1", "fail_4", "fail_8"], required=True)
+    retry_p.add_argument("--condition", choices=[c for c in CONDITION_FAILURE_SHARDS if c != "baseline"], required=True)
     retry_p.add_argument("--rep", type=int, default=1)
     retry_p.add_argument("--max-rounds", type=int, default=3)
 

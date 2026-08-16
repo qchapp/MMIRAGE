@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-new-tokens", type=int, default=256)
     parser.add_argument("--concurrency", type=int, default=32)
-    parser.add_argument("--prompt-style", choices=["rewrite", "raw"], default="rewrite")
+    parser.add_argument("--prompt-style", choices=["rewrite", "raw", "summarize"], default="rewrite")
     parser.add_argument("--id-field", default="stable_id", help="Workload id column carried into contract output rows.")
     parser.add_argument("--gpu-id", default="0")
     return parser.parse_args()

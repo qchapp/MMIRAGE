@@ -65,7 +65,7 @@ def parse_args(framework_override: str | None = None) -> argparse.Namespace:
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-new-tokens", type=int, default=256)
     parser.add_argument("--concurrency", type=int, default=32, help="Generation batch size per shard worker.")
-    parser.add_argument("--prompt-style", choices=["rewrite", "raw"], default="rewrite")
+    parser.add_argument("--prompt-style", choices=["rewrite", "raw", "summarize"], default="rewrite")
     parser.add_argument("--worker-python", default=None, help="Python interpreter for shard workers (default: this interpreter).")
     parser.add_argument("--aggregate-only", action="store_true", help="Only re-aggregate an existing output root.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing repetition run directories.")

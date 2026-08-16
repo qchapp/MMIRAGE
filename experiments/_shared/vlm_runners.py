@@ -42,6 +42,18 @@ DEFAULT_MAX_NEW_TOKENS = 1024
 DEFAULT_TEMPERATURE = 0.1
 DEFAULT_TOP_P = 0.9
 
+# Single definition of the vlm_enrichment transformation. It must stay
+# byte-identical (modulo the placeholder name) to the ``prompt`` of the
+# ``formatted_description`` output in the MMIRAGE vlm recipe
+# (experiments/task_comparison/vlm_enrichment/configs/mmirage_vlm.yaml);
+# run_setup.py verifies this before launching any vlm run.
+VLM_REFORMAT_TEMPLATE = (
+    "Reformat the image description with markdown without adding anything else.\n"
+    "Add titles and structure your output.\n\n"
+    "Image description:\n"
+    "{caption}"
+)
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -164,7 +176,11 @@ def run_sglang_vlm(
             started = time.perf_counter()
             _wait_for_http(f"http://127.0.0.1:{port}/v1/models", server, timeout=900.0)
             model_load_seconds = time.perf_counter() - started
-            write_jsonl(prompts_path, rows)
+            prompt_rows = [
+                {**row, "__vlm_prompt_text": VLM_REFORMAT_TEMPLATE.format(caption=str(row.get(text_field, "")))}
+                for row in rows
+            ]
+            write_jsonl(prompts_path, prompt_rows)
             command = [
                 sys.executable,
                 "-m",
@@ -183,7 +199,7 @@ def run_sglang_vlm(
                 model,
                 "--chat",
                 "--text-field",
-                text_field,
+                "__vlm_prompt_text",
                 "--image-field",
                 image_field,
                 "--image-base-path",
@@ -253,7 +269,7 @@ def run_datatrove_vlm(
             media = [Media(id=str(row[id_field]), type=MediaType.IMAGE, url=str(full_path), path=str(full_path))]
         documents.append(
             Document(
-                text=str(row.get(text_field, "")),
+                text=VLM_REFORMAT_TEMPLATE.format(caption=str(row.get(text_field, ""))),
                 id=str(row[id_field]),
                 media=media,
                 metadata=dict(row),
@@ -360,7 +376,9 @@ def run_nemo_curator_vlm(
                 content: List[Dict[str, Any]] = []
                 if full_path.exists():
                     content.append({"type": "image_url", "image_url": {"url": image_data_url(image_path, image_base)}})
-                content.append({"type": "text", "text": str(row.get(text_field, ""))})
+                content.append(
+                    {"type": "text", "text": VLM_REFORMAT_TEMPLATE.format(caption=str(row.get(text_field, "")))}
+                )
                 result = self.client.query_model(
                     messages=[{"role": "user", "content": content}],
                     model=model,

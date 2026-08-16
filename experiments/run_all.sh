@@ -1,9 +1,22 @@
 #!/usr/bin/env bash
 # Run every fast-run experiment end to end: preflight, then
-# smoke -> calibrate -> overhead -> scaling -> recovery -> text -> vlm.
+# smoke -> calibrate -> scaling -> recovery -> text -> vlm.
 # Stages are isolated and log to experiments/run_all_logs/<stage>.log.
-# Usage: run_all.sh [--only stage,stage] [--skip stage,stage]
+# Usage: run_all.sh [--only stage,stage] [--skip stage,stage] [--rerun-reused]
 # Requirements: see "Running everything unattended" in experiments/README.md.
+#
+# The scaling/recovery/text/vlm stages delegate to
+# experiments/a_matrix/scripts/run_setup.py, which schedules the per-GPU-point
+# and per-framework units and pinpoints GPUs. For two concurrent 4-GPU pods,
+# run pod A and pod B separately with run_setup.py --pod pod_a / --pod pod_b
+# instead of this script (see experiments/a_matrix/README.md).
+#
+# By default the MMIRAGE-only cells already covered by the 2026-08-15 fast-runs
+# reproduction (gpu_scaling mmirage 1/2/4 GPU, text mmirage, vlm mmirage) are
+# NOT rerun: run_setup.py is invoked with --reuse-fastruns, their previous
+# results are preserved, and README "Reusing the 2026-08-15 fast-runs" lists
+# how to restore them from the archive. Pass --rerun-reused to run those cells
+# again from scratch (also wipes their previous results).
 
 set -u
 
@@ -18,15 +31,24 @@ export TOKENIZERS_PARALLELISM=false
 LOG_DIR="$REPO_ROOT/experiments/run_all_logs"
 mkdir -p "$LOG_DIR"
 
-ALL_STAGES=(smoke calibrate overhead scaling recovery text vlm)
-ONLY="" SKIP=""
+ALL_STAGES=(smoke calibrate scaling recovery text vlm)
+ONLY="" SKIP="" RERUN_REUSED=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --only) ONLY="$2"; shift 2 ;;
     --skip) SKIP="$2"; shift 2 ;;
+    --rerun-reused) RERUN_REUSED=1; shift ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
+# --reuse-fastruns tells run_setup.py to skip cells satisfied by the fast-runs
+# archive; --rerun-reused drops it so every cell runs from scratch.
+REUSE_FLAG="--reuse-fastruns"
+if [[ "$RERUN_REUSED" == 1 ]]; then
+  REUSE_FLAG=""
+  echo "run_all: --rerun-reused - every cell (including the fast-runs-reused MMIRAGE cells) will be rerun."
+fi
 
 want_stage() {
   local stage="$1"
@@ -54,7 +76,7 @@ from huggingface_hub import get_token; import sys; sys.exit(0 if get_token() els
     fail=1
   fi
   for var in MMIRAGE_DATATROVE_PYTHON MMIRAGE_NEMO_CURATOR_PYTHON; do
-    if want_stage overhead || want_stage text || want_stage vlm; then
+    if want_stage scaling || want_stage recovery || want_stage text || want_stage vlm; then
       if [[ ! -x "${!var}" ]]; then
         echo "preflight: $var=${!var} is not executable - build the competitor" \
              "venvs (experiments/single_node_h100_scaling/environment/) or" \
@@ -72,96 +94,37 @@ stage_smoke() {
 
 stage_calibrate() {
   python experiments/smoke/calibrate.py --apply
-  python experiments/raw_sglang_overhead/scripts/prepare_workload.py \
-    --output-dir experiments/raw_sglang_overhead/workload
-  python experiments/single_node_h100_scaling/scripts/prepare_workload.py \
-    --output-dir experiments/single_node_h100_scaling/workload
-  python experiments/shard_recovery/scripts/prepare_workload.py \
-    --output-root "$MMIRAGE_RECOVERY_ROOT"
+  python experiments/a_matrix/scripts/prepare_workload.py \
+    --output-dir experiments/a_matrix/workload \
+    --shared-root "$MMIRAGE_RECOVERY_ROOT"
   python experiments/task_comparison/text_shortening/scripts/prepare_workload.py \
     --output-dir experiments/task_comparison/text_shortening/workload
   python experiments/task_comparison/vlm_enrichment/scripts/prepare_workload.py \
     --output-dir experiments/task_comparison/vlm_enrichment/workload
 }
 
-stage_overhead() {
-  rm -rf experiments/raw_sglang_overhead/results
-  python experiments/raw_sglang_overhead/scripts/run.py \
-    --workload-dir experiments/raw_sglang_overhead/workload \
-    --output-dir experiments/raw_sglang_overhead/results \
-    --frameworks raw_sglang,mmirage_sglang,datatrove,nemo_curator \
-    --repetitions 1
-}
-
 stage_scaling() {
-  rm -rf experiments/single_node_h100_scaling/results
-  local cfg
-  for cfg in execution_1gpu execution_2gpu execution_4gpu; do
-    python experiments/single_node_h100_scaling/scripts/run.py \
-      --execution-config "experiments/single_node_h100_scaling/configs/$cfg.yaml"
-  done
+  rm -rf experiments/a_matrix/results/gpu_scaling/{raw_sglang,datatrove,nemo_curator}
+  [[ "$RERUN_REUSED" == 1 ]] && rm -rf experiments/a_matrix/results/gpu_scaling/mmirage
+  python experiments/a_matrix/scripts/run_setup.py --setup gpu_scaling $REUSE_FLAG
 }
 
 stage_recovery() {
   rm -rf "$MMIRAGE_RECOVERY_ROOT/runs"
-  python experiments/shard_recovery/scripts/run_local.py run-condition \
-    --condition baseline --rep 1 --shared-root "$MMIRAGE_RECOVERY_ROOT" \
-    --max-active-shards 4 --gpu-ids 0,1,2,3 --overwrite
-  mmirage merge-dir \
-    --input-dir "$MMIRAGE_RECOVERY_ROOT/runs/baseline/rep_01/output" \
-    --output-dir "$MMIRAGE_RECOVERY_ROOT/runs/baseline/rep_01/merged"
-  local cond
-  for cond in fail_1 fail_4 fail_8; do
-    python experiments/shard_recovery/scripts/run_local.py run-condition \
-      --condition "$cond" --rep 1 --shared-root "$MMIRAGE_RECOVERY_ROOT" \
-      --max-active-shards 4 --gpu-ids 0,1,2,3 --overwrite
-    python experiments/shard_recovery/scripts/run_local.py retry \
-      --condition "$cond" --rep 1 --shared-root "$MMIRAGE_RECOVERY_ROOT" \
-      --max-active-shards 4 --gpu-ids 0,1,2,3
-    mmirage merge-dir \
-      --input-dir "$MMIRAGE_RECOVERY_ROOT/runs/$cond/rep_01/output" \
-      --output-dir "$MMIRAGE_RECOVERY_ROOT/runs/$cond/rep_01/merged"
-  done
-  python experiments/shard_recovery/scripts/extract_results.py \
-    --shared-root "$MMIRAGE_RECOVERY_ROOT" \
-    --conditions baseline,fail_1,fail_4,fail_8 \
-    --reps 1 \
-    --config "$REPO_ROOT/experiments/shard_recovery/configs/mmirage_recovery.yaml"
+  python experiments/a_matrix/scripts/run_setup.py --setup recovery
+  python experiments/a_matrix/scripts/run_setup.py --setup recovery --extract
 }
 
 stage_text() {
-  rm -rf experiments/task_comparison/text_shortening/results
-  python experiments/single_node_h100_scaling/scripts/run.py \
-    --execution-config experiments/task_comparison/text_shortening/configs/execution_4gpu.yaml
-  "$MMIRAGE_DATATROVE_PYTHON" experiments/single_node_h100_scaling/scripts/run_datatrove_scaling.py \
-    --workload-jsonl experiments/task_comparison/text_shortening/workload/workload.jsonl \
-    --output-root experiments/task_comparison/text_shortening/results/native_competitors/datatrove \
-    --gpu-count 4 --visible-gpus 0,1,2,3 --repetitions 3 --model Qwen/Qwen3-4B
-  "$MMIRAGE_NEMO_CURATOR_PYTHON" experiments/single_node_h100_scaling/scripts/run_nemo_curator_scaling.py \
-    --workload-jsonl experiments/task_comparison/text_shortening/workload/workload.jsonl \
-    --output-root experiments/task_comparison/text_shortening/results/native_competitors/nemo_curator \
-    --gpu-count 4 --visible-gpus 0,1,2,3 --repetitions 3 --model Qwen/Qwen3-4B
+  rm -rf experiments/task_comparison/text_shortening/results/native_competitors
+  [[ "$RERUN_REUSED" == 1 ]] && rm -rf experiments/task_comparison/text_shortening/results/runs
+  python experiments/a_matrix/scripts/run_setup.py --setup text_shortening $REUSE_FLAG
 }
 
 stage_vlm() {
-  rm -rf experiments/task_comparison/vlm_enrichment/results
-  python experiments/task_comparison/vlm_enrichment/scripts/run_mmirage_vlm.py \
-    --execution-config experiments/task_comparison/vlm_enrichment/configs/execution_4gpu.yaml
-  local fw worker
-  for fw in sglang datatrove nemo_curator; do
-    case "$fw" in
-      sglang) worker="" ;;
-      datatrove) worker="$MMIRAGE_DATATROVE_PYTHON" ;;
-      nemo_curator) worker="$MMIRAGE_NEMO_CURATOR_PYTHON" ;;
-    esac
-    python experiments/task_comparison/vlm_enrichment/scripts/run_native_vlm_competitor.py \
-      --framework "$fw" \
-      --workload-jsonl experiments/task_comparison/vlm_enrichment/workload/rows.jsonl \
-      --image-base-path experiments/task_comparison/vlm_enrichment/workload \
-      --output-root "experiments/task_comparison/vlm_enrichment/results/native_competitors/$fw" \
-      --gpu-count 4 --visible-gpus 0,1,2,3 --repetitions 3 \
-      ${worker:+--worker-python "$worker"}
-  done
+  rm -rf experiments/task_comparison/vlm_enrichment/results/native_competitors
+  [[ "$RERUN_REUSED" == 1 ]] && rm -rf experiments/task_comparison/vlm_enrichment/results/runs
+  python experiments/a_matrix/scripts/run_setup.py --setup vlm_enrichment $REUSE_FLAG
 }
 
 declare -A STATUS DURATION

@@ -1,0 +1,20 @@
+# Two-pod parallel execution of the A matrix.
+#
+# Each pod is one 4xH100 node. The workload is disjoint across pods: a run is
+# assigned to exactly one pod, so nothing is duplicated. Pod A takes the 1-GPU
+# and 2-GPU points of gpu_scaling plus the whole recovery setup; Pod B takes the
+# 4-GPU point of gpu_scaling (which doubles as the H100 reference for S2) plus
+# the text_shortening and vlm_enrichment experiments of Comparison B.
+#
+# The 4xA100 node is driven separately by --setup a100_4gpu (run_a100.sh), not
+# by either pod.
+
+pod_a:
+  setup: gpu_scaling
+  gpu_points: [1, 2]
+  extra: [recovery]
+
+pod_b:
+  setup: gpu_scaling
+  gpu_points: [4]
+  extra: [text_shortening, vlm_enrichment]

@@ -37,10 +37,19 @@ REWRITE_PROMPT_TEMPLATE = (
     "{prompt_text}"
 )
 
+SUMMARIZE_PROMPT_TEMPLATE = (
+    "Summarize the following news article in 2 to 3 sentences.\n"
+    "Keep the summary faithful to the facts in the article.\n\n"
+    "Article:\n"
+    "{prompt_text}"
+)
+
 
 def build_prompt(prompt_text: str, prompt_style: str = "rewrite") -> str:
     if prompt_style == "raw":
         return prompt_text
+    if prompt_style == "summarize":
+        return SUMMARIZE_PROMPT_TEMPLATE.format(prompt_text=prompt_text)
     return REWRITE_PROMPT_TEMPLATE.format(prompt_text=prompt_text)
 
 

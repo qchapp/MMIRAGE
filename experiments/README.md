@@ -7,11 +7,13 @@ and READMEs.
 
 | Experiment | Measures | Primary metrics | Runbook |
 |---|---|---|---|
-| `raw_sglang_overhead` | MMIRAGE throughput retention vs matched raw SGLang HTTP, 1 GPU | `output_tok_s_per_gpu`, `rows_s`, `throughput_retention`, `relative_orchestration_overhead` | `experiments/raw_sglang_overhead/README.md` |
-| `single_node_h100_scaling` | Single-node multi-GPU strong scaling, 1/2/4 one-GPU shard workers | `aggregate_output_tok_s`, `output_tok_s_per_gpu`, `speedup_vs_1gpu`, `parallel_efficiency` | `experiments/single_node_h100_scaling/README.md` |
-| `shard_recovery` | Shard-scoped recovery after deliberate worker termination, 16 shards / 4 conditions | `shards_recomputed_count`, `fraction_of_total_workload_recomputed`, recovery wall time | `experiments/shard_recovery/README.md` |
+| `a_matrix` | Consolidated A + B: single-node strong scaling (1/2/4 H100 and 4x A100), shard recovery, text and vlm task comparisons | `aggregate_output_tok_s`, `output_tok_s_per_gpu`, `rows_s`, `speedup_vs_1gpu`, recovery wall time | `experiments/a_matrix/README.md` |
 | `task_comparison/text_shortening` | Article→summary transformation with MMIRAGE/DataTrove/NeMo Curator | per-framework wall time and throughput at fixed workload | `experiments/task_comparison/text_shortening/README.md` |
 | `task_comparison/vlm_enrichment` | Image-caption enrichment with MMIRAGE/SGLang/DataTrove/NeMo Curator | per-framework wall time and throughput at fixed workload | `experiments/task_comparison/vlm_enrichment/README.md` |
+
+`single_node_h100_scaling`, `shard_recovery` and `raw_sglang_overhead` are
+superseded by `a_matrix` (their runners are still used as the execution
+engine; the raw_sglang path is one framework of the scaling matrix).
 
 ## Running everything unattended
 
@@ -20,6 +22,12 @@ intervention: preflight checks (venv, 4 GPUs, HF token, competitor
 interpreters), then smoke → calibrate → every experiment, each stage isolated
 with its own log under `experiments/run_all_logs/` and a final status table.
 `--only`/`--skip` select stages (e.g. `bash experiments/run_all.sh --skip vlm`).
+
+By default the MMIRAGE-only cells already covered by the 2026-08-15 fast-run
+reproduction are reused, not rerun (see
+`experiments/a_matrix/README.md#reusing-the-2026-08-15-fast-runs`): those
+results are preserved, and `run_setup.py --reuse-fastruns` skips the
+corresponding units. `--rerun-reused` reruns every cell from scratch.
 
 ## Sizes and the smoke calibrator
 

@@ -1,0 +1,34 @@
+# Units already satisfied by the 2026-08-15 fast-run reproduction (RUNLOG.md)
+# and reused instead of rerunning.
+#
+# Keys are run_setup unit labels. `src` is where the archived results live
+# (or must be restored to); `target` is where the matrix reads them. For the
+# scaling cells src != target because the consolidated matrix reads from
+# experiments/a_matrix/results/; restore the archive with the rsync commands in
+# experiments/a_matrix/README.md ("Reusing the 2026-08-15 fast-runs"). For the
+# text/vlm cells src == target (same runner, same output root).
+#
+# run_setup.py --reuse-fastruns (passed by run_all.sh) skips these units and
+# logs a notice; drop the flag (or run_all.sh --rerun-reused) to rerun them.
+# Reuse is only valid while the calibrated sizes stay at the values below.
+reused_units:
+  - label: gpu_scaling/mmirage/gpu_1
+    src: experiments/single_node_h100_scaling/results/runs/gpu_1
+    target: experiments/a_matrix/results/gpu_scaling/mmirage/runs/gpu_1
+    num_rows: 5430
+  - label: gpu_scaling/mmirage/gpu_2
+    src: experiments/single_node_h100_scaling/results/runs/gpu_2
+    target: experiments/a_matrix/results/gpu_scaling/mmirage/runs/gpu_2
+    num_rows: 5430
+  - label: gpu_scaling/mmirage/gpu_4
+    src: experiments/single_node_h100_scaling/results/runs/gpu_4
+    target: experiments/a_matrix/results/gpu_scaling/mmirage/runs/gpu_4
+    num_rows: 5430
+  - label: text_shortening/mmirage
+    src: experiments/task_comparison/text_shortening/results/runs/gpu_4
+    target: experiments/task_comparison/text_shortening/results/runs/gpu_4
+    num_rows: 9471
+  - label: vlm_enrichment/mmirage
+    src: experiments/task_comparison/vlm_enrichment/results/runs/gpu_4
+    target: experiments/task_comparison/vlm_enrichment/results/runs/gpu_4
+    num_rows: 83

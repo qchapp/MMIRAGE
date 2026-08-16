@@ -1,0 +1,15 @@
+# Setup S2: the same A task at 4 GPUs on 4xA100, for the H100-vs-A100 axis.
+# Runs only the 4-GPU point; compares against S1 gpu_scaling at gpu_count=4 on
+# H100 (already executed on the H100 pod). Identical workload and prompt, so the
+# sole difference is the accelerator.
+
+name: a100_4gpu
+accelerator: a100
+gpu_count: [4]
+frameworks:
+  - mmirage
+  - raw_sglang
+  - datatrove
+  - nemo_curator
+repetitions: 3
+gpus_per_run: 4

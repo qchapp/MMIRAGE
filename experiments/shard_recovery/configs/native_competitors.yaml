@@ -16,7 +16,7 @@ task:
   output_contract:
     final_row_order: must_match_expected_id_order
     required_fields:
-      - mmirage_id
+      - stable_id
       - prompt_text
       - answer
     validation:
@@ -30,7 +30,6 @@ conditions:
   baseline: []
   fail_1: [3]
   fail_4: [1, 5, 9, 13]
-  fail_8: [0, 2, 4, 6, 8, 10, 12, 14]
 
 execution:
   native_mode: true
@@ -48,6 +47,11 @@ execution:
     --max-active-shards {max_active_shards}
 
 frameworks:
+  raw_sglang:
+    useful_for: text_generation_recovery_with_direct_sglang_engine
+    native_backend: direct SGLang engine/client baseline
+    environment: experiments/single_node_h100_scaling/environment/sglang_uv_requirements.txt
+    boundary: Retry equivalence is measured at the benchmark shard-marker level.
   datatrove:
     useful_for: text_generation_recovery_with_chunk_checkpointing
     native_backend: DataTrove local or Slurm executor with vLLM inference path

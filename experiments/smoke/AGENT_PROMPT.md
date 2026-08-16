@@ -1,5 +1,12 @@
 # Pod agent runbook for MMIRAGE fast runs
 
+> **Superseded**: this runbook predates the consolidated A matrix. The current
+> entry point is `bash experiments/run_all.sh` (smoke → calibrate → scaling →
+> recovery → text → vlm), or `run_setup.py --pod pod_a` / `--pod pod_b` for a
+> two-pod split — see `experiments/a_matrix/README.md`. The per-experiment
+> sections below are kept as reference for the runner commands; the recovery
+> conditions are now `baseline` / `fail_1` / `fail_4` (no `fail_8`).
+
 You are an agent running inside an EPFL Run:ai GPU pod for the
 `fabnemEPFL/MMIRAGE` repository, branch `experiment/fast-runs`. Your job is to
 execute the MMIRAGE fast-run experiments described below, verify them, and save the
@@ -168,7 +175,7 @@ SGLang) each have `scripts/run_<framework>_scaling.py` wrappers; the
 python experiments/shard_recovery/scripts/prepare_workload.py \
   --output-root /workspace/mmirage-recovery
 python experiments/shard_recovery/scripts/run_local.py run-condition --condition baseline --rep 1 --max-active-shards 4 --gpu-ids 0,1,2,3
-# then for each of fail_1, fail_4, fail_8 and each rep:
+# then for each of fail_1, fail_4 and each rep:
 python experiments/shard_recovery/scripts/run_local.py run-condition --condition <cond> --rep <r> --max-active-shards 4 --gpu-ids 0,1,2,3
 python experiments/shard_recovery/scripts/run_local.py retry --condition <cond> --rep <r> --max-active-shards 4 --gpu-ids 0,1,2,3
 ```

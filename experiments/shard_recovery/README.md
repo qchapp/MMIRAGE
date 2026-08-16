@@ -11,7 +11,6 @@ in-pod path is `run_local.py`, which emulates pod termination with local
 | `baseline` | none |
 | `fail_1` | `3` |
 | `fail_4` | `1,5,9,13` |
-| `fail_8` | `0,2,4,6,8,10,12,14` |
 
 Metrics: `shards_recomputed_count`, `completed_shards_reused`, `rows_recomputed`,
 `fraction_of_total_workload_recomputed`,
@@ -46,7 +45,7 @@ python experiments/shard_recovery/scripts/run_local.py run-condition \
   --max-active-shards 4 --gpu-ids 0,1,2,3 --overwrite
 ```
 
-Then for each of `fail_1`, `fail_4`, `fail_8` and each repetition `--rep <r>`:
+Then for each of `fail_1`, `fail_4` and each repetition `--rep <r>`:
 
 ```
 python experiments/shard_recovery/scripts/run_local.py run-condition \
@@ -68,7 +67,7 @@ successful runs; increment `--rep` for repetitions.
 ```
 python experiments/shard_recovery/scripts/extract_results.py \
   --shared-root "$MMIRAGE_RECOVERY_ROOT" \
-  --conditions baseline,fail_1,fail_4,fail_8 \
+  --conditions baseline,fail_1,fail_4 \
   --reps 1,2,3 \
   --config "$MMIRAGE_REPO/experiments/shard_recovery/configs/mmirage_recovery.yaml"
 ```

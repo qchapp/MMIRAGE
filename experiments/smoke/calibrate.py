@@ -107,7 +107,7 @@ def calibrate_experiment(name: str, cfg: Dict[str, Any], timing: Dict[str, Any])
         "expected_wall_seconds": round(expected_wall, 2) if expected_wall is not None else None,
         "over_budget": over_budget,
         "size_key": size_cfg["key"],
-        "size_file": f"experiments/{name}/configs/workload_size.yaml",
+        "size_file": cfg.get("size_file", f"experiments/{name}/configs/workload_size.yaml"),
     }
 
 

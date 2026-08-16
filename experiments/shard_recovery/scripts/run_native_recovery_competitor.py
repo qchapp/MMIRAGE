@@ -34,9 +34,8 @@ CONDITION_FAILURE_SHARDS = {
     "baseline": [],
     "fail_1": [3],
     "fail_4": [1, 5, 9, 13],
-    "fail_8": [0, 2, 4, 6, 8, 10, 12, 14],
 }
-FRAMEWORKS = {"datatrove", "nemo_curator", "distilabel", "ray_data_llm"}
+FRAMEWORKS = {"datatrove", "nemo_curator", "distilabel", "ray_data_llm", "raw_sglang"}
 TOTAL_SHARDS = 16
 
 
@@ -101,7 +100,7 @@ def parse_args() -> argparse.Namespace:
 def output_contract() -> Dict[str, Any]:
     return {
         "final_row_order": "must_match_expected_id_order",
-        "required_fields": ["mmirage_id", "prompt_text", "answer"],
+        "required_fields": ["stable_id", "prompt_text", "answer"],
         "validation": [
             "no_missing_ids",
             "no_duplicate_ids",
@@ -163,7 +162,7 @@ def shard_complete(args: argparse.Namespace, shard_id: int, expected_ids: List[s
         return False
     if not output_path.exists():
         return False
-    output_ids = [str(row.get("mmirage_id")) for row in read_jsonl(output_path)]
+    output_ids = [str(row.get("stable_id")) for row in read_jsonl(output_path)]
     return len(output_ids) == len(expected_ids) and set(output_ids) == set(expected_ids)
 
 
@@ -203,9 +202,9 @@ def launch_worker(
         "--concurrency",
         str(args.concurrency),
         "--prompt-style",
-        "raw",
+        "rewrite",
         "--id-field",
-        "mmirage_id",
+        "stable_id",
         "--gpu-id",
         str(gpu_id),
     ]
@@ -353,7 +352,7 @@ def main() -> int:
     except Exception as exc:
         raise SystemExit(f"Failed to read recovery workload under --shared-root: {exc}")
 
-    expected_ids = [str(row["mmirage_id"]) for row in sorted(order_rows, key=lambda row: int(row["order_index"]))]
+    expected_ids = [str(row["stable_id"]) for row in sorted(order_rows, key=lambda row: int(row["order_index"]))]
     if len(rows) != len(expected_ids):
         raise SystemExit(f"Workload rows ({len(rows)}) do not match id_order rows ({len(expected_ids)})")
     expected_by_shard: Dict[int, List[str]] = {}
@@ -390,15 +389,15 @@ def main() -> int:
         output_path = args.state_dir / f"shard_{shard_id}" / "output.jsonl"
         if output_path.exists():
             merged_rows.extend(read_jsonl(output_path))
-    order_by_id = {str(row["mmirage_id"]): int(row["order_index"]) for row in order_rows}
-    merged_rows.sort(key=lambda row: order_by_id.get(str(row["mmirage_id"]), 1 << 60))
+    order_by_id = {str(row["stable_id"]): int(row["order_index"]) for row in order_rows}
+    merged_rows.sort(key=lambda row: order_by_id.get(str(row["stable_id"]), 1 << 60))
     merged_path = args.run_root / "merged" / "merged.jsonl"
     merged_path.parent.mkdir(parents=True, exist_ok=True)
     with merged_path.open("w", encoding="utf-8") as handle:
         for row in merged_rows:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    merged_ids = [str(row.get("mmirage_id")) for row in merged_rows]
+    merged_ids = [str(row.get("stable_id")) for row in merged_rows]
     missing = sorted(set(expected_ids) - set(merged_ids))
     unexpected = sorted(set(merged_ids) - set(expected_ids))
     duplicates = sorted({item for item in merged_ids if merged_ids.count(item) > 1})
