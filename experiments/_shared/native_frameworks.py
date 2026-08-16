@@ -372,6 +372,11 @@ def run_distilabel(
       when several engines share a node.
     * ``_SamplingParamsCompat``: distilabel always passes ``logits_processors``,
       which modern vLLM (msgspec ``Struct``) removed; the shim pops it.
+    * ``disable_cuda_device_placement``: distilabel's default ``cuda_devices=
+      "auto"`` queries *all* physical GPUs via pynvml and then *overwrites*
+      ``CUDA_VISIBLE_DEVICES`` with its own choice, ignoring the orchestrator's
+      per-worker GPU assignment and colliding concurrent engines on the same
+      physical GPU. Disabling it makes vLLM honour the launching env instead.
 
     ``cache_dir`` is derived from the shard output path (and wiped on every
     call) because distilabel hashes the pipeline definition, not the dataset:
@@ -415,6 +420,7 @@ def run_distilabel(
                 model=model,
                 trust_remote_code=True,
                 extra_kwargs={"gpu_memory_utilization": 0.85},
+                disable_cuda_device_placement=True,
             ),
             columns=["prompt"],
             template="{{ prompt }}",
