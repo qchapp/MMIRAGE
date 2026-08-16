@@ -357,7 +357,28 @@ def run_distilabel(
     prompt_style: str = "rewrite",
     id_field: str = "stable_id",
 ) -> dict[str, Any]:
-    """Distilabel pipeline with a native local vLLM-backed LLM task."""
+    """Distilabel pipeline with a native local vLLM-backed LLM task.
+
+    distilabel 1.5.3 was written for older vLLM, so four compatibility knobs
+    are required for it to run against the pinned modern vLLM:
+
+    * ``template="{{ prompt }}"``: distilabel's default template expects an
+      ``instruction`` column, so with ``columns=["prompt"]`` it raises a
+      ``DistilabelUserError``.
+    * ``use_cache=False``: a stale distilabel execution cache returns empty
+      rows instead of re-running the pipeline.
+    * ``gpu_memory_utilization=0.85``: 0.92's reservation (~73 GiB) does not
+      leave enough KV-cache headroom for the 40 960-token Qwen3-4B context
+      when several engines share a node.
+    * ``_SamplingParamsCompat``: distilabel always passes ``logits_processors``,
+      which modern vLLM (msgspec ``Struct``) removed; the shim pops it.
+
+    ``cache_dir`` is derived from the shard output path (and wiped on every
+    call) because distilabel hashes the pipeline definition, not the dataset:
+    without per-worker isolation, concurrent shard workers on the same host
+    race on one shared execution cache and pollute each other's leaf datasets
+    with neighbour-shard rows, so shard output validation never converges.
+    """
     import vllm
     from datasets import Dataset, DatasetDict
     from distilabel.llms import vLLM
