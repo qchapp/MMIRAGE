@@ -7,6 +7,12 @@ the deliberate MMIRAGE pod termination is emulated with ``SIGTERM`` to the
 designated failure shards after they report running. Shards without a valid
 completion marker are relaunched in retry rounds, outputs are merged in the
 expected id order, and the recovery output contract is validated.
+
+vLLM 0.27 launches each engine in a detached subprocess, so a killed or
+crashed worker leaves an orphaned ``VLLM::EngineCore`` holding its full GPU
+reservation. Between waves we therefore sweep orphaned engine cores and wait
+for GPU memory to drain; workers also run with ``HF_HUB_OFFLINE=1`` since the
+model snapshot is already cached under the shared ``HF_HOME``.
 """
 
 from __future__ import annotations
