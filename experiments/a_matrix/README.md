@@ -18,29 +18,32 @@ and output contract.
 
 ## Run
 
-`bash experiments/run_all.sh` is the single entry point: on one 4-GPU pod it
-runs the whole matrix **with no pod separation** — smoke → calibrate → scaling
-(all GPU points 1/2/4) → recovery → text → vlm, delegating the run stages to
-`scripts/run_setup.py`. `--only`/`--skip` select stages. By default the
-MMIRAGE-only cells already covered by the 2026-08-15 fast-runs reproduction are
-reused, not rerun — see [Reusing the 2026-08-15 fast-runs](#reusing-the-2026-08-15-fast-runs).
+`bash experiments/run_all.sh` is the single entry point: on one 4-GPU node it
+runs the whole matrix — smoke → calibrate → scaling (all GPU points 1/2/4) →
+recovery → text → vlm, delegating the run stages to `scripts/run_setup.py`.
+`--only`/`--skip` select stages. By default the MMIRAGE-only cells already
+covered by the 2026-08-15 fast-runs reproduction are reused, not rerun — see
+[Reusing the 2026-08-15 fast-runs](#reusing-the-2026-08-15-fast-runs).
 `bash experiments/run_all.sh --rerun-reused` reruns every cell from scratch.
 
-Optional parallelism: the identical work can be split across two 4-GPU nodes
-with `run_setup.py --pod pod_a --reuse-fastruns` (scaling 1/2-GPU + recovery)
-and `run_setup.py --pod pod_b --reuse-fastruns` (scaling 4-GPU + text + vlm),
-per `schedule.yaml`. This is purely a manual optimization — nothing requires
-the split. Run the shared workload preparation once first:
+To run individual experiments directly:
 
-```
-python experiments/a_matrix/scripts/prepare_workload.py \
-  --output-dir experiments/a_matrix/workload \
-  --shared-root "$MMIRAGE_RECOVERY_ROOT"
-```
+```bash
+# Scaling (all frameworks, 1/2/4 GPU points)
+python experiments/a_matrix/scripts/run_setup.py --setup gpu_scaling
 
-The 4x A100 point runs on its own node with `bash experiments/run_a100.sh`
-(= `run_setup.py --setup a100_4gpu`); it reuses the same workload and sizes.
-No fast-run exists on A100, so all four cells there are new.
+# Recovery (MMIRAGE + all native competitors, fail_1/fail_4 conditions)
+python experiments/a_matrix/scripts/run_setup.py --setup recovery
+
+# Text shortening (MMIRAGE + DataTrove + NeMo Curator)
+python experiments/a_matrix/scripts/run_setup.py --setup text_shortening
+
+# VLM enrichment (MMIRAGE + SGLang + DataTrove + NeMo Curator)
+python experiments/a_matrix/scripts/run_setup.py --setup vlm_enrichment
+
+# Extract recovery results after runs complete
+python experiments/a_matrix/scripts/run_setup.py --setup recovery --extract
+```
 
 Monitor a live run with `python experiments/progress_tracker.py` (`--once` for
 a single snapshot, `--json` for machine-readable output). Recovery additionally

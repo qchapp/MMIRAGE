@@ -2,12 +2,9 @@
 
 > **Superseded**: this runbook predates the consolidated A matrix. The current
 > entry point is `bash experiments/run_all.sh`, which runs everything on one
-> 4-GPU pod with **no pod_a / pod_b separation** (smoke → calibrate → scaling
-> → recovery → text → vlm). `run_setup.py --pod pod_a` / `--pod pod_b` is only
-> an optional manual split of the same cells across two nodes — see
-> `experiments/a_matrix/README.md`. The per-experiment
-> sections below are kept as reference for the runner commands; the recovery
-> conditions are now `baseline` / `fail_1` / `fail_4` (no `fail_8`).
+> 4-GPU node (smoke → calibrate → scaling → recovery → text → vlm). The
+> per-experiment sections below are kept as reference for the runner commands;
+> the recovery conditions are now `baseline` / `fail_1` / `fail_4` (no `fail_8`).
 
 You are an agent running inside an EPFL Run:ai GPU pod for the
 `fabnemEPFL/MMIRAGE` repository, branch `experiment/fast-runs`. Your job is to

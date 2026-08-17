@@ -17,7 +17,6 @@ Usage:
   python experiments/progress_tracker.py --once     # single snapshot
   python experiments/progress_tracker.py --json     # machine-readable snapshot
   python experiments/progress_tracker.py --setup recovery
-  python experiments/progress_tracker.py --pod pod_a --once
 """
 
 from __future__ import annotations
@@ -708,7 +707,7 @@ def invocation_from_captures(args: argparse.Namespace, pid: int | None) -> dict 
 
 def invocation_from_schedule(args: argparse.Namespace) -> dict | None:
     """Synthesize an invocation from the schedule file when no run_setup header
-    is visible (e.g. pod_b runs on another node sharing this filesystem)."""
+    is visible (e.g. monitoring a remote node sharing this filesystem)."""
     pod = args.pod
     if not pod:
         return None
@@ -908,7 +907,7 @@ def render(info: dict, tty: bool, interval: float = 5.0) -> str:
     rs = info["run_setup"]
     if not rs["alive"] and rs["pid"] is None and not rs["out_file"] and not info["units"]:
         lines.append("No run_setup.py process found and no run_setup output to read.")
-        lines.append("Start it with: nohup python experiments/a_matrix/scripts/run_setup.py --pod pod_a > run_setup.out 2>&1 &")
+        lines.append("Start it with: nohup python experiments/a_matrix/scripts/run_setup.py --setup recovery > run_setup.out 2>&1 &")
         return "\n".join(lines)
 
     pid_txt = str(rs["pid"]) if rs["pid"] else "—"

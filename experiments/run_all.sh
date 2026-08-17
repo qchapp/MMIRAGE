@@ -2,11 +2,10 @@
 # Run every fast-run experiment end to end in one pass: preflight, then
 # smoke -> calibrate -> scaling -> recovery -> text -> vlm.
 #
-# This is the single entry point for the whole A matrix on one 4-GPU pod:
+# This is the single entry point for the whole A matrix on one 4-GPU node:
 # scaling runs all three GPU points (1/2/4), recovery runs the MMIRAGE and
 # native (raw_sglang/datatrove/nemo_curator/distilabel/ray_data_llm) cells,
-# and text_shortening + vlm_enrichment run the Comparison B tasks. There is
-# no pod_a / pod_b separation here - everything runs together.
+# and text_shortening + vlm_enrichment run the Comparison B tasks.
 #
 # Stages are isolated and log to experiments/run_all_logs/<stage>.log.
 # Usage: run_all.sh [--only stage,stage] [--skip stage,stage] [--rerun-reused]
@@ -14,9 +13,7 @@
 #
 # The scaling/recovery/text/vlm stages delegate to
 # experiments/a_matrix/scripts/run_setup.py, which schedules the per-GPU-point
-# and per-framework units and pinpoints GPUs. The optional --pod pod_a / --pod
-# pod_b flags of run_setup.py are only for splitting the same work across two
-# nodes manually; run_all.sh always runs the full union on one pod.
+# and per-framework units and pins GPUs.
 #
 # By default the MMIRAGE-only cells already covered by the 2026-08-15 fast-runs
 # reproduction (gpu_scaling mmirage 1/2/4 GPU, text mmirage, vlm mmirage) are
@@ -121,6 +118,13 @@ stage_scaling() {
 }
 
 stage_recovery() {
+  # Ensure the HF_HOME symlink exists so vLLM finds the cached model snapshot
+  # without hitting the HuggingFace API (which can 429 under heavy load).
+  mkdir -p "$MMIRAGE_RECOVERY_ROOT/hf"
+  local default_cache="${HOME}/.cache/huggingface/hub"
+  if [ -d "$default_cache" ] && [ ! -e "$MMIRAGE_RECOVERY_ROOT/hf/hub" ]; then
+    ln -sfn "$default_cache" "$MMIRAGE_RECOVERY_ROOT/hf/hub"
+  fi
   rm -rf "$MMIRAGE_RECOVERY_ROOT"/runs "$MMIRAGE_RECOVERY_ROOT"/native_competitors "$MMIRAGE_RECOVERY_ROOT"/results
   python experiments/a_matrix/scripts/run_setup.py --setup recovery
   python experiments/a_matrix/scripts/run_setup.py --setup recovery --extract

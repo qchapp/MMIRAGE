@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Orchestrate the A matrix and the Comparison B extras on one 4-GPU pod.
+"""Orchestrate the A matrix and the Comparison B extras on one 4-GPU node.
 
 This is a thin scheduler, not a runner: every unit of work delegates to an
 existing, tested runner script via subprocess. A unit is one independent
@@ -8,10 +8,8 @@ sequence). Each unit declares how many GPUs it needs; the scheduler pins it to
 free physical GPUs via the existing ``--visible-gpus`` / ``--gpu-ids`` flags.
 
 The default entry point is ``bash experiments/run_all.sh``, which runs the
-whole matrix (scaling 1/2/4, recovery, text, vlm) on one pod with no pod
-separation. ``--pod`` is an optional manual split of the same cells across two
-4-GPU nodes; with no ``--pod`` and no ``--setup``, run_all.sh passes an
-explicit ``--setup`` per stage.
+whole matrix (scaling 1/2/4, recovery, text, vlm) on one 4-GPU node. With an
+explicit ``--setup``, run_setup.py runs just that stage.
 
 Concurrency rules (kept deliberately simple to avoid correctness bugs):
   * at most one scaling unit per framework at a time, because the scaling
@@ -23,11 +21,9 @@ Concurrency rules (kept deliberately simple to avoid correctness bugs):
 Usage:
   python experiments/a_matrix/scripts/run_setup.py --setup gpu_scaling --dry-run
   python experiments/a_matrix/scripts/run_setup.py --setup recovery
-  python experiments/a_matrix/scripts/run_setup.py --pod pod_a [--dry-run]
-  python experiments/a_matrix/scripts/run_setup.py --pod pod_b --prepare
   python experiments/a_matrix/scripts/run_setup.py --setup a100_4gpu --dry-run
-  python experiments/a_matrix/scripts/run_setup.py --pod pod_a --extract
   python experiments/a_matrix/scripts/run_setup.py --setup gpu_scaling --reuse-fastruns
+  python experiments/a_matrix/scripts/run_setup.py --setup recovery --extract
 
 The pod assignment lives in experiments/a_matrix/schedule.yaml. ``--prepare``
 only runs the workload preparation scripts the pod needs; ``--extract`` only

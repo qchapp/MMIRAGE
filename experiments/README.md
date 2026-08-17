@@ -18,11 +18,11 @@ engine; the raw_sglang path is one framework of the scaling matrix).
 ## Running everything unattended
 
 `bash experiments/run_all.sh` runs the whole suite end to end without human
-intervention and **without any pod_a / pod_b split**: preflight checks (venv,
-4 GPUs, HF token, all competitor interpreters), then smoke → calibrate → every
-experiment on one 4-GPU pod, each stage isolated with its own log under
-`experiments/run_all_logs/` and a final status table. `--only`/`--skip` select
-stages (e.g. `bash experiments/run_all.sh --skip vlm`).
+intervention: preflight checks (venv, 4 GPUs, HF token, all competitor
+interpreters), then smoke → calibrate → every experiment on one 4-GPU node,
+each stage isolated with its own log under `experiments/run_all_logs/` and a
+final status table. `--only`/`--skip` select stages (e.g.
+`bash experiments/run_all.sh --skip vlm`).
 
 By default the MMIRAGE-only cells already covered by the 2026-08-15 fast-run
 reproduction are reused, not rerun (see
@@ -30,17 +30,34 @@ reproduction are reused, not rerun (see
 results are preserved, and `run_setup.py --reuse-fastruns` skips the
 corresponding units. `--rerun-reused` reruns every cell from scratch.
 
-The only node that runs separately is the 4x A100 point
-(`bash experiments/run_a100.sh`); everything else (scaling 1/2/4, recovery,
-text, vlm) is driven by run_all.sh on the 4x H100 pod.
+## Running individual experiments
+
+Each experiment can be run in isolation:
+
+```bash
+# Scaling: all frameworks at 1/2/4 GPU points
+python experiments/a_matrix/scripts/run_setup.py --setup gpu_scaling
+
+# Recovery: MMIRAGE baseline + fail_1/fail_4 + all native competitors
+python experiments/a_matrix/scripts/run_setup.py --setup recovery
+
+# Text shortening: MMIRAGE + DataTrove + NeMo Curator
+python experiments/a_matrix/scripts/run_setup.py --setup text_shortening
+
+# VLM enrichment: MMIRAGE + SGLang + DataTrove + NeMo Curator
+python experiments/a_matrix/scripts/run_setup.py --setup vlm_enrichment
+
+# Extract recovery results only (after recovery runs)
+python experiments/a_matrix/scripts/run_setup.py --setup recovery --extract
+```
 
 ## Monitoring
 
 `python experiments/progress_tracker.py` renders a live dashboard for the
 `run_setup.py` scheduler: per-unit status derived from the per-cell logs,
 elapsed vs. expected time, GPU usage, and recovery progress. `--once` prints a
-single snapshot, `--json` emits machine-readable output, `--setup <name>` /
-`--pod pod_a|pod_b` filter the view.
+single snapshot, `--json` emits machine-readable output, `--setup <name>`
+filters the view.
 
 ## Sizes and the smoke calibrator
 
