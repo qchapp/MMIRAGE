@@ -128,6 +128,23 @@ stage_recovery() {
   rm -rf "$MMIRAGE_RECOVERY_ROOT"/runs "$MMIRAGE_RECOVERY_ROOT"/native_competitors "$MMIRAGE_RECOVERY_ROOT"/results
   python experiments/a_matrix/scripts/run_setup.py --setup recovery
   python experiments/a_matrix/scripts/run_setup.py --setup recovery --extract
+  # Persist extracted results to /lightscratch so they survive pod suspension.
+  local persist_dir="$REPO_ROOT/experiments/a_matrix/results/recovery"
+  mkdir -p "$persist_dir"
+  if [ -f "$MMIRAGE_RECOVERY_ROOT/results/recovery_results.json" ]; then
+    cp -a "$MMIRAGE_RECOVERY_ROOT/results/recovery_results.json" "$persist_dir/"
+  fi
+  if [ -f "$MMIRAGE_RECOVERY_ROOT/results/recovery_results.csv" ]; then
+    cp -a "$MMIRAGE_RECOVERY_ROOT/results/recovery_results.csv" "$persist_dir/"
+  fi
+  # Also persist per-run summaries and merged outputs (small, high value).
+  if [ -d "$MMIRAGE_RECOVERY_ROOT/runs" ]; then
+    cp -a "$MMIRAGE_RECOVERY_ROOT/runs" "$persist_dir/runs" 2>/dev/null || true
+  fi
+  if [ -d "$MMIRAGE_RECOVERY_ROOT/native_competitors" ]; then
+    cp -a "$MMIRAGE_RECOVERY_ROOT/native_competitors" "$persist_dir/native_competitors" 2>/dev/null || true
+  fi
+  echo "recovery: results persisted to $persist_dir"
 }
 
 stage_text() {
