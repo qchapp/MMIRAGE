@@ -122,7 +122,6 @@ def shard_env(
     env.update(
         {
             "HF_HOME": str(Path(shared_root) / "hf"),
-            "TRANSFORMERS_CACHE": str(Path(shared_root) / "hf" / "transformers"),
             "CUDA_VISIBLE_DEVICES": gpu_id,
             "PYTHONUNBUFFERED": "1",
         }

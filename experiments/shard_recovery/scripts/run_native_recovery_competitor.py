@@ -186,7 +186,6 @@ def launch_worker(
     )
     env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     env["HF_HOME"] = str(Path(args.shared_root) / "hf")
-    env["TRANSFORMERS_CACHE"] = str(Path(args.shared_root) / "hf" / "transformers")
     env["HF_HUB_OFFLINE"] = "1"
     env["PYTHONUNBUFFERED"] = "1"
     state_dir = args.state_dir
