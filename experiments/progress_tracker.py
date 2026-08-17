@@ -370,13 +370,18 @@ def scan_known_labels() -> set[str]:
 
 
 def unit_log_path(label: str) -> Path | None:
+    candidates: list[Path] = []
     for base in sorted(LOG_ROOT.glob("*")):
         if not base.is_dir():
             continue
         path = base / f"{label}.log"
         if path.exists():
-            return path
-    return None
+            candidates.append(path)
+    if not candidates:
+        return None
+    # Prefer the newest log file so stale logs from old pod directories
+    # (e.g. pod_a/) don't shadow the current run's log.
+    return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
 def _parse_ts(iso: str) -> float | None:
