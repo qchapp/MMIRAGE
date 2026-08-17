@@ -27,7 +27,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
 
-from experiments._shared.io import read_jsonl, write_jsonl
+from experiments._shared.fileio import read_jsonl, write_jsonl
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 

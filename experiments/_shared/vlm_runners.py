@@ -27,7 +27,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from experiments._shared.io import read_jsonl, write_jsonl
+from experiments._shared.fileio import read_jsonl, write_jsonl
 from experiments._shared.native_frameworks import (
     _pick_free_port,
     _runner_stats,
