@@ -19,7 +19,7 @@ MMIRAGE_DISTILABEL_PYTHON
 MMIRAGE_RAY_DATA_LLM_PYTHON
 ```
 
-Pinned/minimal competitor requirement files are stored in `publication/environment/`. They document the environments used by the runners; they are not installed automatically by the publication driver.
+Pinned/minimal competitor requirement files are stored in `experiments/publication/environment/`. They document the environments used by the runners; they are not installed automatically by the publication driver.
 
 Python 3.12 competitor environments that import vLLM require `SETUPTOOLS_USE_DISTUTILS=local`; the publication drivers set this before preflight and execution.
 
