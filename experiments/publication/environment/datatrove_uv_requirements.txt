@@ -1,0 +1,7 @@
+datatrove==0.9.0
+vllm
+aiofiles
+datasets
+pyarrow
+transformers
+orjson

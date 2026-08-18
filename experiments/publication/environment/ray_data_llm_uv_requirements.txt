@@ -1,0 +1,5 @@
+ray[data]==2.57.0
+vllm
+datasets
+pandas
+pyarrow
