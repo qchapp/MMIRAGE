@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical unattended four-GPU A100 publication transfer run.
+# Four-GPU A100 publication transfer evaluation.
 # Reuses the exact scaling and SGLang-overhead workloads produced on H100.
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"; cd "$REPO_ROOT"
@@ -8,9 +8,9 @@ case "${1:-}" in "") ;; --dry-run) DRY_RUN=1 ;; *) echo "usage: bash experiments
 TRACKED_DIRTY="$(git status --porcelain --untracked-files=no)"
 [[ -z "$TRACKED_DIRTY" ]] || { echo "FATAL: tracked working tree has uncommitted changes; publication provenance would be ambiguous." >&2; printf '%s\n' "$TRACKED_DIRTY" >&2; exit 1; }
 export SETUPTOOLS_USE_DISTUTILS=local TOKENIZERS_PARALLELISM=false
-export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
+export HF_HOME="${HF_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/huggingface}"
 DATATROVE_PYTHON="${MMIRAGE_DATATROVE_PYTHON:-$REPO_ROOT/.venv-datatrove/bin/python}"; NEMO_PYTHON="${MMIRAGE_NEMO_CURATOR_PYTHON:-$REPO_ROOT/.venv-nemo_curator/bin/python}"
-if [[ -z "${HF_TOKEN:-}" ]]; then if [[ -f "$HOME/keys/hf_key.txt" ]]; then export HF_TOKEN="$(<"$HOME/keys/hf_key.txt")"; else echo "FATAL: HF_TOKEN unavailable." >&2; exit 1; fi; fi
+: "${HF_TOKEN:?Set HF_TOKEN to a Hugging Face access token before running this evaluation.}"
 python -c 'import mmirage, sglang, transformers, huggingface_hub, yaml' >/dev/null 2>&1 || { echo "FATAL: main Python imports failed." >&2; exit 1; }
 [[ -x "$DATATROVE_PYTHON" ]] && "$DATATROVE_PYTHON" -c 'import datatrove, vllm' >/dev/null 2>&1 || { echo "FATAL: DataTrove environment not ready." >&2; exit 1; }
 [[ -x "$NEMO_PYTHON" ]] && "$NEMO_PYTHON" -c 'import nemo_curator, vllm' >/dev/null 2>&1 || { echo "FATAL: NeMo environment not ready." >&2; exit 1; }
