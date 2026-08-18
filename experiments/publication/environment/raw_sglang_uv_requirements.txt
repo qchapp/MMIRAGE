@@ -1,4 +1,4 @@
 sglang==0.5.10
 openai==3.3.0
-datasets==5.0.1
-pyarrow==25.0.1
+datasets==5.0.0
+pyarrow==25.0.0
