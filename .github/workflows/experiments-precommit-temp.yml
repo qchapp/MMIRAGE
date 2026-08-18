@@ -1,0 +1,23 @@
+name: experiments-precommit-temp
+
+on:
+  push:
+    branches:
+      - refactor/publication-experiments
+  workflow_dispatch:
+
+jobs:
+  lint-experiments:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pre-commit
+        run: python -m pip install pre-commit==4.3.0
+      - name: Run repository pre-commit hooks on experiments
+        shell: bash
+        run: |
+          mapfile -t files < <(git ls-files experiments)
+          pre-commit run --show-diff-on-failure --files "${files[@]}"
