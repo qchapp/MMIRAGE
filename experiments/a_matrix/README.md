@@ -1,125 +1,210 @@
-# A Matrix (Consolidated Comparison A + B)
+# A Matrix (Publication Benchmark)
 
-The A matrix is the consolidated fast-run suite: the scaling experiments
-(`gpu_scaling` and `a100_4gpu`), the shard-recovery experiment (`recovery`)
-with a `stable_id` workload, and the Comparison-B task comparisons
-(`text_shortening`, `vlm_enrichment`) with single-instruction fixes. Every
-experiment consumes the **same task**: rewrite an UltraChat user prompt with a
-fixed prompt template (`task.yaml`), model `Qwen/Qwen3-4B`, fixed shard split
-and output contract.
+The A matrix is the consolidated publication benchmark suite. Its primary
+UltraChat rewrite task is used for H100 strong scaling, the four-GPU A100
+transfer point, and shard recovery. Two additional task-generalization
+experiments use their own workloads and prompts: text shortening and VLM
+enrichment.
 
-| Setup | Frameworks | GPU points | Notes |
+Frameworks consume the same workload rows, semantic prompt/instruction, model,
+decoding budget, and output contract within each comparison. Framework-native
+prompt/chat serialization may differ.
+
+| Setup | Frameworks | GPU points | Purpose |
 |---|---|---|---|
-| `gpu_scaling` | mmirage, raw_sglang, datatrove, nemo_curator | 1 / 2 / 4 | S1 strong scaling on H100 |
-| `a100_4gpu` | same 4 | 4 | S2 done node (4x A100) |
-| `recovery` | mmirage + raw_sglang, datatrove, nemo_curator, distilabel, ray_data_llm | 4 | 16 shards; conditions baseline / fail_1 / fail_4 |
-| `text_shortening` | mmirage, datatrove, nemo_curator | 4 | summarize-style prompt (B1 fix) |
-| `vlm_enrichment` | mmirage, sglang, datatrove, nemo_curator | 4 | VLM reformat prompt (B2 fix) |
+| `gpu_scaling` | MMIRAGE, Direct SGLang (`raw_sglang`), DataTrove, NeMo Curator | 1 / 2 / 4 H100 | single-node strong scaling |
+| `a100_4gpu` | same four | 4 A100 | accelerator-transfer point |
+| `recovery` | MMIRAGE + Direct SGLang, DataTrove, NeMo Curator, Distilabel, Ray Data LLM | 4 H100 | shard-scoped recovery |
+| `text_shortening` | MMIRAGE, DataTrove, NeMo Curator | 4 H100 | text task generalization |
+| `vlm_enrichment` | MMIRAGE, SGLang, DataTrove, NeMo Curator | 4 H100 | multimodal task generalization |
 
-## Run
+## Corrected publication settings
 
-`bash experiments/run_all.sh` is the single entry point: on one 4-GPU node it
-runs the whole matrix — smoke → calibrate → scaling (all GPU points 1/2/4) →
-recovery → text → vlm, delegating the run stages to `scripts/run_setup.py`.
-`--only`/`--skip` select stages. By default the MMIRAGE-only cells already
-covered by the 2026-08-15 fast-runs reproduction are reused, not rerun — see
-[Reusing the 2026-08-15 fast-runs](#reusing-the-2026-08-15-fast-runs).
-`bash experiments/run_all.sh --rerun-reused` reruns every cell from scratch.
+The corrected publication suite uses:
 
-To run individual experiments directly:
+- 3 repetitions per reported condition;
+- MMIRAGE generation/loading batch size 64;
+- native text/recovery concurrency 64;
+- UltraChat rewrite: `Qwen/Qwen3-4B`, temperature 0, `max_new_tokens=256`;
+- text shortening: temperature 0, `max_new_tokens=128`;
+- VLM enrichment: `Qwen/Qwen3-VL-4B-Instruct`, temperature 0.1,
+  `top_p=0.9`, `max_new_tokens=1024`;
+- H100 scaling units serialized so 1-GPU and 2-GPU cells do not overlap on the
+  same host;
+- recovery failure injection at 30 seconds for `fail_1` and `fail_4`.
+
+The historical 2026-08-15 fast-run cells used older batch/configuration
+settings. They are provenance only and must not be reused for the corrected
+publication benchmark.
+
+## H100 publication run
+
+Use the dedicated publication driver:
 
 ```bash
-# Scaling (all frameworks, 1/2/4 GPU points)
-python experiments/a_matrix/scripts/run_setup.py --setup gpu_scaling
+# Non-destructive plan/preflight check
+bash run_all_h100_rerun.sh --dry-run
 
-# Recovery (MMIRAGE + all native competitors, fail_1/fail_4 conditions)
-python experiments/a_matrix/scripts/run_setup.py --setup recovery
-
-# Text shortening (MMIRAGE + DataTrove + NeMo Curator)
-python experiments/a_matrix/scripts/run_setup.py --setup text_shortening
-
-# VLM enrichment (MMIRAGE + SGLang + DataTrove + NeMo Curator)
-python experiments/a_matrix/scripts/run_setup.py --setup vlm_enrichment
-
-# Extract recovery results after runs complete
-python experiments/a_matrix/scripts/run_setup.py --setup recovery --extract
+# Fresh corrected H100 publication run
+bash run_all_h100_rerun.sh
 ```
 
-Monitor a live run with `python experiments/progress_tracker.py` (`--once` for
-a single snapshot, `--json` for machine-readable output). Recovery additionally
-needs the distilabel and ray_data_llm venvs on top of datatrove/nemo_curator;
-their interpreters come from `MMIRAGE_DISTILABEL_PYTHON` /
-`MMIRAGE_RAY_DATA_LLM_PYTHON` (run_all.sh sets defaults). Python 3.12 requires
-`SETUPTOOLS_USE_DISTUTILS=local` (forced by run_all.sh and run_setup.py), or
-the distilabel/ray_data_llm vllm imports fail on the missing stdlib `distutils` —
-never export `SETUPTOOLS_USE_DISTUTILS=stdlib` in the launching shell.
+The script verifies:
 
-`run_setup.py` supports `--dry-run` (prints the plan, verifies templates),
-`--setup <name>` to run one setup, `--prepare`, `--extract`, `--overwrite`,
-`--gpus`, and `--reuse-fastruns`. It is a thin scheduler: each unit delegates
-to the existing runners (`single_node_h100_scaling/scripts/run.py`, the native
-scaling wrappers, `shard_recovery/scripts/run_local.py` and the native recovery
-harness). One scaling unit per framework runs at a time; units are pinned to
-free physical GPUs; recovery/text/vlm units take all 4 GPUs. Per-stage logs
-land in `experiments/run_all_logs/<stage>.log`; per-unit logs and a final
-`status.json` live under `experiments/run_all_logs/a_matrix/`.
+- exactly four H100 GPUs;
+- the MMIRAGE/SGLang environment;
+- all required competitor interpreters;
+- Hugging Face authentication;
 
-## Reusing the 2026-08-15 fast-runs
+before deleting old publication outputs. Its `--dry-run` path does not delete
+results, regenerate workloads, run inference, or execute recovery extraction.
 
-The MMIRAGE-only cells of the fast-run reproduction on 2026-08-15 (see
-`RUNLOG.md`, pod `mmirage-exp-4gpu-0-0`) were produced using the OLD batch
-configurations. They are **not** byte/config compatible with the corrected
-publication batch=64 suite and must **not** be reused for the corrected
-publication benchmark. The historical fast-run cells are retained as
-provenance only.
+The normal run prepares the fixed committed workload sizes without running the
+smoke calibrator, clears prior publication outputs, and executes:
 
-To run the corrected publication benchmark, use `--rerun-reused` (via
-`experiments/run_all.sh`) or omit `--reuse-fastruns` (via `run_setup.py`)
-to rerun all cells from scratch with the corrected settings.
+1. H100 strong scaling, serialized, 3 repetitions;
+2. recovery, 3 repetitions per framework/condition cell;
+3. recovery extraction over reps 1,2,3;
+4. text shortening, 3 repetitions;
+5. VLM enrichment, 3 repetitions.
+
+## A100 publication transfer point
+
+The A100 experiment must consume the **exact same prepared A-MATRIX workload**
+as the H100 scaling experiment.
+
+After the H100 publication driver prepares the workload:
+
+1. copy the entire directory
+
+   `experiments/a_matrix/workload/`
+
+   from the H100 node to the A100 node;
+
+2. do **not** run `prepare_workload.py` again on the A100 node;
+
+3. preserve `metadata.json`, which records `workload_sha256` and the resolved
+   dataset/model revisions;
+
+4. run:
+
+```bash
+# Non-destructive hardware/workload/plan check
+bash run_all_a100_rerun.sh --dry-run
+
+# Fresh 4xA100 transfer point
+bash run_all_a100_rerun.sh
+```
+
+`run_all_a100_rerun.sh` verifies that all four GPUs are A100 and recomputes the
+SHA-256 of `workload.jsonl`, refusing to run if it does not match
+`metadata.json`. The experiment is only the four-GPU point; there is no A100
+1/2-GPU sweep.
+
+Equivalent direct command after the workload has been copied and verified:
+
+```bash
+python experiments/a_matrix/scripts/run_setup.py \
+  --setup a100_4gpu \
+  --repetitions 3 \
+  --overwrite
+```
 
 ## Workload and sizes
 
-One deterministic UltraChat workload (`experiments/a_matrix/workload/`,
-git-ignored) serves every setup: same dataset, seed, selection and
-normalization as the single-node scaling prep, keyed by `stable_id`. Two
-independent sizes are calibrated:
+`experiments/a_matrix/scripts/prepare_workload.py` produces a deterministic
+UltraChat workload keyed by `stable_id`. Selection uses the committed seed,
+normalization policy, and first unique prompt hashes.
 
-* `configs/workload_size.yaml` `num_rows` — the scaling workloads (`gpu_scaling`
-  and `a100_4gpu`).
-* `configs/recovery_size.yaml` `recovery_num_rows` — the shared-root subset
-  written to `<shared-root>/data/ultrachat_200k/` for the recovery controllers.
+`experiments/a_matrix/workload/metadata.json` records, among other fields:
 
-`prepare_workload.py --shared-root` writes that subset plus `id_order.jsonl`
-keyed on `stable_id`; the MMIRAGE and native recovery controllers read them.
+- `dataset_revision_resolved`;
+- `model_revision_resolved`;
+- `workload_sha256`.
+
+Two committed size controls are independent:
+
+- `configs/workload_size.yaml`: scaling/A100 workload size;
+- `configs/recovery_size.yaml`: recovery subset size.
+
+With `--shared-root`, preparation also writes recovery-compatible
+`subset.jsonl` and `id_order.jsonl` under the shared root.
 
 ## Recovery conditions
 
-`recovery` runs 16 shards with 4 active, conditions `baseline` (clean),
-`fail_1` (1 worker terminated, then MMIRAGE retry) and `fail_4` (4 workers
-terminated, then retry). MMIRAGE runs all three conditions; the five native
-frameworks run `fail_1` and `fail_4` only (their recovery wall time is
-absolute, no baseline needed) → 13 runs total.
+Recovery uses 16 logical shards with at most 4 active simultaneously.
 
-## B fixes
+- `baseline`: clean MMIRAGE execution;
+- `fail_1`: terminate one designated worker, then retry incomplete work;
+- `fail_4`: terminate four designated workers, then retry incomplete work.
 
-* B1 (text): the MMIRAGE recipe is already correct; the natives now receive the
-  same instruction through `--prompt-style summarize`
-  (`SUMMARIZE_PROMPT_TEMPLATE` in `experiments/_shared/native_frameworks.py`).
-* B2 (vlm): `VLM_REFORMAT_TEMPLATE` in `experiments/_shared/vlm_runners.py` is
-  applied by the native VLM runners (sglang, datatrove, nemo_curator).
+MMIRAGE has three framework/condition cells (`baseline`, `fail_1`, `fail_4`).
+Each of the five native competitors has two (`fail_1`, `fail_4`), for 13
+framework/condition cells total. With three repetitions, the publication suite
+contains **39 condition-repetition executions**.
 
-`run_setup.py` verifies these templates are byte-identical (modulo the
-placeholder name) before launching anything and refuses to run otherwise.
+Cross-framework recovery is intended primarily to report completed-shard reuse,
+rows recomputed, retry behavior, and final validity. A fixed 30-second injection
+does not imply that every framework has completed the same fraction of useful
+generation at failure time.
 
-## Superseded experiments
+## Task-generalization experiments
 
-`experiments/single_node_h100_scaling` and `experiments/shard_recovery` are
-kept as libraries/runbooks but are no longer run directly: scaling and recovery
-now run through this experiment. `shard_recovery/scripts/prepare_workload.py` is
-superseded by `prepare_workload.py --shared-root` and writes the old
-`mmirage_id` schema; do not run it against the current shared root.
+### Text shortening
 
-`A-MATRIX` `raw_sglang` evaluates a complete Direct SGLang runner.
-`experiments/raw_sglang_overhead` is a separate endpoint-matched experiment
-used to estimate MMIRAGE abstraction/orchestration overhead relative to the
-same SGLang serving endpoint.
+This is a CNN/DailyMail article-to-summary task, not the UltraChat rewrite task.
+MMIRAGE, DataTrove, and NeMo Curator use the same summarization instruction and
+a matched 128-token generation budget.
+
+### VLM enrichment
+
+This is a MedTrinity image/text enrichment task using
+`Qwen/Qwen3-VL-4B-Instruct`. The current NeMo VLM integration is useful as an
+integration/contract result but is row-sequential internally, so it should not
+be interpreted as a fully tuned NeMo throughput ceiling.
+
+## Direct SGLang versus endpoint-matched overhead
+
+A-MATRIX `raw_sglang` evaluates a **complete Direct SGLang runner**. It compares
+complete execution paths and is not an inference-engine-identical overhead
+microbenchmark.
+
+`experiments/raw_sglang_overhead` remains a separate endpoint-matched
+experiment. It is the appropriate experiment for estimating MMIRAGE
+abstraction/orchestration overhead relative to the same SGLang serving endpoint.
+
+## Direct `run_setup.py` usage
+
+Useful non-publication/manual commands include:
+
+```bash
+python experiments/a_matrix/scripts/run_setup.py \
+  --setup gpu_scaling --serial --repetitions 3 --dry-run
+
+python experiments/a_matrix/scripts/run_setup.py \
+  --setup recovery --repetitions 3 --dry-run
+
+python experiments/a_matrix/scripts/run_setup.py \
+  --setup text_shortening --repetitions 3 --dry-run
+
+python experiments/a_matrix/scripts/run_setup.py \
+  --setup vlm_enrichment --repetitions 3 --dry-run
+```
+
+`run_setup.py` also supports `--prepare`, `--extract`, `--overwrite`, `--gpus`,
+and the historical `--reuse-fastruns` mechanism. Do not use
+`--reuse-fastruns` for the corrected publication benchmark.
+
+## Environment
+
+The suite uses separate competitor environments for DataTrove, NeMo Curator,
+Distilabel, and Ray Data LLM. The publication drivers read their interpreter
+paths from:
+
+- `MMIRAGE_DATATROVE_PYTHON`;
+- `MMIRAGE_NEMO_CURATOR_PYTHON`;
+- `MMIRAGE_DISTILABEL_PYTHON`;
+- `MMIRAGE_RAY_DATA_LLM_PYTHON`.
+
+Python 3.12 requires `SETUPTOOLS_USE_DISTUTILS=local` for the affected vLLM
+competitor environments.

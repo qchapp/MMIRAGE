@@ -3,11 +3,10 @@
 # deterministic shuffle seed 20260813, first unique prompt hashes) and one task:
 # rewrite the user request into a helpful assistant response of 4 to 6 sentences.
 #
-# This file is the one place the task is defined for MMIRAGE. The native
-# competitors (raw SGLang, DataTrove, NeMo Curator, distilabel, Ray Data LLM)
-# consume the same workload rows and the same prompt template, so the model
-# input is byte-identical across every framework and every A setup (GPU scaling,
-# H100 vs A100, and shard recovery).
+# This file is the one place the task is defined for MMIRAGE. Native competitors
+# consume the same workload rows, semantic prompt template, model, decoding
+# budget, and output contract; framework-native prompt/chat serialization may
+# differ across execution paths and A setups.
 #
 # The runner fills only the loading/execution placeholders below (paths,
 # num_shards, shard_id, batch_size) so this same file is used by every A setup.
