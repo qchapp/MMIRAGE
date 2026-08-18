@@ -24,15 +24,67 @@ User request:
 
 Every framework uses `Qwen/Qwen3-4B`, temperature `0`, and a maximum of `256` new tokens. MMIRAGE uses batch size `64`; native runners use concurrency `64`. Every reported cell has three repetitions.
 
-The H100 scaling sweep uses the **same physical GPU IDs for every framework**:
+The H100 sweep assigns the same physical devices to every framework so framework comparisons at a given GPU count use identical device placement:
 
-- 1-GPU point: GPU `0` only.
-- 2-GPU point: GPUs `0` and `1`.
-- 4-GPU point: GPUs `0`, `1`, `2`, and `3`.
+- 1-GPU point: only physical GPU `0` is visible to the runner.
+- 2-GPU point: only physical GPUs `0` and `1` are visible.
+- 4-GPU point: physical GPUs `0`, `1`, `2`, and `3` are visible.
 
-The A100 transfer experiment contains only the 4-GPU point and likewise uses GPUs `0`, `1`, `2`, and `3`. It reuses the byte-identical scaling workload and exact model revision prepared on H100.
+The A100 transfer experiment contains only the 4-GPU point and uses physical GPUs `0`, `1`, `2`, and `3`. It reuses the byte-identical scaling workload and exact model revision prepared for the H100 run.
 
-The MMIRAGE single-node runner and framework-specific native runners are under `scripts/`. Publication orchestration is handled by `../publication/orchestrate.py` and the hardware drivers in `../publication/`.
+## Run this experiment only
+
+Create the competitor environments as described in [`../publication/ENVIRONMENTS.md`](../publication/ENVIRONMENTS.md), then point the framework variables to their Python executables:
+
+```bash
+export HF_TOKEN=...
+export MMIRAGE_DATATROVE_PYTHON="$PWD/.venv-datatrove/bin/python"
+export MMIRAGE_NEMO_CURATOR_PYTHON="$PWD/.venv-nemo_curator/bin/python"
+```
+
+Prepare the deterministic workload and cache the exact current model revision before timing:
+
+```bash
+python experiments/scaling/scripts/prepare_workload.py \
+  --output-dir experiments/scaling/workload
+
+python experiments/publication/prefetch_models.py \
+  --models Qwen/Qwen3-4B \
+  --output-json experiments/scaling/workload/model_revisions.json
+
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+```
+
+Run only the H100 scaling sweep:
+
+```bash
+python experiments/publication/orchestrate.py \
+  --stage scaling \
+  --hardware h100 \
+  --repetitions 3 \
+  --overwrite
+```
+
+To inspect the exact commands first, add `--dry-run`.
+
+For the A100 transfer point, copy or mount the **unchanged** H100 `experiments/scaling/workload/` directory on the A100 node. Verify and cache the same model revision, then run only the A100 point:
+
+```bash
+python experiments/publication/prefetch_models.py \
+  --models Qwen/Qwen3-4B \
+  --expected-json experiments/scaling/workload/model_revisions.json \
+  --output-json /tmp/a100_model_revisions.json
+
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+
+python experiments/publication/orchestrate.py \
+  --stage scaling \
+  --hardware a100 \
+  --repetitions 3 \
+  --overwrite
+```
 
 ## Outputs
 
