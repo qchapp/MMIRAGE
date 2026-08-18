@@ -1,5 +1,5 @@
 distilabel==1.5.3
-vllm
-datasets
-pandas
-pyarrow
+vllm==0.27.1
+datasets==5.0.1
+pandas==3.0.5
+pyarrow==25.0.0
