@@ -16,7 +16,6 @@ import hashlib
 import importlib.util
 import json
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -59,6 +58,7 @@ CONFIG_MOVES = {
     "experiments/a_matrix/configs/execution.yaml": "experiments/scaling/configs/execution.yaml",
     "experiments/a_matrix/configs/semantic_recipe.yaml": "experiments/scaling/configs/semantic_recipe.yaml",
     "experiments/a_matrix/configs/workload_size.yaml": "experiments/scaling/configs/workload_size.yaml",
+    "experiments/a_matrix/configs/recovery_size.yaml": "experiments/scaling/configs/recovery_size.yaml",
     "experiments/a_matrix/configs/mmirage_recovery.yaml": "experiments/recovery/configs/mmirage_recovery.yaml",
     "experiments/task_comparison/text_shortening/configs/execution_4gpu.yaml": "experiments/text_shortening/configs/execution_4gpu.yaml",
     "experiments/task_comparison/text_shortening/configs/semantic_recipe.yaml": "experiments/text_shortening/configs/semantic_recipe.yaml",
@@ -90,6 +90,31 @@ ANCHOR_NAMES = {
     "PROJECT_ROOT", "_PROJECT_ROOT", "REPO_ROOT", "EXPERIMENT_DIR",
     "SCRIPT_DIR", "SCRIPTS_DIR", "SHARED_DIR", "WORKER_SCRIPT",
 }
+
+OBSOLETE_USER_PATHS = [
+    "experiments/a_matrix/",
+    "experiments/raw_sglang_overhead/",
+    "experiments/shard_recovery/",
+    "experiments/single_node_h100_scaling/",
+    "experiments/task_comparison/",
+    "experiments/nemo_curator_comparison/",
+    "experiments/smoke/",
+]
+
+USER_FACING_DOCS = [
+    "README.md",
+    "experiments/README.md",
+    "experiments/publication/README.md",
+    "experiments/publication/PROTOCOL.md",
+    "experiments/publication/ARTIFACTS.md",
+    "experiments/publication/ENVIRONMENTS.md",
+    "experiments/publication/LIMITATIONS.md",
+    "experiments/scaling/README.md",
+    "experiments/recovery/README.md",
+    "experiments/text_shortening/README.md",
+    "experiments/vlm_enrichment/README.md",
+    "experiments/sglang_overhead/README.md",
+]
 
 
 def run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -163,6 +188,16 @@ def canonical_value(value: Any) -> Any:
     return value
 
 
+def canonical_cli_value(value: Any) -> Any:
+    """Canonicalize command-line values while discarding checkout location."""
+    if not isinstance(value, str):
+        return canonical_value(value)
+    repo_prefix = str(REPO_ROOT) + os.sep
+    if value.startswith(repo_prefix):
+        value = value[len(repo_prefix):]
+    return canonical_value(value)
+
+
 def verify_runners(errors: list[str]) -> None:
     print("\n[runnable implementation equivalence]")
     for old, new in PURE_MOVES.items():
@@ -203,15 +238,20 @@ def import_orchestrator():
 
 
 def cli_map(command: list[str]) -> dict[str, Any]:
-    out: dict[str, Any] = {"executable": Path(command[0]).name, "runner": canonical_value(command[1]) if len(command) > 1 else ""}
+    out: dict[str, Any] = {
+        "executable": Path(command[0]).name,
+        "runner": canonical_cli_value(command[1]) if len(command) > 1 else "",
+    }
     i = 2
     while i < len(command):
         token = command[i]
         if token.startswith("--"):
             if i + 1 < len(command) and not command[i + 1].startswith("--"):
-                out[token] = canonical_value(command[i + 1]); i += 2
+                out[token] = canonical_cli_value(command[i + 1])
+                i += 2
             else:
-                out[token] = True; i += 1
+                out[token] = True
+                i += 1
         else:
             i += 1
     return out
@@ -248,9 +288,12 @@ def verify_plan(errors: list[str]) -> None:
         assert_value(errors, f"{hardware} frameworks", sorted({u['framework'] for u in units}), sorted(c["frameworks"]))
         assert_value(errors, f"{hardware} GPU points", sorted({u['gpu_count'] for u in units}), c["gpu_points"])
         for unit in units:
+            gpu_count = unit["gpu_count"]
+            expected_gpus = [str(i) for i in c["physical_gpu_policy"][str(gpu_count)]]
+            assert_value(errors, f"{hardware}/{unit['framework']}/{gpu_count} physical GPUs", unit["physical_gpus"], expected_gpus)
             cmd = cli_map(unit["commands"][0])
-            assert_value(errors, f"{hardware}/{unit['framework']}/{unit['gpu_count']} repetitions", int(cmd["--repetitions"]), 3)
-            assert_value(errors, f"{hardware}/{unit['framework']}/{unit['gpu_count']} GPUs", cmd["--visible-gpus"], ",".join(str(i) for i in range(unit["gpu_count"])))
+            assert_value(errors, f"{hardware}/{unit['framework']}/{gpu_count} repetitions", int(cmd["--repetitions"]), c["repetitions"])
+            assert_value(errors, f"{hardware}/{unit['framework']}/{gpu_count} GPUs", cmd["--visible-gpus"], ",".join(expected_gpus))
             if unit["framework"] == "mmirage":
                 assert_value(errors, "MM scaling recipe", cmd["--semantic-recipe"], "experiments/@SCALING@/configs/semantic_recipe.yaml")
             else:
@@ -263,66 +306,81 @@ def verify_plan(errors: list[str]) -> None:
     rc = contract["recovery"]
     assert_value(errors, "recovery MM conditions", [u["condition"] for u in recovery if u["framework"] == "mmirage"], rc["mmirage_conditions"])
     assert_value(errors, "recovery native frameworks", sorted({u["framework"] for u in recovery if u["framework"] != "mmirage"}), sorted(rc["native_frameworks"]))
+    assert_value(errors, "recovery native conditions", sorted({u["condition"] for u in recovery if u["framework"] != "mmirage"}), sorted(rc["native_conditions"]))
     logical_recovery_reps = 0
     for unit in recovery:
+        assert_value(errors, f"recovery/{unit['framework']}/{unit['condition']} physical GPUs", unit["physical_gpus"], [str(i) for i in rc["gpu_ids"]])
         if unit["framework"] == "mmirage":
             run_commands = [c for c in unit["commands"] if "run-condition" in c]
             logical_recovery_reps += len(run_commands)
             for command in run_commands:
                 cm = cli_map(command)
                 assert_value(errors, "MM recovery GPUs", cm["--gpu-ids"], "0,1,2,3")
-                assert_value(errors, "MM recovery active shards", int(cm["--max-active-shards"]), 4)
+                assert_value(errors, "MM recovery active shards", int(cm["--max-active-shards"]), rc["max_active_shards"])
                 if unit["condition"] != "baseline":
-                    assert_value(errors, "MM recovery kill time", float(cm["--kill-after-seconds"]), 30.0)
+                    assert_value(errors, "MM recovery kill time", float(cm["--kill-after-seconds"]), float(rc["kill_after_seconds"]))
         else:
             logical_recovery_reps += len(unit["commands"])
             for command in unit["commands"]:
                 cm = cli_map(command)
                 assert_value(errors, "native recovery wrapper", cm["runner"], "experiments/@RECOVERY@/scripts/run_native_recovery_publication.py")
                 assert_value(errors, "native recovery model", cm["--model"], rc["model"])
-                assert_value(errors, "native recovery concurrency", int(cm["--concurrency"]), 64)
-                assert_value(errors, "native recovery max tokens", int(cm["--max-new-tokens"]), 256)
-                assert_value(errors, "native recovery kill time", float(cm["--kill-after-seconds"]), 30.0)
+                assert_value(errors, "native recovery concurrency", int(cm["--concurrency"]), rc["native_concurrency"])
+                assert_value(errors, "native recovery max tokens", int(cm["--max-new-tokens"]), rc["max_new_tokens"])
+                assert_value(errors, "native recovery kill time", float(cm["--kill-after-seconds"]), float(rc["kill_after_seconds"]))
     assert_value(errors, "recovery logical repetitions", logical_recovery_reps, 39)
 
     tc = contract["text_shortening"]
+    assert_value(errors, "text frameworks", sorted({u["framework"] for u in text}), sorted(tc["frameworks"]))
     for unit in text:
+        assert_value(errors, f"text/{unit['framework']} physical GPUs", unit["physical_gpus"], [str(i) for i in tc["gpu_ids"]])
         if unit["framework"] != "mmirage":
             cm = cli_map(unit["commands"][0])
-            assert_value(errors, "text repetitions", int(cm["--repetitions"]), 3)
-            assert_value(errors, "text concurrency", int(cm["--concurrency"]), 64)
-            assert_value(errors, "text max tokens", int(cm["--max-new-tokens"]), 128)
-            assert_value(errors, "text prompt", cm["--prompt-style"], "summarize")
+            assert_value(errors, "text repetitions", int(cm["--repetitions"]), tc["repetitions"])
+            assert_value(errors, "text concurrency", int(cm["--concurrency"]), tc["native_concurrency"])
+            assert_value(errors, "text max tokens", int(cm["--max-new-tokens"]), tc["max_new_tokens"])
+            assert_value(errors, "text prompt", cm["--prompt-style"], tc["prompt_style"])
+
     vc = contract["vlm_enrichment"]
+    assert_value(errors, "VLM frameworks", sorted({u["framework"] for u in vlm}), sorted(vc["frameworks"]))
     for unit in vlm:
+        assert_value(errors, f"VLM/{unit['framework']} physical GPUs", unit["physical_gpus"], [str(i) for i in vc["gpu_ids"]])
         if unit["framework"] != "mmirage":
             cm = cli_map(unit["commands"][0])
-            assert_value(errors, "VLM repetitions", int(cm["--repetitions"]), 3)
-            assert_value(errors, "VLM concurrency", int(cm["--concurrency"]), 64)
-            assert_value(errors, "VLM max tokens", int(cm["--max-new-tokens"]), 1024)
-            assert_value(errors, "VLM temperature", float(cm["--temperature"]), 0.1)
-            assert_value(errors, "VLM top-p", float(cm["--top-p"]), 0.9)
+            assert_value(errors, "VLM repetitions", int(cm["--repetitions"]), vc["repetitions"])
+            assert_value(errors, "VLM concurrency", int(cm["--concurrency"]), vc["native_concurrency"])
+            assert_value(errors, "VLM max tokens", int(cm["--max-new-tokens"]), vc["max_new_tokens"])
+            assert_value(errors, "VLM temperature", float(cm["--temperature"]), vc["temperature"])
+            assert_value(errors, "VLM top-p", float(cm["--top-p"]), vc["top_p"])
             assert_value(errors, "VLM model", cm["--model"], vc["model"])
 
     h100_driver = current_text("experiments/publication/run_h100.sh")
     a100_driver = current_text("experiments/publication/run_a100.sh")
-    overhead_fragment = "--frameworks raw_sglang,mmirage_sglang --repetitions 3 --gpu-index 0 --concurrency 64 --max-tokens 1024 --temperature 0.0"
+    overhead = contract["sglang_overhead"]
+    overhead_fragment = (
+        f"--frameworks {','.join(overhead['frameworks'])} --repetitions {overhead['repetitions']} "
+        f"--gpu-index {overhead['gpu_ids'][0]} --concurrency {overhead['concurrency']} "
+        f"--max-tokens {overhead['max_tokens']} --temperature {overhead['temperature']}"
+    )
     if overhead_fragment not in h100_driver or overhead_fragment not in a100_driver:
         errors.append("endpoint-overhead command differs from frozen contract")
+    for driver_name, driver in [("H100", h100_driver), ("A100", a100_driver)]:
+        if '--model-revision "$TEXT_MODEL_REV"' not in driver:
+            errors.append(f"{driver_name} overhead run is not pinned to the locked text model revision")
     for required in ["HF_HUB_OFFLINE=1", "TRANSFORMERS_OFFLINE=1", "model_revisions.json", "publication_manifest.json"]:
         if required not in h100_driver:
             errors.append(f"H100 driver missing provenance/offline invariant: {required}")
     for required in ["expected-json", "publication_manifest.json", "scaling_workload_sha256", "overhead_prompts_sha256", "overhead_warmup_sha256"]:
         if required not in a100_driver:
             errors.append(f"A100 driver missing cross-hardware invariant: {required}")
-    print(f"  {'PASS' if not errors else 'CHECK'} H100 scaling logical repetitions: 36")
-    print(f"  {'PASS' if not errors else 'CHECK'} A100 scaling logical repetitions: 12")
+    print("  expected H100 scaling logical repetitions: 36")
+    print("  expected A100 scaling logical repetitions: 12")
     print(f"  {'PASS' if logical_recovery_reps == 39 else 'FAIL'} recovery logical repetitions: {logical_recovery_reps}")
     print("  expected text logical repetitions: 9; VLM: 12; overhead per hardware: 6")
 
 
 def verify_references(errors: list[str]) -> None:
-    print("\n[reference graph and syntax]")
+    print("\n[reference graph, source boundary, docs, and syntax]")
     required = [
         "experiments/publication/orchestrate.py", "experiments/publication/run_h100.sh", "experiments/publication/run_a100.sh",
         "experiments/scaling/scripts/run.py", "experiments/scaling/scripts/native_shard_worker.py",
@@ -333,18 +391,54 @@ def verify_references(errors: list[str]) -> None:
     missing = [path for path in required if not (REPO_ROOT / path).exists()]
     if missing:
         errors.extend(f"missing retained dependency: {path}" for path in missing)
-    py_dirs = ["experiments/publication", "experiments/scaling/scripts", "experiments/recovery/scripts", "experiments/text_shortening/scripts", "experiments/vlm_enrichment/scripts", "experiments/sglang_overhead/scripts", "experiments/_shared"]
+
+    for group in ("runner_moves", "config_moves"):
+        for old, new in BASELINE.get(group, {}).items():
+            if not (REPO_ROOT / new).exists():
+                errors.append(f"frozen {group} target is missing: {old} -> {new}")
+
+    py_dirs = [
+        "experiments/publication", "experiments/scaling/scripts", "experiments/recovery/scripts",
+        "experiments/text_shortening/scripts", "experiments/vlm_enrichment/scripts",
+        "experiments/sglang_overhead/scripts", "experiments/_shared",
+    ]
+    syntax_failures = 0
     for directory in py_dirs:
         for path in (REPO_ROOT / directory).glob("*.py"):
             result = subprocess.run([sys.executable, "-m", "py_compile", str(path)], cwd=REPO_ROOT, capture_output=True, text=True)
             if result.returncode:
+                syntax_failures += 1
                 errors.append(f"syntax failure: {path.relative_to(REPO_ROOT)}: {result.stderr.strip()}")
     for shell in [HERE / "run_h100.sh", HERE / "run_a100.sh"]:
         result = subprocess.run(["bash", "-n", str(shell)], cwd=REPO_ROOT, capture_output=True, text=True)
         if result.returncode:
+            syntax_failures += 1
             errors.append(f"shell syntax failure: {shell.relative_to(REPO_ROOT)}: {result.stderr.strip()}")
+
+    source_diff = subprocess.run(
+        ["git", "diff", "--quiet", BASELINE_COMMIT, "HEAD", "--", "src/mmirage"],
+        cwd=REPO_ROOT,
+    )
+    if source_diff.returncode != 0:
+        errors.append("src/mmirage changed relative to the frozen publication baseline")
+
+    stale = []
+    for doc in USER_FACING_DOCS:
+        path = REPO_ROOT / doc
+        if not path.exists():
+            errors.append(f"missing user-facing documentation: {doc}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        for token in OBSOLETE_USER_PATHS:
+            if token in text:
+                stale.append(f"{doc}: {token}")
+    if stale:
+        errors.extend("stale user-facing experiment reference: " + item for item in stale)
+
     print(f"  {'PASS' if not missing else 'FAIL'} retained dependency paths")
-    print("  syntax checks completed")
+    print(f"  {'PASS' if source_diff.returncode == 0 else 'FAIL'} src/mmirage unchanged from baseline")
+    print(f"  {'PASS' if not stale else 'FAIL'} user-facing experiment paths")
+    print(f"  {'PASS' if syntax_failures == 0 else 'FAIL'} Python/shell syntax")
 
 
 def verify_baseline_relationship(errors: list[str]) -> None:
@@ -354,6 +448,11 @@ def verify_baseline_relationship(errors: list[str]) -> None:
     baseline_head = run("git", "rev-parse", BASELINE_COMMIT).stdout.strip()
     if baseline_head != BASELINE_COMMIT:
         errors.append("baseline commit cannot be resolved exactly")
+
+    tracked_dirty = subprocess.run(["git", "diff", "--quiet", "HEAD", "--"], cwd=REPO_ROOT).returncode != 0
+    staged_dirty = subprocess.run(["git", "diff", "--cached", "--quiet", "--"], cwd=REPO_ROOT).returncode != 0
+    if tracked_dirty or staged_dirty:
+        errors.append("tracked working tree is dirty; commit or discard tracked changes before packaging")
 
 
 def main() -> int:
@@ -374,6 +473,8 @@ def main() -> int:
     print("Dependency/reference graph: PASS")
     print("Publication execution plan: semantic differences: 0")
     print("Configs: semantic differences: 0")
+    print("Source implementation boundary: unchanged")
+    print("User-facing experiment references: PASS")
     print("Expected benchmark behavior equivalent to baseline: PASS")
     return 0
 

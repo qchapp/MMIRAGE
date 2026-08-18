@@ -1,7 +1,7 @@
 {
   "baseline_branch": "experiment/a-matrix-final",
   "baseline_commit": "1e3e605bc30074f9aae2dbcb19bcba6a16db8fe8",
-  "purpose": "Mechanical reference for the publication experiment refactor. The refactored suite must preserve the logical publication runs represented by this exact commit.",
+  "purpose": "Mechanical reference for the publication experiment refactor. The scientific publication contract below is frozen to this exact commit.",
   "publication_contract": {
     "scaling_h100": {
       "frameworks": ["mmirage", "raw_sglang", "datatrove", "nemo_curator"],
@@ -77,18 +77,15 @@
       "max_tokens": 1024
     }
   },
-  "runner_moves": {
+  "retained_runner_moves": {
     "experiments/a_matrix/scripts/prepare_workload.py": "experiments/scaling/scripts/prepare_workload.py",
     "experiments/single_node_h100_scaling/scripts/run.py": "experiments/scaling/scripts/run.py",
-    "experiments/single_node_h100_scaling/scripts/plot.py": "experiments/scaling/scripts/plot.py",
     "experiments/single_node_h100_scaling/scripts/native_shard_worker.py": "experiments/scaling/scripts/native_shard_worker.py",
     "experiments/single_node_h100_scaling/scripts/run_native_text_competitor.py": "experiments/scaling/scripts/run_native_text_competitor.py",
     "experiments/single_node_h100_scaling/scripts/run_raw_sglang_scaling.py": "experiments/scaling/scripts/run_raw_sglang_scaling.py",
     "experiments/single_node_h100_scaling/scripts/run_datatrove_scaling.py": "experiments/scaling/scripts/run_datatrove_scaling.py",
     "experiments/single_node_h100_scaling/scripts/run_nemo_curator_scaling.py": "experiments/scaling/scripts/run_nemo_curator_scaling.py",
     "experiments/shard_recovery/scripts/run_local.py": "experiments/recovery/scripts/run_local.py",
-    "experiments/shard_recovery/scripts/run_k8s.py": "experiments/recovery/scripts/run_k8s.py",
-    "experiments/shard_recovery/scripts/run_pod.py": "experiments/recovery/scripts/run_pod.py",
     "experiments/shard_recovery/scripts/run_native_recovery_competitor.py": "experiments/recovery/scripts/run_native_recovery_competitor.py",
     "experiments/shard_recovery/scripts/run_native_recovery_publication.py": "experiments/recovery/scripts/run_native_recovery_publication.py",
     "experiments/shard_recovery/scripts/extract_results.py": "experiments/recovery/scripts/extract_results.py",
@@ -96,18 +93,17 @@
     "experiments/task_comparison/vlm_enrichment/scripts/prepare_workload.py": "experiments/vlm_enrichment/scripts/prepare_workload.py",
     "experiments/task_comparison/vlm_enrichment/scripts/run_mmirage_vlm.py": "experiments/vlm_enrichment/scripts/run_mmirage_vlm.py",
     "experiments/task_comparison/vlm_enrichment/scripts/run_native_vlm_competitor.py": "experiments/vlm_enrichment/scripts/run_native_vlm_competitor.py",
-    "experiments/_shared/vlm_runners.py": "experiments/vlm_enrichment/scripts/vlm_runners.py",
     "experiments/raw_sglang_overhead/scripts/prepare_workload.py": "experiments/sglang_overhead/scripts/prepare_workload.py",
     "experiments/raw_sglang_overhead/scripts/raw_sglang_client.py": "experiments/sglang_overhead/scripts/raw_sglang_client.py",
     "experiments/raw_sglang_overhead/scripts/run.py": "experiments/sglang_overhead/scripts/run.py",
     "experiments/raw_sglang_overhead/scripts/run_mmirage_with_sglang_endpoint.py": "experiments/sglang_overhead/scripts/run_mmirage_with_sglang_endpoint.py"
   },
-  "config_moves": {
+  "retained_config_moves": {
     "experiments/a_matrix/configs/execution.yaml": "experiments/scaling/configs/execution.yaml",
     "experiments/a_matrix/configs/semantic_recipe.yaml": "experiments/scaling/configs/semantic_recipe.yaml",
     "experiments/a_matrix/configs/workload_size.yaml": "experiments/scaling/configs/workload_size.yaml",
+    "experiments/a_matrix/configs/recovery_size.yaml": "experiments/scaling/configs/recovery_size.yaml",
     "experiments/a_matrix/configs/mmirage_recovery.yaml": "experiments/recovery/configs/mmirage_recovery.yaml",
-    "experiments/a_matrix/configs/recovery_size.yaml": "experiments/recovery/configs/workload_size.yaml",
     "experiments/task_comparison/text_shortening/configs/execution_4gpu.yaml": "experiments/text_shortening/configs/execution_4gpu.yaml",
     "experiments/task_comparison/text_shortening/configs/semantic_recipe.yaml": "experiments/text_shortening/configs/semantic_recipe.yaml",
     "experiments/task_comparison/text_shortening/configs/workload_size.yaml": "experiments/text_shortening/configs/workload_size.yaml",
@@ -116,5 +112,13 @@
     "experiments/task_comparison/vlm_enrichment/configs/workload_size.yaml": "experiments/vlm_enrichment/configs/workload_size.yaml",
     "experiments/raw_sglang_overhead/configs/mmirage_sglang.yaml": "experiments/sglang_overhead/configs/mmirage_sglang.yaml",
     "experiments/raw_sglang_overhead/configs/workload_size.yaml": "experiments/sglang_overhead/configs/workload_size.yaml"
-  }
+  },
+  "intentionally_removed_nonpublication_helpers": [
+    "legacy generic matrix scheduler and setup descriptors",
+    "Kubernetes recovery helper scripts not used by the publication run",
+    "standalone plotting/planning wrappers not called by the publication drivers",
+    "historical smoke/calibration tooling",
+    "historical NeMo comparison experiment",
+    "obsolete task-comparison directory wrappers"
+  ]
 }
