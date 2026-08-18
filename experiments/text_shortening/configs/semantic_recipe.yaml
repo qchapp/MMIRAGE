@@ -1,0 +1,63 @@
+# Fixed MMIRAGE semantic recipe for the text_shortening task (cnn_dailymail).
+# The runner fills only loading/execution placeholders such as paths, shard_id,
+# num_shards, and output dirs.
+
+processors:
+  - type: llm
+    server_args:
+      model_path: Qwen/Qwen3-4B
+      tp_size: 1
+      trust_remote_code: true
+      disable_custom_all_reduce: true
+      extra_engine_args:
+        max_running_requests: 1000
+        mem_fraction_static: 0.88
+    default_sampling_params:
+      temperature: 0.0
+      max_new_tokens: 128
+
+loading_params:
+  state_dir: ${MMIRAGE_TEXT_SHORT_STATE_DIR}
+  datasets:
+    - path: ${MMIRAGE_TEXT_SHORT_WORKLOAD_JSONL}
+      type: JSONL
+      output_dir: ${MMIRAGE_TEXT_SHORT_OUTPUT_DIR}
+  num_shards: ${MMIRAGE_TEXT_SHORT_NUM_SHARDS}
+  shard_id: ${MMIRAGE_TEXT_SHORT_SHARD_ID}
+  batch_size: ${MMIRAGE_TEXT_SHORT_BATCH_SIZE}
+
+processing_params:
+  inputs:
+    - name: stable_id
+      key: stable_id
+    - name: source_index
+      key: source_index
+    - name: prompt_text
+      key: prompt_text
+    - name: prompt_sha256
+      key: prompt_sha256
+
+  outputs:
+    - name: answer
+      type: llm
+      output_type: plain
+      prompt: |
+        Summarize the following news article in 2 to 3 sentences.
+        Keep the summary faithful to the facts in the article.
+
+        Article:
+        {{ prompt_text }}
+
+  remove_columns: false
+  output_schema:
+    stable_id: "{{ stable_id }}"
+    source_index: "{{ source_index }}"
+    prompt_sha256: "{{ prompt_sha256 }}"
+    prompt_text: "{{ prompt_text }}"
+    answer: "{{ answer }}"
+
+execution_params:
+  mode: local
+  retry: false
+  merge: false
+  max_retries: 0

@@ -1,0 +1,106 @@
+# Native competitor settings for the vlm_enrichment task comparison.
+# Same MedTrinity demo workload, prompt, model, and 4-GPU point as the MMIRAGE
+# vlm_enrichment recipe, but run through the shared native VLM runners.
+
+task:
+  name: vlm_enrichment_medtrinity_demo
+  source_workload: experiments/task_comparison/vlm_enrichment/workload/rows.jsonl
+  image_base_path: experiments/task_comparison/vlm_enrichment/workload
+  mmirage_recipe: experiments/task_comparison/vlm_enrichment/configs/mmirage_vlm.yaml
+  model: Qwen/Qwen3-VL-4B-Instruct
+  system_prompt: "You are a helpful assistant."
+  user_prompt: "Describe this medical image."
+  decoding:
+    temperature: 0.1
+    top_p: 0.9
+    max_new_tokens: 1024
+  output_contract:
+    row_order: must_match_input_order
+    required_fields:
+      - id
+      - formatted_description
+    validation:
+      - processed_rows_equals_input_rows
+      - id_set_matches_input
+      - no_duplicate_ids
+      - schema_valid_for_every_row
+
+execution:
+  gpu_count: 4
+  visible_gpus: [0, 1, 2, 3]
+  repetitions: 3
+  native_mode: true
+  shard_policy: split_input_by_gpu_count_with_one_worker_per_visible_gpu
+  output_root: experiments/task_comparison/vlm_enrichment/results/native_competitors
+  artifact_policy: generated_outputs_are_ignored_and_not_committed
+
+frameworks:
+  sglang:
+    useful_for: direct_vlm_serving_baseline
+    native_backend: one SGLang server per shard worker with a shared OpenAI client
+    environment: experiments/single_node_h100_scaling/environment/raw_sglang_uv_requirements.txt
+    output_dir: experiments/task_comparison/vlm_enrichment/results/native_competitors/sglang
+    command_template: >-
+      {python} -m experiments._shared.vlm_runners
+      --framework sglang
+      --input-jsonl {workload_jsonl}
+      --image-base-path {image_base_path}
+      --output-jsonl {run_dir}/output.jsonl
+      --status-json {run_dir}/run_status.json
+      --model Qwen/Qwen3-VL-4B-Instruct
+      --max-new-tokens 1024
+      --temperature 0.1
+      --top-p 0.9
+      --concurrency 64
+      --gpu-count 1
+  datatrove:
+    useful_for: dataset_pipeline_with_native_vlm_inference
+    native_backend: DataTrove InferenceRunner with MediaType.IMAGE plus rollout
+    environment: experiments/single_node_h100_scaling/environment/datatrove_uv_requirements.txt
+    output_dir: experiments/task_comparison/vlm_enrichment/results/native_competitors/datatrove
+    command_template: >-
+      {python} -m experiments._shared.vlm_runners
+      --framework datatrove
+      --input-jsonl {workload_jsonl}
+      --image-base-path {image_base_path}
+      --output-jsonl {run_dir}/output.jsonl
+      --status-json {run_dir}/run_status.json
+      --model Qwen/Qwen3-VL-4B-Instruct
+      --max-new-tokens 1024
+      --temperature 0.1
+      --top-p 0.9
+      --concurrency 64
+      --gpu-count 1
+  nemo_curator:
+    useful_for: pipeline_execution_with_native_vlm_inference
+    native_backend: NeMo Curator OpenAIClient pipeline with JsonlReader and JsonlWriter
+    environment: experiments/single_node_h100_scaling/environment/nemo_curator_uv_requirements.txt
+    output_dir: experiments/task_comparison/vlm_enrichment/results/native_competitors/nemo_curator
+    command_template: >-
+      {python} -m experiments._shared.vlm_runners
+      --framework nemo_curator
+      --input-jsonl {workload_jsonl}
+      --image-base-path {image_base_path}
+      --output-jsonl {run_dir}/output.jsonl
+      --status-json {run_dir}/run_status.json
+      --model Qwen/Qwen3-VL-4B-Instruct
+      --max-new-tokens 1024
+      --temperature 0.1
+      --top-p 0.9
+      --concurrency 64
+      --gpu-count 1
+
+metrics:
+  primary:
+    - rows_s
+    - aggregate_output_tok_s
+    - output_tok_s_per_gpu
+  validation:
+    - processed_rows
+    - missing_ids
+    - duplicate_ids
+    - row_order_matches_input
+    - schema_valid_rows
+  caveats:
+    - Native competitors use their framework-managed VLM engines rather than the MMIRAGE SGLang shard.
+    - Compare throughput only after validation passes for the same task and schema.

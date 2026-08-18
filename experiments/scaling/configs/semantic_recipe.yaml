@@ -1,0 +1,65 @@
+# Fixed MMIRAGE semantic recipe for the single-node H100 strong-scaling experiment.
+# Keep this file identical for 1, 2, and 4 GPU points. The runner fills only
+# loading/execution placeholders such as paths, shard_id, num_shards, and output dirs.
+
+processors:
+  - type: llm
+    server_args:
+      model_path: Qwen/Qwen3-4B
+      tp_size: 1
+      trust_remote_code: true
+      disable_custom_all_reduce: true
+      extra_engine_args:
+        max_running_requests: 1000
+        mem_fraction_static: 0.88
+    default_sampling_params:
+      temperature: 0.0
+      max_new_tokens: 256
+
+loading_params:
+  state_dir: ${MMIRAGE_SCALING_STATE_DIR}
+  datasets:
+    - path: ${MMIRAGE_SCALING_WORKLOAD_JSONL}
+      type: JSONL
+      output_dir: ${MMIRAGE_SCALING_OUTPUT_DIR}
+  num_shards: ${MMIRAGE_SCALING_NUM_SHARDS}
+  shard_id: ${MMIRAGE_SCALING_SHARD_ID}
+  batch_size: ${MMIRAGE_SCALING_BATCH_SIZE}
+
+processing_params:
+  inputs:
+    - name: stable_id
+      key: stable_id
+    - name: source_index
+      key: source_index
+    - name: prompt_text
+      key: prompt_text
+    - name: prompt_sha256
+      key: prompt_sha256
+
+  outputs:
+    - name: answer
+      type: llm
+      output_type: plain
+      prompt: |
+        You are helping construct a public text dataset.
+
+        Rewrite the following user request into a helpful assistant response of 4 to 6 sentences.
+        Preserve the user's intent.
+
+        User request:
+        {{ prompt_text }}
+
+  remove_columns: false
+  output_schema:
+    stable_id: "{{ stable_id }}"
+    source_index: "{{ source_index }}"
+    prompt_sha256: "{{ prompt_sha256 }}"
+    prompt_text: "{{ prompt_text }}"
+    answer: "{{ answer }}"
+
+execution_params:
+  mode: local
+  retry: false
+  merge: false
+  max_retries: 0

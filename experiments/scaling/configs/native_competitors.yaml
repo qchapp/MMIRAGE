@@ -1,0 +1,129 @@
+# Native competitor settings for the single-node H100 strong-scaling experiment.
+# These settings intentionally live beside the MMIRAGE scaling recipe and reuse
+# the same workload, prompt, model family, output contract, and GPU points.
+
+task:
+  name: ultrachat_single_node_strong_scaling
+  source_workload: experiments/single_node_h100_scaling/workload/workload.jsonl
+  warmup_workload: experiments/single_node_h100_scaling/workload/warmup.jsonl
+  mmirage_recipe: experiments/single_node_h100_scaling/configs/semantic_recipe.yaml
+  model: Qwen/Qwen3-4B
+  prompt_template: |
+    You are helping construct a public text dataset.
+
+    Rewrite the following user request into a helpful assistant response of 4 to 6 sentences.
+    Preserve the user's intent.
+
+    User request:
+    {{ prompt_text }}
+  decoding:
+    temperature: 0.0
+    max_new_tokens: 256
+  output_contract:
+    row_order: must_match_input_order
+    required_fields:
+      - stable_id
+      - source_index
+      - prompt_sha256
+      - prompt_text
+      - answer
+    validation:
+      - processed_rows_equals_input_rows
+      - stable_id_set_matches_input
+      - no_duplicate_stable_ids
+      - prompt_sha256_preserved
+      - schema_valid_for_every_row
+
+execution:
+  gpu_points: [1, 2, 4]
+  repetitions: 3
+  native_mode: true
+  shard_policy: split_input_by_gpu_count_with_one_worker_per_visible_gpu
+  output_root: experiments/single_node_h100_scaling/results/native_competitors
+  artifact_policy: generated_outputs_are_ignored_and_not_committed
+
+frameworks:
+  datatrove:
+    useful_for: text_generation_scaling
+    native_backend: DataTrove InferenceRunner with vLLM server_type
+    environment: experiments/single_node_h100_scaling/environment/datatrove_uv_requirements.txt
+    output_dir: experiments/single_node_h100_scaling/results/native_competitors/datatrove
+    command_template: >-
+      {python} experiments/single_node_h100_scaling/scripts/run_datatrove_scaling.py
+      --workload-jsonl {workload_jsonl}
+      --output-root {output_root}/datatrove
+      --gpu-count {gpu_count}
+      --visible-gpus {visible_gpus}
+      --repetitions {repetitions}
+      --model Qwen/Qwen3-4B
+    notes:
+      - DataTrove is kept in native mode, so its inference backend is vLLM rather than SGLang.
+      - Exact generated text is measured but not required to be byte-identical to MMIRAGE.
+  nemo_curator:
+    useful_for: text_generation_scaling_with_pipeline_executor
+    native_backend: NeMo Curator pipeline plus Data Designer or native LLM stage where available
+    environment: experiments/single_node_h100_scaling/environment/nemo_curator_uv_requirements.txt
+    output_dir: experiments/single_node_h100_scaling/results/native_competitors/nemo_curator
+    command_template: >-
+      {python} experiments/single_node_h100_scaling/scripts/run_nemo_curator_scaling.py
+      --workload-jsonl {workload_jsonl}
+      --output-root {output_root}/nemo_curator
+      --gpu-count {gpu_count}
+      --visible-gpus {visible_gpus}
+      --repetitions {repetitions}
+      --model Qwen/Qwen3-4B
+  distilabel:
+    useful_for: declarative_text_generation_pipelines
+    native_backend: Distilabel pipeline with local vLLM-backed LLM task
+    environment: experiments/single_node_h100_scaling/environment/distilabel_uv_requirements.txt
+    output_dir: experiments/single_node_h100_scaling/results/native_competitors/distilabel
+    command_template: >-
+      {python} experiments/single_node_h100_scaling/scripts/run_distilabel_scaling.py
+      --workload-jsonl {workload_jsonl}
+      --output-root {output_root}/distilabel
+      --gpu-count {gpu_count}
+      --visible-gpus {visible_gpus}
+      --repetitions {repetitions}
+      --model Qwen/Qwen3-4B
+  ray_data_llm:
+    useful_for: distributed_dataset_execution_and_llm_batching
+    native_backend: Ray Data LLM processor with vLLM engine processor where available
+    environment: experiments/single_node_h100_scaling/environment/ray_data_llm_uv_requirements.txt
+    output_dir: experiments/single_node_h100_scaling/results/native_competitors/ray_data_llm
+    command_template: >-
+      {python} experiments/single_node_h100_scaling/scripts/run_ray_data_llm_scaling.py
+      --workload-jsonl {workload_jsonl}
+      --output-root {output_root}/ray_data_llm
+      --gpu-count {gpu_count}
+      --visible-gpus {visible_gpus}
+      --repetitions {repetitions}
+      --model Qwen/Qwen3-4B
+  raw_sglang:
+    useful_for: direct_serving_baseline_without_dataset_framework
+    native_backend: one raw SGLang engine/client pair per visible GPU
+    environment: experiments/single_node_h100_scaling/environment/raw_sglang_uv_requirements.txt
+    output_dir: experiments/single_node_h100_scaling/results/native_competitors/raw_sglang
+    command_template: >-
+      {python} experiments/single_node_h100_scaling/scripts/run_raw_sglang_scaling.py
+      --workload-jsonl {workload_jsonl}
+      --output-root {output_root}/raw_sglang
+      --gpu-count {gpu_count}
+      --visible-gpus {visible_gpus}
+      --repetitions {repetitions}
+      --model Qwen/Qwen3-4B
+
+metrics:
+  primary:
+    - rows_s
+    - aggregate_output_tok_s
+    - output_tok_s_per_gpu
+    - parallel_efficiency_vs_framework_1gpu
+  validation:
+    - processed_rows
+    - missing_stable_ids
+    - duplicate_stable_ids
+    - row_order_matches_input
+    - schema_valid_rows
+  caveats:
+    - Native competitors may use vLLM or framework-managed engines rather than SGLang.
+    - Compare throughput only after validation passes for the same task and schema.
