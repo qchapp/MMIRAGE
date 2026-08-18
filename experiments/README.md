@@ -1,47 +1,71 @@
-# MMIRAGE publication experiments
+# Publication experiments
 
-This directory contains the experiments used for the publication evaluation of MMIRAGE. The layout follows the scientific questions directly; generated workloads and results are not source code and should remain untracked.
+This directory contains the evaluation used in the paper. All commands below are run from the repository root.
 
-| Experiment | Purpose | Hardware |
+| Experiment | Comparison | Hardware |
 |---|---|---|
-| [`scaling/`](scaling/) | UltraChat rewrite throughput and strong scaling against Direct SGLang, DataTrove, and NeMo Curator | 1/2/4× H100; 4× A100 transfer point |
-| [`recovery/`](recovery/) | deterministic shard recovery and recomputation after injected failures | 4× H100 |
-| [`text_shortening/`](text_shortening/) | text-task generalization on CNN/DailyMail summarization | 4× H100 |
-| [`vlm_enrichment/`](vlm_enrichment/) | multimodal enrichment on MedTrinity | 4× H100 |
-| [`sglang_overhead/`](sglang_overhead/) | endpoint-matched MMIRAGE abstraction overhead relative to the same SGLang serving path | 1× H100 and 1× A100 |
+| [`scaling/`](scaling/) | UltraChat rewrite throughput: MMIRAGE, Direct SGLang, DataTrove, NeMo Curator | 1/2/4× H100; 4× A100 |
+| [`recovery/`](recovery/) | shard reuse and recomputation after injected failures | 4× H100 |
+| [`text_shortening/`](text_shortening/) | CNN/DailyMail summarization: MMIRAGE, DataTrove, NeMo Curator | 4× H100 |
+| [`vlm_enrichment/`](vlm_enrichment/) | MedTrinity multimodal enrichment: MMIRAGE, SGLang, DataTrove, NeMo Curator | 4× H100 |
+| [`sglang_overhead/`](sglang_overhead/) | endpoint-matched MMIRAGE vs raw SGLang | 1× H100; 1× A100 |
 
-The canonical unattended entry points are:
+All reported cells use three repetitions. Exact models, decoding settings, concurrency/batch sizes, failure conditions, and interpretation boundaries are listed in [`publication/PROTOCOL.md`](publication/PROTOCOL.md) and [`publication/LIMITATIONS.md`](publication/LIMITATIONS.md).
+
+## Environments
+
+The main MMIRAGE/SGLang environment and the isolated competitor environments are described in [`publication/ENVIRONMENTS.md`](publication/ENVIRONMENTS.md). The corresponding requirement files are under `publication/environment/`.
+
+The H100 run requires exactly four visible H100 GPUs and a Hugging Face token. The A100 run requires exactly four visible A100 GPUs and reuses the H100-prepared scaling and endpoint-overhead workloads.
+
+## H100 evaluation
+
+Inspect the planned commands without running inference:
 
 ```bash
 bash experiments/publication/run_h100.sh --dry-run
-bash experiments/publication/run_h100.sh
+```
 
+Run the full H100 evaluation:
+
+```bash
+bash experiments/publication/run_h100.sh
+```
+
+The driver prepares the deterministic workloads, resolves exact model revisions before timed execution, and runs scaling, recovery, text shortening, VLM enrichment, and endpoint-matched overhead. Generated results are written under each experiment's `results/` directory.
+
+## A100 transfer point
+
+The A100 node must use the H100-produced workload directories unchanged:
+
+```text
+experiments/scaling/workload/
+experiments/sglang_overhead/workload/
+```
+
+Inspect the A100 commands:
+
+```bash
 bash experiments/publication/run_a100.sh --dry-run
+```
+
+Run the four-GPU scaling transfer point and one-GPU endpoint-overhead experiment:
+
+```bash
 bash experiments/publication/run_a100.sh
 ```
 
-The A100 run reuses the exact scaling and endpoint-overhead workloads produced by the H100 run and verifies workload hashes, model revision, and Git commit before executing.
-
-See [`publication/README.md`](publication/README.md) for the complete reproduction procedure, [`publication/PROTOCOL.md`](publication/PROTOCOL.md) for the comparison contract, and [`publication/LIMITATIONS.md`](publication/LIMITATIONS.md) for interpretation constraints.
+The A100 driver verifies the H100 workload hashes and model revision before execution.
 
 ## Monitoring
 
-`progress_tracker.py` is read-only and can attach after an unattended run has already started:
+A read-only progress dashboard can be attached while either suite is running:
 
 ```bash
-python experiments/progress_tracker.py
-python experiments/progress_tracker.py --suite h100 --once
-python experiments/progress_tracker.py --suite a100 --json --once
+python experiments/progress_tracker.py --suite h100
+python experiments/progress_tracker.py --suite a100
 ```
 
-Its time estimate is explicitly prior-based; the durable repetition counts are the authoritative progress signal.
+## Outputs
 
-## Refactor safety
-
-The publication layout was refactored from the exact baseline recorded in `publication/_verification/baseline_equivalence.json`. Run:
-
-```bash
-python experiments/publication/verify_refactor.py
-```
-
-before packaging the artifact. The verifier checks byte-identical pure moves, canonical AST equivalence for runners whose only permitted changes are relocation-sensitive references, configuration equivalence, dependency resolution, syntax, and the semantic publication execution plan.
+Expected result/provenance files are summarized in [`publication/ARTIFACTS.md`](publication/ARTIFACTS.md). Generated workloads, model outputs, and result directories are intentionally untracked.
