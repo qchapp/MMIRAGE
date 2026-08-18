@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Canonical unattended H100 publication suite.
+# H100 publication evaluation.
 # Usage: bash experiments/publication/run_h100.sh [--dry-run]
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -9,18 +9,16 @@ case "${1:-}" in "") ;; --dry-run) DRY_RUN=1 ;; *) echo "usage: bash experiments
 TRACKED_DIRTY="$(git status --porcelain --untracked-files=no)"
 [[ -z "$TRACKED_DIRTY" ]] || { echo "FATAL: tracked working tree has uncommitted changes; publication provenance would be ambiguous." >&2; printf '%s\n' "$TRACKED_DIRTY" >&2; exit 1; }
 
-export MMIRAGE_RECOVERY_ROOT="${MMIRAGE_RECOVERY_ROOT:-/workspace/mmirage-recovery}"
+export MMIRAGE_RECOVERY_ROOT="${MMIRAGE_RECOVERY_ROOT:-$REPO_ROOT/experiments/recovery/workdir}"
 export SETUPTOOLS_USE_DISTUTILS=local
 export TOKENIZERS_PARALLELISM=false
-export HF_HOME="${HF_HOME:-$MMIRAGE_RECOVERY_ROOT/hf}"
+export HF_HOME="${HF_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/huggingface}"
 DATATROVE_PYTHON="${MMIRAGE_DATATROVE_PYTHON:-$REPO_ROOT/.venv-datatrove/bin/python}"
 NEMO_PYTHON="${MMIRAGE_NEMO_CURATOR_PYTHON:-$REPO_ROOT/.venv-nemo_curator/bin/python}"
 DISTILABEL_PYTHON="${MMIRAGE_DISTILABEL_PYTHON:-$REPO_ROOT/.venv-distilabel/bin/python}"
 RAY_PYTHON="${MMIRAGE_RAY_DATA_LLM_PYTHON:-$REPO_ROOT/.venv-ray_data_llm/bin/python}"
 
-if [[ -z "${HF_TOKEN:-}" ]]; then
-  if [[ -f "$HOME/keys/hf_key.txt" ]]; then export HF_TOKEN="$(<"$HOME/keys/hf_key.txt")"; else echo "FATAL: HF_TOKEN is unset and $HOME/keys/hf_key.txt does not exist." >&2; exit 1; fi
-fi
+: "${HF_TOKEN:?Set HF_TOKEN to a Hugging Face access token before running this evaluation.}"
 
 echo "=== H100 publication preflight ==="
 python -c 'import mmirage, sglang, datasets, transformers, huggingface_hub, yaml' >/dev/null 2>&1 || { echo "FATAL: main Python imports failed." >&2; exit 1; }
