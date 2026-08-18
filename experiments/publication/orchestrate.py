@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Canonical publication experiment orchestration.
-
-This module contains no model/data transformation implementation. It builds and
-serially executes commands for the retained experiment runners. ``--dry-run``
-emits the complete logical plan without launching inference; the verification
-suite compares that plan against the frozen experiment/a-matrix-final baseline.
-"""
+"""Build and execute the publication experiment command plans."""
 
 from __future__ import annotations
 
@@ -92,7 +86,7 @@ def _native_python(framework: str) -> str:
 
 
 def _recovery_root() -> str:
-    return os.environ.get("MMIRAGE_RECOVERY_ROOT", "/workspace/mmirage-recovery")
+    return os.environ.get("MMIRAGE_RECOVERY_ROOT", str(RECOVERY / "workdir"))
 
 
 def scaling_plan(hardware: str, repetitions: int, overwrite: bool) -> list[dict[str, Any]]:
