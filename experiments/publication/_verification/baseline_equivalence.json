@@ -77,7 +77,7 @@
       "max_tokens": 1024
     }
   },
-  "retained_runner_moves": {
+  "runner_moves": {
     "experiments/a_matrix/scripts/prepare_workload.py": "experiments/scaling/scripts/prepare_workload.py",
     "experiments/single_node_h100_scaling/scripts/run.py": "experiments/scaling/scripts/run.py",
     "experiments/single_node_h100_scaling/scripts/native_shard_worker.py": "experiments/scaling/scripts/native_shard_worker.py",
@@ -98,7 +98,7 @@
     "experiments/raw_sglang_overhead/scripts/run.py": "experiments/sglang_overhead/scripts/run.py",
     "experiments/raw_sglang_overhead/scripts/run_mmirage_with_sglang_endpoint.py": "experiments/sglang_overhead/scripts/run_mmirage_with_sglang_endpoint.py"
   },
-  "retained_config_moves": {
+  "config_moves": {
     "experiments/a_matrix/configs/execution.yaml": "experiments/scaling/configs/execution.yaml",
     "experiments/a_matrix/configs/semantic_recipe.yaml": "experiments/scaling/configs/semantic_recipe.yaml",
     "experiments/a_matrix/configs/workload_size.yaml": "experiments/scaling/configs/workload_size.yaml",
