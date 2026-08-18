@@ -1,161 +1,132 @@
 #!/usr/bin/env bash
-# Self-contained H100 publication rerun: all corrected A-matrix experiments on
-# one 4-GPU node. Recovery runs reps 1/2/3 and GPU scaling is serialized.
-# Historical fast-run cells are intentionally not reused.
-#
-# Usage:
-#   bash run_all_h100_rerun.sh
-#   bash run_all_h100_rerun.sh --dry-run
-#
-# --dry-run is non-destructive: it performs preflight/hardware checks and prints
-# the effective run_setup plans, but does not delete results, prepare workloads,
-# run inference, or extract recovery results.
-
+# Corrected unattended H100 publication suite.
+# Usage: bash run_all_h100_rerun.sh [--dry-run]
 set -euo pipefail
-
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
-
 DRY_RUN=0
-case "${1:-}" in
-  "") ;;
-  --dry-run) DRY_RUN=1 ;;
-  *) echo "usage: bash run_all_h100_rerun.sh [--dry-run]" >&2; exit 2 ;;
-esac
+case "${1:-}" in "") ;; --dry-run) DRY_RUN=1 ;; *) echo "usage: bash run_all_h100_rerun.sh [--dry-run]" >&2; exit 2 ;; esac
 
 export MMIRAGE_RECOVERY_ROOT="${MMIRAGE_RECOVERY_ROOT:-/workspace/mmirage-recovery}"
-export MMIRAGE_DATATROVE_PYTHON="${MMIRAGE_DATATROVE_PYTHON:-$REPO_ROOT/.venv-datatrove/bin/python}"
-export MMIRAGE_NEMO_CURATOR_PYTHON="${MMIRAGE_NEMO_CURATOR_PYTHON:-$REPO_ROOT/.venv-nemo_curator/bin/python}"
-export MMIRAGE_DISTILABEL_PYTHON="${MMIRAGE_DISTILABEL_PYTHON:-$REPO_ROOT/.venv-distilabel/bin/python}"
-export MMIRAGE_RAY_DATA_LLM_PYTHON="${MMIRAGE_RAY_DATA_LLM_PYTHON:-$REPO_ROOT/.venv-ray_data_llm/bin/python}"
 export SETUPTOOLS_USE_DISTUTILS=local
 export TOKENIZERS_PARALLELISM=false
-export HF_HOME="$MMIRAGE_RECOVERY_ROOT/hf"
+export HF_HOME="${HF_HOME:-$MMIRAGE_RECOVERY_ROOT/hf}"
+DATATROVE_PYTHON="${MMIRAGE_DATATROVE_PYTHON:-$REPO_ROOT/.venv-datatrove/bin/python}"
+NEMO_PYTHON="${MMIRAGE_NEMO_CURATOR_PYTHON:-$REPO_ROOT/.venv-nemo_curator/bin/python}"
+DISTILABEL_PYTHON="${MMIRAGE_DISTILABEL_PYTHON:-$REPO_ROOT/.venv-distilabel/bin/python}"
+RAY_PYTHON="${MMIRAGE_RAY_DATA_LLM_PYTHON:-$REPO_ROOT/.venv-ray_data_llm/bin/python}"
 
-# Resolve authentication without overwriting an already-provided token.
 if [[ -z "${HF_TOKEN:-}" ]]; then
-  if [[ -f "$HOME/keys/hf_key.txt" ]]; then
-    export HF_TOKEN="$(<"$HOME/keys/hf_key.txt")"
-  else
-    echo "FATAL: HF_TOKEN is unset and $HOME/keys/hf_key.txt does not exist." >&2
-    exit 1
-  fi
+  if [[ -f "$HOME/keys/hf_key.txt" ]]; then export HF_TOKEN="$(<"$HOME/keys/hf_key.txt")"; else echo "FATAL: HF_TOKEN is unset and $HOME/keys/hf_key.txt does not exist." >&2; exit 1; fi
 fi
 
-echo "=== Publication preflight ==="
-
-if ! python -c 'import mmirage, sglang' >/dev/null 2>&1; then
-  echo "FATAL: current Python cannot import both mmirage and sglang." >&2
-  exit 1
-fi
-
-for var in \
-  MMIRAGE_DATATROVE_PYTHON \
-  MMIRAGE_NEMO_CURATOR_PYTHON \
-  MMIRAGE_DISTILABEL_PYTHON \
-  MMIRAGE_RAY_DATA_LLM_PYTHON; do
-  value="${!var}"
-  if [[ ! -x "$value" ]]; then
-    echo "FATAL: $var=$value is not an executable interpreter." >&2
-    exit 1
-  fi
-done
-
-GPU_INFO="$(nvidia-smi --query-gpu=index,name,uuid,memory.total --format=csv,noheader 2>&1)" || {
-  echo "FATAL: nvidia-smi failed." >&2
-  exit 1
-}
+echo "=== H100 publication preflight ==="
+python -c 'import mmirage, sglang, datasets, transformers, huggingface_hub' >/dev/null 2>&1 || { echo "FATAL: main Python imports failed." >&2; exit 1; }
+command -v mmirage >/dev/null 2>&1 || { echo "FATAL: mmirage CLI is not on PATH." >&2; exit 1; }
+check_env() { local label="$1" python_bin="$2" import_code="$3"; [[ -x "$python_bin" ]] || { echo "FATAL: $label interpreter not executable: $python_bin" >&2; exit 1; }; "$python_bin" -c "$import_code" >/dev/null 2>&1 || { echo "FATAL: $label imports failed: $import_code" >&2; exit 1; }; }
+check_env "DataTrove" "$DATATROVE_PYTHON" 'import datatrove, vllm'
+check_env "NeMo Curator" "$NEMO_PYTHON" 'import nemo_curator, vllm'
+check_env "Distilabel" "$DISTILABEL_PYTHON" 'import distilabel, vllm'
+check_env "Ray Data LLM" "$RAY_PYTHON" 'import ray, vllm'
+GPU_INFO="$(nvidia-smi --query-gpu=index,name,uuid,memory.total --format=csv,noheader 2>&1)" || { echo "FATAL: nvidia-smi failed." >&2; exit 1; }
 echo "$GPU_INFO"
-
 GPU_COUNT="$(printf '%s\n' "$GPU_INFO" | sed '/^[[:space:]]*$/d' | wc -l)"
-if [[ "$GPU_COUNT" -ne 4 ]]; then
-  echo "FATAL: expected exactly 4 GPUs, found $GPU_COUNT." >&2
-  exit 1
-fi
+[[ "$GPU_COUNT" -eq 4 ]] || { echo "FATAL: expected exactly 4 GPUs, found $GPU_COUNT." >&2; exit 1; }
 BAD_GPUS="$(printf '%s\n' "$GPU_INFO" | grep -iv 'H100' || true)"
-if [[ -n "$BAD_GPUS" ]]; then
-  echo "FATAL: not all GPUs are H100:" >&2
-  echo "$BAD_GPUS" >&2
-  exit 1
-fi
+[[ -z "$BAD_GPUS" ]] || { echo "FATAL: not all GPUs are H100:" >&2; echo "$BAD_GPUS" >&2; exit 1; }
 echo "Hardware check PASS: 4x H100"
 
+WRAPPER_DIR="$(mktemp -d)"; trap 'rm -rf "$WRAPPER_DIR"' EXIT
+make_python_wrapper() { local actual="$1" dest="$2"; cat >"$dest" <<EOF
+#!/usr/bin/env bash
+export PATH="$(dirname "$actual"):\${PATH:-}"
+exec "$actual" "\$@"
+EOF
+chmod +x "$dest"; }
+make_python_wrapper "$DATATROVE_PYTHON" "$WRAPPER_DIR/datatrove-python"
+make_python_wrapper "$NEMO_PYTHON" "$WRAPPER_DIR/nemo-python"
+make_python_wrapper "$DISTILABEL_PYTHON" "$WRAPPER_DIR/distilabel-python"
+make_python_wrapper "$RAY_PYTHON" "$WRAPPER_DIR/ray-python"
+export MMIRAGE_DATATROVE_PYTHON="$WRAPPER_DIR/datatrove-python"
+export MMIRAGE_NEMO_CURATOR_PYTHON="$WRAPPER_DIR/nemo-python"
+export MMIRAGE_DISTILABEL_PYTHON="$WRAPPER_DIR/distilabel-python"
+export MMIRAGE_RAY_DATA_LLM_PYTHON="$WRAPPER_DIR/ray-python"
+
 RUN_SETUP="$REPO_ROOT/experiments/a_matrix/scripts/run_setup.py"
+PUB_SCALING="$REPO_ROOT/experiments/a_matrix/scripts/run_publication_scaling.py"
+PUB_RECOVERY="$REPO_ROOT/experiments/a_matrix/scripts/run_publication_recovery.py"
+PREFETCH="$REPO_ROOT/experiments/a_matrix/scripts/prefetch_publication_models.py"
+OVERHEAD_PREP="$REPO_ROOT/experiments/raw_sglang_overhead/scripts/prepare_workload.py"
+OVERHEAD_RUN="$REPO_ROOT/experiments/raw_sglang_overhead/scripts/run.py"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  echo "=== Non-destructive publication dry-run ==="
-  python "$RUN_SETUP" --setup gpu_scaling --serial --repetitions 3 --dry-run
-  python "$RUN_SETUP" --setup recovery --repetitions 3 --dry-run
-  echo "dry-run: recovery extraction would use repetitions 1,2,3 (not executed)."
+  python "$PUB_SCALING" --setup gpu_scaling --repetitions 3 --overwrite --dry-run
+  python "$PUB_RECOVERY" --repetitions 3 --overwrite --dry-run
   python "$RUN_SETUP" --setup text_shortening --repetitions 3 --dry-run
   python "$RUN_SETUP" --setup vlm_enrichment --repetitions 3 --dry-run
-  echo "Dry-run complete; no results or workloads were modified."
+  echo "overhead-plan: raw_sglang + mmirage_sglang, 3 reps, GPU0, concurrency64, max_tokens1024"
+  echo "Dry-run complete; no workloads/results/models were modified."
   exit 0
 fi
 
-echo "=== Clearing old publication results ==="
-OLD_SCALING="$REPO_ROOT/experiments/a_matrix/results/gpu_scaling"
-OLD_TEXT="$REPO_ROOT/experiments/task_comparison/text_shortening/results"
-OLD_VLM="$REPO_ROOT/experiments/task_comparison/vlm_enrichment/results"
+echo "=== Preparing publication workloads BEFORE destructive cleanup ==="
+python "$REPO_ROOT/experiments/a_matrix/scripts/prepare_workload.py" --output-dir "$REPO_ROOT/experiments/a_matrix/workload" --shared-root "$MMIRAGE_RECOVERY_ROOT"
+python "$REPO_ROOT/experiments/task_comparison/text_shortening/scripts/prepare_workload.py" --output-dir "$REPO_ROOT/experiments/task_comparison/text_shortening/workload"
+python "$REPO_ROOT/experiments/task_comparison/vlm_enrichment/scripts/prepare_workload.py" --output-dir "$REPO_ROOT/experiments/task_comparison/vlm_enrichment/workload"
+python "$OVERHEAD_PREP" --output-dir "$REPO_ROOT/experiments/raw_sglang_overhead/workload" --num-rows 1000
 
-for d in \
-  "$OLD_SCALING/raw_sglang" \
-  "$OLD_SCALING/datatrove" \
-  "$OLD_SCALING/nemo_curator" \
-  "$OLD_SCALING/mmirage"; do
-  [[ -d "$d" ]] && rm -rf "$d" && echo "  cleared $d"
-done
-
-for d in "$OLD_TEXT/native_competitors" "$OLD_TEXT/runs"; do
-  [[ -d "$d" ]] && rm -rf "$d" && echo "  cleared $d"
-done
-
-for d in "$OLD_VLM/native_competitors" "$OLD_VLM/runs"; do
-  [[ -d "$d" ]] && rm -rf "$d" && echo "  cleared $d"
-done
-
-for d in \
-  "$MMIRAGE_RECOVERY_ROOT/runs" \
-  "$MMIRAGE_RECOVERY_ROOT/native_competitors" \
-  "$MMIRAGE_RECOVERY_ROOT/results"; do
-  [[ -d "$d" ]] && rm -rf "$d" && echo "  cleared $d"
-done
-
-rm -rf "$REPO_ROOT/experiments/a_matrix/results/recovery"
-
-echo "=== Preparing fixed publication workloads (no calibration) ==="
-python "$REPO_ROOT/experiments/a_matrix/scripts/prepare_workload.py" \
-  --output-dir "$REPO_ROOT/experiments/a_matrix/workload" \
-  --shared-root "$MMIRAGE_RECOVERY_ROOT"
-
-python "$REPO_ROOT/experiments/task_comparison/text_shortening/scripts/prepare_workload.py" \
-  --output-dir "$REPO_ROOT/experiments/task_comparison/text_shortening/workload"
-
-python "$REPO_ROOT/experiments/task_comparison/vlm_enrichment/scripts/prepare_workload.py" \
-  --output-dir "$REPO_ROOT/experiments/task_comparison/vlm_enrichment/workload"
+echo "=== Prefetching exact model snapshots outside timed regions ==="
+MODEL_REVISIONS="$REPO_ROOT/experiments/a_matrix/workload/model_revisions.json"
+python "$PREFETCH" --models Qwen/Qwen3-4B Qwen/Qwen3-VL-4B-Instruct --output-json "$MODEL_REVISIONS"
 
 python - <<'PY'
-import json
+import hashlib, json, subprocess
 from pathlib import Path
-metadata = json.loads(Path("experiments/a_matrix/workload/metadata.json").read_text())
-print("A-MATRIX workload_sha256:", metadata["workload_sha256"])
-print("A-MATRIX dataset_revision_resolved:", metadata.get("dataset_revision_resolved"))
-print("Copy this exact workload/ directory to the A100 node; do not regenerate it there.")
+def sha(path):
+    h=hashlib.sha256()
+    with Path(path).open('rb') as f:
+        for c in iter(lambda:f.read(1024*1024),b''): h.update(c)
+    return h.hexdigest()
+repo=Path('.').resolve(); a=repo/'experiments/a_matrix/workload'; t=repo/'experiments/task_comparison/text_shortening/workload'; v=repo/'experiments/task_comparison/vlm_enrichment/workload'; o=repo/'experiments/raw_sglang_overhead/workload'
+a_meta=json.loads((a/'metadata.json').read_text()); t_meta=json.loads((t/'metadata.json').read_text()); o_meta=json.loads((o/'metadata.json').read_text()); v_meta=json.loads((v/'metadata.json').read_text()); models=json.loads((a/'model_revisions.json').read_text()); text_model=models['Qwen/Qwen3-4B']
+for label,meta in [('A-MATRIX',a_meta),('text_shortening',t_meta),('raw_sglang_overhead',o_meta)]:
+    recorded=meta.get('model_revision_resolved')
+    if recorded and recorded!=text_model: raise SystemExit(f'FATAL: {label} model revision {recorded} != prefetched {text_model}')
+manifest={'git_commit':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'models':models,'a_matrix_workload_sha256':sha(a/'workload.jsonl'),'text_workload_sha256':sha(t/'workload.jsonl'),'vlm_rows_sha256':sha(v/'rows.jsonl'),'overhead_prompts_sha256':sha(o/'prompts.jsonl'),'overhead_warmup_sha256':sha(o/'warmup_prompts.jsonl'),'a_matrix_dataset_revision':a_meta.get('dataset_revision_resolved'),'text_dataset_revision':t_meta.get('dataset_revision_resolved'),'vlm_dataset_revision':v_meta.get('dataset_revision_resolved'),'overhead_dataset_revision':o_meta.get('dataset_revision_resolved'),'h100_hardware':subprocess.check_output(['nvidia-smi','--query-gpu=index,name,uuid,memory.total,driver_version','--format=csv,noheader'],text=True).strip().splitlines()}
+(a/'publication_manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n'); print(json.dumps(manifest,indent=2,sort_keys=True))
 PY
 
-echo "=== 1/5 GPU scaling (serialized) ==="
-python "$RUN_SETUP" --setup gpu_scaling --serial --repetitions 3 --overwrite
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
 
-echo "=== 2/5 Recovery (3 repetitions per condition) ==="
-python "$RUN_SETUP" --setup recovery --repetitions 3 --overwrite
+echo "=== Clearing superseded publication results only after preparation passed ==="
+OLD_SCALING="$REPO_ROOT/experiments/a_matrix/results/gpu_scaling"; OLD_TEXT="$REPO_ROOT/experiments/task_comparison/text_shortening/results"; OLD_VLM="$REPO_ROOT/experiments/task_comparison/vlm_enrichment/results"
+for d in "$OLD_SCALING/raw_sglang" "$OLD_SCALING/datatrove" "$OLD_SCALING/nemo_curator" "$OLD_SCALING/mmirage"; do [[ -d "$d" ]] && rm -rf "$d" && echo "  cleared $d"; done
+for d in "$OLD_TEXT/native_competitors" "$OLD_TEXT/runs"; do [[ -d "$d" ]] && rm -rf "$d" && echo "  cleared $d"; done
+for d in "$OLD_VLM/native_competitors" "$OLD_VLM/runs"; do [[ -d "$d" ]] && rm -rf "$d" && echo "  cleared $d"; done
+for d in "$MMIRAGE_RECOVERY_ROOT/runs" "$MMIRAGE_RECOVERY_ROOT/native_competitors" "$MMIRAGE_RECOVERY_ROOT/results"; do [[ -d "$d" ]] && rm -rf "$d" && echo "  cleared $d"; done
+rm -rf "$REPO_ROOT/experiments/a_matrix/results/recovery" "$REPO_ROOT/experiments/raw_sglang_overhead/results/h100_publication"
 
-echo "=== 3/5 Recovery extraction (reps 1,2,3) ==="
+python "$PUB_SCALING" --setup gpu_scaling --repetitions 3 --overwrite
+python "$PUB_RECOVERY" --repetitions 3 --overwrite
 python "$RUN_SETUP" --setup recovery --extract --repetitions 3
-
-echo "=== 4/5 Text shortening ==="
+python - <<'PY'
+import os, shutil
+from pathlib import Path
+repo=Path('.').resolve(); shared=Path(os.environ['MMIRAGE_RECOVERY_ROOT']); dest=repo/'experiments/a_matrix/results/recovery'; dest.mkdir(parents=True,exist_ok=True)
+if (shared/'results').exists():
+    for src in (shared/'results').iterdir():
+        if src.is_file(): shutil.copy2(src,dest/src.name)
+for source_name in ('runs','native_competitors'):
+    source=shared/source_name
+    if source.exists():
+        for src in source.rglob('*.json'):
+            target=dest/'evidence'/src.relative_to(shared); target.parent.mkdir(parents=True,exist_ok=True); shutil.copy2(src,target)
+print(f'Persisted recovery JSON evidence under {dest}')
+PY
 python "$RUN_SETUP" --setup text_shortening --repetitions 3 --overwrite
-
-echo "=== 5/5 VLM enrichment ==="
 python "$RUN_SETUP" --setup vlm_enrichment --repetitions 3 --overwrite
-
+TEXT_MODEL_REV="$(python -c 'import json; print(json.load(open("experiments/a_matrix/workload/model_revisions.json"))["Qwen/Qwen3-4B"])')"
+python "$OVERHEAD_RUN" --workload-dir "$REPO_ROOT/experiments/raw_sglang_overhead/workload" --output-dir "$REPO_ROOT/experiments/raw_sglang_overhead/results/h100_publication" --frameworks raw_sglang,mmirage_sglang --repetitions 3 --gpu-index 0 --concurrency 64 --max-tokens 1024 --temperature 0.0 --model-revision "$TEXT_MODEL_REV"
 echo "=== H100 publication suite complete ==="
+echo "Copy to the A100 node: experiments/a_matrix/workload/ AND experiments/raw_sglang_overhead/workload/"
