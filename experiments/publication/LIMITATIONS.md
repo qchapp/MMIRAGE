@@ -9,5 +9,3 @@ The experiments are designed to compare complete data-construction paths while k
 - The NeMo VLM integration is internally row-sequential in the retained implementation. Its result demonstrates integration and task completion, not an optimized NeMo VLM throughput ceiling.
 - VLM paths use framework-specific multimodal serialization. Output token rates should not be interpreted as an exact serving-engine comparison.
 - The benchmark evaluates coordinated data construction and augmentation. It is not a benchmark of federated or decentralized model training itself.
-
-The refactor of this directory is mechanically checked against the frozen publication baseline with `experiments/publication/verify_refactor.py`; this protects executable semantics from accidental changes caused by moving files and rewriting orchestration.
