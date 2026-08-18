@@ -1,6 +1,7 @@
-# Fixed MMIRAGE semantic recipe for the single-node H100 strong-scaling experiment.
-# Keep this file identical for 1, 2, and 4 GPU points. The runner fills only
-# loading/execution placeholders such as paths, shard_id, num_shards, and output dirs.
+# Fixed MMIRAGE semantic recipe for the UltraChat rewrite scaling experiment.
+# The runner fills only loading/execution placeholders (paths, shard count/id,
+# and batch size). The prompt, model, decoding budget, and output schema are
+# shared with the native-framework comparison.
 
 processors:
   - type: llm
@@ -41,7 +42,7 @@ processing_params:
     - name: answer
       type: llm
       output_type: plain
-      prompt: |
+      prompt: |-
         You are helping construct a public text dataset.
 
         Rewrite the following user request into a helpful assistant response of 4 to 6 sentences.

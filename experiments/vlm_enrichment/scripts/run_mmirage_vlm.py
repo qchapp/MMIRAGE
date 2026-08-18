@@ -26,7 +26,7 @@ import yaml
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 EXPERIMENT_DIR = SCRIPTS_DIR.parent
-PROJECT_ROOT = EXPERIMENT_DIR.parents[2]
+PROJECT_ROOT = EXPERIMENT_DIR.parents[1]
 RUN_FIELDS = [
     "gpu_count",
     "repetition",

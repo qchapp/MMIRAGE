@@ -22,7 +22,7 @@ from typing import Any
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 EXPERIMENT_DIR = SCRIPTS_DIR.parent
-PROJECT_ROOT = EXPERIMENT_DIR.parents[2]
+PROJECT_ROOT = EXPERIMENT_DIR.parents[1]
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -268,7 +268,7 @@ def environment_metadata(args: argparse.Namespace) -> dict[str, Any]:
 
     return {
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "experiment": "task_comparison/vlm_enrichment",
+        "experiment": "vlm_enrichment",
         "native_mode": True,
         "framework": args.framework,
         "model": args.model,

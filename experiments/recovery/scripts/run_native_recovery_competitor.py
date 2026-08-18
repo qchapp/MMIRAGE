@@ -34,7 +34,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 EXPERIMENT_DIR = SCRIPT_DIR.parent
 REPO_ROOT = EXPERIMENT_DIR.parents[1]
 SHARED_DIR = REPO_ROOT / "experiments" / "_shared"
-WORKER_SCRIPT = REPO_ROOT / "experiments" / "single_node_h100_scaling" / "scripts" / "native_shard_worker.py"
+WORKER_SCRIPT = REPO_ROOT / "experiments" / "scaling" / "scripts" / "native_shard_worker.py"
 
 CONDITION_FAILURE_SHARDS = {
     "baseline": [],

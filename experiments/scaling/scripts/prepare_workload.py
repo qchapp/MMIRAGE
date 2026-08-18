@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Prepare a deterministic fixed UltraChat-style workload for MMIRAGE scaling."""
+"""Prepare the deterministic UltraChat workload shared by scaling and recovery.
+
+Writes the stable_id/source_index/prompt_text/prompt_sha256 rows used by H100
+strong scaling, the four-A100 transfer point, and the recovery experiment. All
+three consume byte-identical model inputs.
+
+With ``--shared-root`` the recovery-compatible files are also written under
+``<shared-root>/data/ultrachat_200k/`` in the same schema (subset.jsonl plus an
+id_order.jsonl keyed on stable_id) so the shard-recovery controllers
+(MMIRAGE and the native competitor harness) can consume the shared workload.
+"""
 
 from __future__ import annotations
 
@@ -23,18 +33,33 @@ DEFAULT_SPLIT = "train_sft"
 DEFAULT_MODEL = "Qwen/Qwen3-4B"
 EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_NUM_ROWS = default_size(EXPERIMENT_DIR, "num_rows", 20_000)
+
+
+def default_recovery_rows() -> int:
+    import yaml
+
+    path = EXPERIMENT_DIR / "configs" / "recovery_size.yaml"
+    if not path.exists():
+        return 4_000
+    with path.open("r", encoding="utf-8") as handle:
+        return int((yaml.safe_load(handle) or {}).get("recovery_num_rows", 4_000))
+
+
+DEFAULT_RECOVERY_ROWS = default_recovery_rows()
 DEFAULT_SEED = 20260813
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--shared-root", default=None, help="If set, also write recovery-compat files under data/ultrachat_200k/.")
     parser.add_argument("--dataset", default=DEFAULT_DATASET)
     parser.add_argument("--split", default=DEFAULT_SPLIT)
     parser.add_argument("--dataset-revision", default=None)
     parser.add_argument("--model-path", default=DEFAULT_MODEL)
     parser.add_argument("--model-revision", default=None)
     parser.add_argument("--num-rows", type=int, default=DEFAULT_NUM_ROWS)
+    parser.add_argument("--recovery-rows", type=int, default=DEFAULT_RECOVERY_ROWS, help="Rows in the shared-root subset when --shared-root is set (independent of the scaling workload size).")
     parser.add_argument("--warmup-rows", type=int, default=0)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--prompt-field", default="prompt")
@@ -66,10 +91,15 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> None:
-    with path.open("w", encoding="utf-8") as handle:
+def write_jsonl(path: Path, rows: Iterable[Dict[str, Any]]) -> str:
+    digest = hashlib.sha256()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as handle:
         for row in rows:
-            handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+            line = json.dumps(row, ensure_ascii=False, sort_keys=True).encode("utf-8") + b"\n"
+            digest.update(line)
+            handle.write(line)
+    return digest.hexdigest()
 
 
 def normalize_prompt(prompt: str) -> str:
@@ -103,6 +133,8 @@ def main() -> None:
     args = parse_args()
     if args.num_rows < 1:
         raise ValueError("--num-rows must be at least 1")
+    if args.recovery_rows < 1:
+        raise ValueError("--recovery-rows must be at least 1")
     if args.warmup_rows < 0:
         raise ValueError("--warmup-rows must be non-negative")
 
@@ -115,7 +147,7 @@ def main() -> None:
     if args.seed >= 0:
         ds = ds.shuffle(seed=args.seed)
 
-    target_rows = args.num_rows + args.warmup_rows
+    target_rows = max(args.num_rows + args.warmup_rows, args.recovery_rows)
     rows = []
     seen_prompt_hashes: set[str] = set()
     duplicate_prompts_skipped = 0
@@ -127,9 +159,7 @@ def main() -> None:
         inspected += 1
         row_dict = dict(row)
         try:
-            prompt_text = normalize_prompt(
-                extract_prompt(row_dict, args.prompt_field, args.messages_field)
-            )
+            prompt_text = normalize_prompt(extract_prompt(row_dict, args.prompt_field, args.messages_field))
         except ValueError:
             continue
 
@@ -169,8 +199,8 @@ def main() -> None:
     warmup_rows = rows[args.num_rows : target_rows]
     workload_path = output_dir / "workload.jsonl"
     warmup_path = output_dir / "warmup.jsonl"
-    write_jsonl(workload_path, workload_rows)
-    write_jsonl(warmup_path, warmup_rows)
+    workload_checksum = write_jsonl(workload_path, workload_rows)
+    warmup_checksum = write_jsonl(warmup_path, warmup_rows)
 
     metadata = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -191,14 +221,46 @@ def main() -> None:
         "messages_field": args.messages_field,
         "id_field": args.id_field,
         "workload_jsonl": str(workload_path),
-        "workload_sha256": sha256_file(workload_path),
+        "workload_sha256": workload_checksum,
         "warmup_jsonl": str(warmup_path),
-        "warmup_sha256": sha256_file(warmup_path),
+        "warmup_sha256": warmup_checksum,
         "no_prompt_duplication_policy": "Duplicate prompt hashes are skipped; rows are not duplicated to lengthen the benchmark.",
     }
-    (output_dir / "metadata.json").write_text(
-        json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8"
-    )
+    (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+
+    recovery_manifest = None
+    if args.shared_root:
+        recovery_rows = rows[: args.recovery_rows]
+        data_dir = Path(args.shared_root) / "data" / "ultrachat_200k"
+        subset_path = data_dir / "subset.jsonl"
+        order_path = data_dir / "id_order.jsonl"
+        subset_checksum = write_jsonl(subset_path, recovery_rows)
+        order_rows = [
+            {"order_index": order_index, "stable_id": row["stable_id"], "source_index": row["source_index"]}
+            for order_index, row in enumerate(recovery_rows)
+        ]
+        order_checksum = write_jsonl(order_path, order_rows)
+        recovery_manifest = {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "shared_root": str(Path(args.shared_root)),
+            "dataset": args.dataset,
+            "split": args.split,
+            "dataset_revision_resolved": dataset_revision,
+            "model_path": args.model_path,
+            "model_revision_resolved": model_revision,
+            "num_records": args.recovery_rows,
+            "num_shards": 16,
+            "selection": metadata["selection"],
+            "seed": args.seed,
+            "subset_jsonl": str(subset_path),
+            "subset_sha256": subset_checksum,
+            "id_order_jsonl": str(order_path),
+            "id_order_sha256": order_checksum,
+        }
+        (data_dir / "manifest.json").write_text(json.dumps(recovery_manifest, indent=2, sort_keys=True), encoding="utf-8")
+        metadata["recovery_manifest"] = str(data_dir / "manifest.json")
+        (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+
     print(json.dumps(metadata, indent=2, sort_keys=True))
 
 

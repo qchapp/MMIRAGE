@@ -1,5 +1,6 @@
-# MMIRAGE shard-level recovery experiment configuration.
-# Kubernetes is external orchestration: each pod runs one local MMIRAGE shard.
+# MMIRAGE shard-level recovery configuration for the UltraChat rewrite task.
+# External orchestration launches one local MMIRAGE shard per worker. The
+# publication workload is prepared once and shared with the scaling experiment.
 
 processors:
   - type: llm
@@ -9,11 +10,11 @@ processors:
       trust_remote_code: true
       disable_custom_all_reduce: true
       extra_engine_args:
-        max_running_requests: 512
+        max_running_requests: 1000
+        mem_fraction_static: 0.88
     default_sampling_params:
       temperature: 0.0
-      max_new_tokens: 384
-      top_p: 1.0
+      max_new_tokens: 256
 
 loading_params:
   state_dir: ${MMIRAGE_RECOVERY_STATE_DIR}
@@ -23,44 +24,39 @@ loading_params:
       output_dir: ${MMIRAGE_RECOVERY_OUTPUT_DIR}
   num_shards: 16
   shard_id: "$SLURM_ARRAY_TASK_ID"
-  batch_size: 128
+  batch_size: 64
 
 processing_params:
   inputs:
-    - name: mmirage_id
-      key: mmirage_id
-    - name: order_index
-      key: order_index
+    - name: stable_id
+      key: stable_id
     - name: source_index
       key: source_index
-    - name: source_dataset
-      key: source_dataset
-    - name: source_split
-      key: source_split
-    - name: source_revision
-      key: source_revision
-    - name: source_prompt
-      key: source_prompt
     - name: prompt_text
       key: prompt_text
+    - name: prompt_sha256
+      key: prompt_sha256
 
   outputs:
-    - name: generated_answer
+    - name: answer
       type: llm
       output_type: plain
-      prompt: "{{ prompt_text }}"
+      prompt: |-
+        You are helping construct a public text dataset.
+
+        Rewrite the following user request into a helpful assistant response of 4 to 6 sentences.
+        Preserve the user's intent.
+
+        User request:
+        {{ prompt_text }}
 
   remove_columns: false
   output_schema:
-    mmirage_id: "{{ mmirage_id }}"
-    order_index: "{{ order_index }}"
+    stable_id: "{{ stable_id }}"
     source_index: "{{ source_index }}"
-    source_dataset: "{{ source_dataset }}"
-    source_split: "{{ source_split }}"
-    source_revision: "{{ source_revision }}"
-    source_prompt: "{{ source_prompt }}"
+    prompt_sha256: "{{ prompt_sha256 }}"
     prompt_text: "{{ prompt_text }}"
-    generated_answer: "{{ generated_answer }}"
+    answer: "{{ answer }}"
 
 execution_params:
   mode: local
