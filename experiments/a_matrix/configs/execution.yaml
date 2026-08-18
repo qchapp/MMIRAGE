@@ -1,9 +1,0 @@
-semantic_recipe: experiments/a_matrix/configs/semantic_recipe.yaml
-workload_jsonl: experiments/a_matrix/workload/workload.jsonl
-output_root: experiments/a_matrix/results/gpu_scaling
-gpu_count: 1
-visible_gpus: [0]
-repetitions: 3
-batch_size: 64
-environment:
-  TOKENIZERS_PARALLELISM: "false"
