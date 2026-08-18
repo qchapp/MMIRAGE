@@ -188,7 +188,9 @@ def assign_status(stages: list[Stage], lines: list[str], suite: str) -> None:
         # The generic scaling runner is reused by text shortening, so the
         # orchestrator stage is the unambiguous scaling-process marker.
         "scaling": ["orchestrate.py --stage scaling"],
-        "recovery": ["orchestrate.py --stage recovery", "run_local.py", "run_native_recovery_publication.py", "run_native_recovery_competitor.py"],
+        # Include the next argument so recovery does not also match the
+        # recovery_extract orchestrator command by substring.
+        "recovery": ["orchestrate.py --stage recovery --repetitions", "run_local.py", "run_native_recovery_publication.py", "run_native_recovery_competitor.py"],
         "extract": ["extract_results.py"],
         "text": ["orchestrate.py --stage text"],
         "vlm": ["orchestrate.py --stage vlm", "run_mmirage_vlm.py", "run_native_vlm_competitor.py"],
