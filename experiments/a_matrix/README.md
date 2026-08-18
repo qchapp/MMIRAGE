@@ -67,54 +67,15 @@ land in `experiments/run_all_logs/<stage>.log`; per-unit logs and a final
 ## Reusing the 2026-08-15 fast-runs
 
 The MMIRAGE-only cells of the fast-run reproduction on 2026-08-15 (see
-`RUNLOG.md`, pod `mmirage-exp-4gpu-0-0`) are byte-consistent with their A-matrix
-counterparts (same workload rows, model, batch size 64 (publication suite), 3 repetitions; the
-prompt differs only in the trailing newline noted below) and are reused instead
-of rerunning today:
+`RUNLOG.md`, pod `mmirage-exp-4gpu-0-0`) were produced using the OLD batch
+configurations. They are **not** byte/config compatible with the corrected
+publication batch=64 suite and must **not** be reused for the corrected
+publication benchmark. The historical fast-run cells are retained as
+provenance only.
 
-| Reused unit | Fast-runs source | num_rows |
-|---|---|---|
-| `gpu_scaling/mmirage/gpu_1` | `experiments/single_node_h100_scaling/results/runs/gpu_1` | 5430 |
-| `gpu_scaling/mmirage/gpu_2` | `experiments/single_node_h100_scaling/results/runs/gpu_2` | 5430 |
-| `gpu_scaling/mmirage/gpu_4` | `experiments/single_node_h100_scaling/results/runs/gpu_4` | 5430 |
-| `text_shortening/mmirage` | `experiments/task_comparison/text_shortening/results/runs/gpu_4` | 9471 |
-| `vlm_enrichment/mmirage` | `experiments/task_comparison/vlm_enrichment/results/runs/gpu_4` | 83 |
-
-Nothing else is reused: the scaling natives (raw_sglang, datatrove, nemo_curator)
-never ran at these sizes/points, the A100 point has no prior run, recovery
-switched from the `mmirage_id` schema/sizes/conditions to `stable_id`
-(`recovery_num_rows`), and the text/vlm natives got new prompts (B1
-`--prompt-style summarize`, B2 `VLM_REFORMAT_TEMPLATE`).
-
-The mapping lives in `configs/reused_units.yaml`. `run_setup.py --reuse-fastruns`
-skips these units and logs a notice (with a warning if the results are not
-restored yet); `run_all.sh` passes the flag by default, so the reused results
-are preserved by its stage cleanup. `--rerun-reused` (run_all) or omitting
-`--reuse-fastruns` (run_setup) reruns them.
-
-Reuse is valid only while:
-
-* the calibrated sizes stay at the committed values (5430 / 9471 / 83). If a
-  fresh `calibrate --apply` rewrites them (different hardware), the reused runs
-  no longer match the new workload — rerun the reused cells instead;
-* the archived results are restored into the locations above. The archive
-  (`/lightscratch/users/azgaoui/anonlib/mmirage-fastrun-evidence-20260815/`)
-  mirrors the repo tree; restore the scaling cells into the matrix layout with
-  (adjust the source path to the unpacked archive):
-
-```
-for n in 1 2 4; do
-  rsync -a <archive>/experiments/single_node_h100_scaling/results/runs/gpu_$n/ \
-        experiments/a_matrix/results/gpu_scaling/mmirage/runs/gpu_$n/
-done
-```
-
-  The text/vlm cells already sit at their matrix locations, so restoring the
-  archive into the repo tree is sufficient for them.
-
-One input caveat: the consolidated recipe renders the user prompt without the
-trailing newline the 2026-08-15 recipe emitted (YAML `|-` vs `|`). It does not
-affect the timing/throughput metrics the matrix reports.
+To run the corrected publication benchmark, use `--rerun-reused` (via
+`experiments/run_all.sh`) or omit `--reuse-fastruns` (via `run_setup.py`)
+to rerun all cells from scratch with the corrected settings.
 
 ## Workload and sizes
 
@@ -152,10 +113,13 @@ placeholder name) before launching anything and refuses to run otherwise.
 
 ## Superseded experiments
 
-`experiments/single_node_h100_scaling`, `experiments/shard_recovery` and
-`experiments/raw_sglang_overhead` are kept as libraries/runbooks but are no
-longer run directly: scaling and recovery now run through this experiment.
-`raw_sglang_overhead` in particular is absorbed into the `gpu_scaling` matrix
-as the `raw_sglang` framework. `shard_recovery/scripts/prepare_workload.py` is
+`experiments/single_node_h100_scaling` and `experiments/shard_recovery` are
+kept as libraries/runbooks but are no longer run directly: scaling and recovery
+now run through this experiment. `shard_recovery/scripts/prepare_workload.py` is
 superseded by `prepare_workload.py --shared-root` and writes the old
 `mmirage_id` schema; do not run it against the current shared root.
+
+`A-MATRIX` `raw_sglang` evaluates a complete Direct SGLang runner.
+`experiments/raw_sglang_overhead` is a separate endpoint-matched experiment
+used to estimate MMIRAGE abstraction/orchestration overhead relative to the
+same SGLang serving endpoint.

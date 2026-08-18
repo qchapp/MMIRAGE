@@ -656,6 +656,8 @@ def run_prepare(selected: Sequence[str], args: argparse.Namespace) -> int:
 
 def run_extract(selected: Sequence[str], args: argparse.Namespace) -> int:
     failed = 0
+    reps = args.repetitions or 3
+    rep_list = ",".join(str(r) for r in range(1, reps + 1))
     if "recovery" in selected:
         command = [
             sys.executable,
@@ -665,7 +667,7 @@ def run_extract(selected: Sequence[str], args: argparse.Namespace) -> int:
             "--conditions",
             "baseline,fail_1,fail_4",
             "--reps",
-            "1",
+            rep_list,
             "--config",
             str(A_MATRIX_DIR / "configs" / "mmirage_recovery.yaml"),
         ]
@@ -691,6 +693,65 @@ def run_extract(selected: Sequence[str], args: argparse.Namespace) -> int:
             if not present:
                 failed += 1
     return failed
+
+
+# ---------------------------------------------------------------------------
+# Hardware verification
+# ---------------------------------------------------------------------------
+
+
+def _verify_gpu_hardware(expected_gpu_name: str, gpu_ids: List[str], dry_run: bool) -> bool:
+    """Verify that the requested GPUs exist and match the expected accelerator type."""
+    if dry_run:
+        print(f"hw-check: SKIP (dry-run) expected={expected_gpu_name} gpus={gpu_ids}")
+        return True
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index,name,uuid,memory.total", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode != 0:
+            print(f"hw-check: FAIL nvidia-smi returned {result.returncode}: {result.stderr.strip()}", file=sys.stderr)
+            return False
+    except FileNotFoundError:
+        print("hw-check: FAIL nvidia-smi not found", file=sys.stderr)
+        return False
+    except subprocess.TimeoutExpired:
+        print("hw-check: FAIL nvidia-smi timed out", file=sys.stderr)
+        return False
+
+    gpus = {}
+    for line in result.stdout.strip().splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) >= 3:
+            idx = int(parts[0])
+            name = parts[1]
+            uuid = parts[2]
+            mem = parts[3] if len(parts) > 3 else "?"
+            gpus[idx] = (name, uuid, mem)
+
+    print(f"hw-check: detected {len(gpus)} GPU(s):")
+    for idx in sorted(gpus):
+        name, uuid, mem = gpus[idx]
+        print(f"  gpu {idx}: {name}  {mem}  {uuid[:16]}...")
+
+    expected_ids = [int(x) for x in gpu_ids]
+    missing = [i for i in expected_ids if i not in gpus]
+    if missing:
+        print(f"hw-check: FAIL requested GPU ids {missing} not found in system", file=sys.stderr)
+        return False
+
+    mismatches = []
+    for i in expected_ids:
+        if expected_gpu_name.lower() not in gpus[i][0].lower():
+            mismatches.append((i, gpus[i][0]))
+    if mismatches:
+        for idx, name in mismatches:
+            print(f"hw-check: FAIL gpu {idx} is '{name}', expected '{expected_gpu_name}'", file=sys.stderr)
+        return False
+
+    print(f"hw-check: PASS all {len(expected_ids)} GPU(s) match {expected_gpu_name}")
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -857,6 +918,12 @@ def main() -> int:
     print(f"run_setup: pod={args.pod} setups={selected} gpus={gpu_ids} mode={'dry-run' if args.dry_run else 'run'}")
 
     if not verify_templates(selected):
+        return 1
+
+    hw_expected = "H100"
+    if args.setup and "a100_4gpu" in selected:
+        hw_expected = "A100"
+    if not _verify_gpu_hardware(hw_expected, gpu_ids, args.dry_run):
         return 1
 
     if args.prepare:
