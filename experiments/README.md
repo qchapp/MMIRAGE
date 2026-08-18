@@ -10,7 +10,7 @@ This directory contains the evaluation used in the paper. All commands below are
 | [`vlm_enrichment/`](vlm_enrichment/) | MedTrinity multimodal enrichment: MMIRAGE, SGLang, DataTrove, NeMo Curator | 4× H100 |
 | [`sglang_overhead/`](sglang_overhead/) | endpoint-matched MMIRAGE vs raw SGLang | 1× H100; 1× A100 |
 
-All reported cells use three repetitions. Exact source datasets, workload sizes, selection rules, transformation prompts, models, decoding settings, GPU placement, and failure conditions are documented in [`publication/PROTOCOL.md`](publication/PROTOCOL.md) and in each experiment's README.
+All reported cells use three repetitions. Exact source datasets, workload sizes, selection rules, transformation prompts, models, decoding settings, GPU placement, and failure conditions are documented in [`publication/PROTOCOL.md`](publication/PROTOCOL.md) and in each experiment's README. Each experiment README also gives commands for reproducing that experiment by itself without running the full hardware suite.
 
 ## Environments
 
