@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - refactor/publication-experiments
+  pull_request:
+    branches:
+      - experiment/a-matrix-final
   workflow_dispatch:
 
 jobs:
