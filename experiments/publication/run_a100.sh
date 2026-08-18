@@ -5,6 +5,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"; cd "$REPO_ROOT"
 DRY_RUN=0
 case "${1:-}" in "") ;; --dry-run) DRY_RUN=1 ;; *) echo "usage: bash experiments/publication/run_a100.sh [--dry-run]" >&2; exit 2 ;; esac
+TRACKED_DIRTY="$(git status --porcelain --untracked-files=no)"
+[[ -z "$TRACKED_DIRTY" ]] || { echo "FATAL: tracked working tree has uncommitted changes; publication provenance would be ambiguous." >&2; printf '%s\n' "$TRACKED_DIRTY" >&2; exit 1; }
 export SETUPTOOLS_USE_DISTUTILS=local TOKENIZERS_PARALLELISM=false
 export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
 DATATROVE_PYTHON="${MMIRAGE_DATATROVE_PYTHON:-$REPO_ROOT/.venv-datatrove/bin/python}"; NEMO_PYTHON="${MMIRAGE_NEMO_CURATOR_PYTHON:-$REPO_ROOT/.venv-nemo_curator/bin/python}"
