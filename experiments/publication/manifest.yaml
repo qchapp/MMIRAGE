@@ -1,7 +1,4 @@
 version: 1
-baseline:
-  branch: experiment/a-matrix-final
-  commit: 1e3e605bc30074f9aae2dbcb19bcba6a16db8fe8
 repetitions: 3
 experiments:
   scaling:
