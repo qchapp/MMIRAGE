@@ -39,7 +39,7 @@ uv venv --python 3.12 .venv-ray_data_llm
 uv pip install --python .venv-ray_data_llm/bin/python -r experiments/publication/environment/ray_data_llm_uv_requirements.txt
 ```
 
-The H100 and A100 drivers use the repository-root locations above by default. If the environments live elsewhere, set the corresponding variables to the **Python interpreter executable**, not to the environment directory:
+The H100 and A100 drivers use the repository-root locations above by default. If the environments live elsewhere, set the corresponding variables to the **Python interpreter executable**, not to the environment directory. For example:
 
 ```bash
 export MMIRAGE_DATATROVE_PYTHON="$PWD/.venv-datatrove/bin/python"
@@ -48,15 +48,22 @@ export MMIRAGE_DISTILABEL_PYTHON="$PWD/.venv-distilabel/bin/python"
 export MMIRAGE_RAY_DATA_LLM_PYTHON="$PWD/.venv-ray_data_llm/bin/python"
 ```
 
+A value such as `$PWD/.venv-datatrove` is **not** sufficient; the variable must end in the executable itself, e.g. `.venv-datatrove/bin/python`.
+
 `MMIRAGE_DISTILABEL_PYTHON` and `MMIRAGE_RAY_DATA_LLM_PYTHON` are needed only for the H100 recovery experiment. The A100 transfer run uses DataTrove and NeMo Curator only.
 
 The separate `raw_sglang_uv_requirements.txt` records the exact packages for the direct SGLang environment used when reproducing that baseline independently; the publication drivers otherwise use SGLang from the main MMIRAGE environment.
 
-Python 3.12 environments importing vLLM require `SETUPTOOLS_USE_DISTUTILS=local`; the publication drivers export it before preflight and execution.
+Python 3.12 environments importing vLLM require `SETUPTOOLS_USE_DISTUTILS=local`. The H100/A100 shell drivers export it automatically. When running an individual experiment directly through `orchestrate.py`, set it in the calling shell first:
+
+```bash
+export SETUPTOOLS_USE_DISTUTILS=local
+export TOKENIZERS_PARALLELISM=false
+```
 
 ## Credentials and model revisions
 
-Set a Hugging Face access token in the environment before launching either hardware suite:
+Set a Hugging Face access token in the environment before launching either hardware suite or preparing a standalone workload:
 
 ```bash
 export HF_TOKEN=...
