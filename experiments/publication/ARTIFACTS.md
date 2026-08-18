@@ -1,6 +1,6 @@
 # Publication artifacts
 
-Generated experiment outputs are not source code and should remain untracked. For archival/reproduction, preserve the small provenance and result artifacts below together with the exact Git commit.
+Generated experiment outputs are not source code and should remain untracked. Internal or post-review archival should preserve the provenance and result artifacts below together with the exact source commit. A double-blind reviewer bundle must follow the anonymization exception at the end of this document instead.
 
 ## Scaling
 
@@ -20,4 +20,8 @@ Results are written to `experiments/sglang_overhead/results/h100/` and `experime
 
 ## Minimum provenance bundle
 
-A publication archive should contain: exact Git commit; workload metadata and hashes; dataset/model revisions; hardware metadata; raw repetition records; validation outputs; aggregate summaries; and recovery evidence. Large model caches and generated intermediate shard data are not part of the archival bundle.
+For internal/post-review archival, preserve: exact source commit; workload metadata and hashes; dataset/model revisions; hardware metadata; raw repetition records; validation outputs; aggregate summaries; and recovery evidence. Large model caches and generated intermediate shard data are not part of the archival bundle.
+
+## Double-blind submission exception
+
+Do **not** expose a public repository commit SHA in the anonymous reviewer bundle. Run the refactor verifier before export, remove `.git/`, `experiments/publication/_verification/`, and `experiments/publication/verify_refactor.py`, and normally omit generated workloads/results entirely. If generated result/provenance JSON must be supplied to reviewers, redact or replace repository-identifying fields such as `git_commit` with an anonymous source-bundle identifier while leaving workload hashes, model/dataset revisions, hardware metadata, measurements, and validation evidence intact.
