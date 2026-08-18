@@ -12,6 +12,7 @@ import csv
 import json
 import os
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -179,9 +180,14 @@ def infer_suite(lines: list[str]) -> str:
 def assign_status(stages: list[Stage], lines: list[str], suite: str) -> None:
     needles = {
         "prepare": ["prepare_workload.py"],
-        "verify": ["publication/run_a100.sh"],
+        # A100 artifact verification happens inline in the shell driver rather
+        # than in a durable child process. Its manifest presence is therefore
+        # used as the durable indicator; do not match the long-lived driver.
+        "verify": [],
         "prefetch": ["prefetch_models.py"],
-        "scaling": ["orchestrate.py --stage scaling", "run_raw_sglang_scaling.py", "run_datatrove_scaling.py", "run_nemo_curator_scaling.py", "scaling/scripts/run.py"],
+        # The generic scaling runner is reused by text shortening, so the
+        # orchestrator stage is the unambiguous scaling-process marker.
+        "scaling": ["orchestrate.py --stage scaling"],
         "recovery": ["orchestrate.py --stage recovery", "run_local.py", "run_native_recovery_publication.py", "run_native_recovery_competitor.py"],
         "extract": ["extract_results.py"],
         "text": ["orchestrate.py --stage text"],
@@ -287,5 +293,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import sys
     raise SystemExit(main())
