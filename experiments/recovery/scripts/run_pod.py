@@ -11,8 +11,6 @@ import sys
 import time
 from pathlib import Path
 
-DEFAULT_CONTAINER_REPO = Path("/workspace/MMIRAGE")
-
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
@@ -39,8 +37,8 @@ def main() -> None:
     args = parse_args()
     if not Path(args.config).exists():
         raise RuntimeError(
-            f"MMIRAGE config not found inside the shard pod at {args.config}. "
-            f"The pod image should contain the repository at {DEFAULT_CONTAINER_REPO}."
+            f"MMIRAGE config not found inside the shard process at {args.config}. "
+            "Ensure the repository and config are available in the execution environment."
         )
     source_path = str(repo_root() / "src")
     existing_pythonpath = os.environ.get("PYTHONPATH")
