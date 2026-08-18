@@ -8,7 +8,7 @@ Generated workloads and results are not tracked in Git. The files below are the 
 
 ## Recovery
 
-The live controller root is `MMIRAGE_RECOVERY_ROOT` (default `/workspace/mmirage-recovery`). The H100 driver copies extracted summaries and JSON evidence into `experiments/recovery/results/`. Preserve `recovery_results.json`, `recovery_results.csv`, per-run summaries/validation files, and shard-status evidence.
+The recovery controller root is set with `MMIRAGE_RECOVERY_ROOT`; when unset, the publication driver uses `experiments/recovery/workdir/`. The H100 driver copies extracted summaries and JSON evidence into `experiments/recovery/results/`. Preserve `recovery_results.json`, `recovery_results.csv`, per-run summaries/validation files, and shard-status evidence.
 
 ## Text shortening and VLM enrichment
 
