@@ -49,9 +49,7 @@ MMIRAGE supports text and multimodal `llm` processors, provider `batch_api` exec
 
 ## Experiments
 
-Evaluation code and reproduction instructions are in [`experiments/README.md`](experiments/README.md). The experiments cover strong scaling, shard recovery, text-task generalization, multimodal enrichment, and endpoint-matched SGLang overhead.
-
-Exact comparison settings are documented in [`experiments/publication/PROTOCOL.md`](experiments/publication/PROTOCOL.md), with interpretation constraints in [`experiments/publication/LIMITATIONS.md`](experiments/publication/LIMITATIONS.md).
+Evaluation code and reproduction instructions are in [`experiments/README.md`](experiments/README.md). The experiments cover strong scaling, shard recovery, text-task generalization, multimodal enrichment, and endpoint-matched SGLang overhead. Exact datasets, prompts, workload construction, and comparison settings are documented in [`experiments/publication/PROTOCOL.md`](experiments/publication/PROTOCOL.md).
 
 ## Statistics
 
