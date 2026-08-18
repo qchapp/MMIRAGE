@@ -2,6 +2,6 @@ datatrove==0.9.0
 vllm==0.27.1
 aiofiles==25.1.0
 datasets==5.0.1
-pyarrow==25.0.0
-transformers==5.14.1
-orjson==3.11.9
+pyarrow==25.0.1
+transformers==5.15.0
+orjson==3.12.0
