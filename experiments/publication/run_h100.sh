@@ -6,6 +6,8 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 DRY_RUN=0
 case "${1:-}" in "") ;; --dry-run) DRY_RUN=1 ;; *) echo "usage: bash experiments/publication/run_h100.sh [--dry-run]" >&2; exit 2 ;; esac
+TRACKED_DIRTY="$(git status --porcelain --untracked-files=no)"
+[[ -z "$TRACKED_DIRTY" ]] || { echo "FATAL: tracked working tree has uncommitted changes; publication provenance would be ambiguous." >&2; printf '%s\n' "$TRACKED_DIRTY" >&2; exit 1; }
 
 export MMIRAGE_RECOVERY_ROOT="${MMIRAGE_RECOVERY_ROOT:-/workspace/mmirage-recovery}"
 export SETUPTOOLS_USE_DISTUTILS=local
