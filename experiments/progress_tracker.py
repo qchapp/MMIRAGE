@@ -25,7 +25,7 @@ RECOVERY = HERE / "recovery"
 TEXT = HERE / "text_shortening"
 VLM = HERE / "vlm_enrichment"
 OVERHEAD = HERE / "sglang_overhead"
-DEFAULT_RECOVERY_ROOT = Path(os.environ.get("MMIRAGE_RECOVERY_ROOT", "/workspace/mmirage-recovery"))
+DEFAULT_RECOVERY_ROOT = Path(os.environ.get("MMIRAGE_RECOVERY_ROOT", str(RECOVERY / "workdir")))
 
 H100_PRIORS = {
     "prepare": 10 * 60,
@@ -180,16 +180,9 @@ def infer_suite(lines: list[str]) -> str:
 def assign_status(stages: list[Stage], lines: list[str], suite: str) -> None:
     needles = {
         "prepare": ["prepare_workload.py"],
-        # A100 artifact verification happens inline in the shell driver rather
-        # than in a durable child process. Its manifest presence is therefore
-        # used as the durable indicator; do not match the long-lived driver.
         "verify": [],
         "prefetch": ["prefetch_models.py"],
-        # The generic scaling runner is reused by text shortening, so the
-        # orchestrator stage is the unambiguous scaling-process marker.
         "scaling": ["orchestrate.py --stage scaling"],
-        # Include the next argument so recovery does not also match the
-        # recovery_extract orchestrator command by substring.
         "recovery": ["orchestrate.py --stage recovery --repetitions", "run_local.py", "run_native_recovery_publication.py", "run_native_recovery_competitor.py"],
         "extract": ["extract_results.py"],
         "text": ["orchestrate.py --stage text"],
