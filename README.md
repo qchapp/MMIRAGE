@@ -22,7 +22,7 @@ For local SGLang-backed LLM/VLM execution, install a CUDA-enabled PyTorch build 
 pip install -e ".[gpu]"
 ```
 
-The publication environments and package pins are documented in [`experiments/publication/ENVIRONMENTS.md`](experiments/publication/ENVIRONMENTS.md). Image-generation support is optional:
+The experiment environments and package pins are documented in [`experiments/publication/ENVIRONMENTS.md`](experiments/publication/ENVIRONMENTS.md). Image-generation support is optional:
 
 ```bash
 pip install -e ".[image_gen]"
@@ -47,46 +47,11 @@ mmirage merge-dir --input-dir /path/to/shards --output-dir /path/to/merged
 
 MMIRAGE supports text and multimodal `llm` processors, provider `batch_api` execution, image generation, custom Python processors, JSON/Jinja-based structured outputs, and local or SLURM sharding.
 
-## Publication experiments
+## Experiments
 
-The submission experiments have a deliberately small, scientific-question-oriented layout under [`experiments/`](experiments/):
+Evaluation code and reproduction instructions are in [`experiments/README.md`](experiments/README.md). The experiments cover strong scaling, shard recovery, text-task generalization, multimodal enrichment, and endpoint-matched SGLang overhead.
 
-| Experiment | Purpose |
-|---|---|
-| [`experiments/scaling/`](experiments/scaling/) | UltraChat rewrite throughput and H100 strong scaling, plus the four-A100 transfer point |
-| [`experiments/recovery/`](experiments/recovery/) | deterministic shard recovery after injected failures |
-| [`experiments/text_shortening/`](experiments/text_shortening/) | CNN/DailyMail summarization generalization |
-| [`experiments/vlm_enrichment/`](experiments/vlm_enrichment/) | MedTrinity multimodal enrichment |
-| [`experiments/sglang_overhead/`](experiments/sglang_overhead/) | endpoint-matched MMIRAGE vs raw SGLang abstraction overhead |
-
-The canonical publication entry points are:
-
-```bash
-bash experiments/publication/run_h100.sh --dry-run
-bash experiments/publication/run_h100.sh
-
-bash experiments/publication/run_a100.sh --dry-run
-bash experiments/publication/run_a100.sh
-```
-
-The H100 suite prepares deterministic workloads, resolves exact model revisions, records workload/model/hardware provenance, then executes the timed stages serially. The A100 suite reuses the exact H100-prepared scaling and endpoint-overhead workloads and refuses mismatched commit or workload hashes.
-
-Before packaging an artifact, run the mechanical equivalence verifier:
-
-```bash
-python experiments/publication/verify_refactor.py
-```
-
-The verifier compares the refactored experiment implementation against the frozen publication baseline, checks the semantic execution plan and configs, confirms the MMIRAGE source tree is unchanged, validates Python/shell syntax, and rejects stale experiment paths in user-facing documentation.
-
-See [`experiments/publication/README.md`](experiments/publication/README.md), [`experiments/publication/PROTOCOL.md`](experiments/publication/PROTOCOL.md), and [`experiments/publication/LIMITATIONS.md`](experiments/publication/LIMITATIONS.md) for the full reproduction and interpretation contract.
-
-A read-only progress dashboard is available during unattended runs:
-
-```bash
-python experiments/progress_tracker.py --suite h100
-python experiments/progress_tracker.py --suite a100
-```
+Exact comparison settings are documented in [`experiments/publication/PROTOCOL.md`](experiments/publication/PROTOCOL.md), with interpretation constraints in [`experiments/publication/LIMITATIONS.md`](experiments/publication/LIMITATIONS.md).
 
 ## Statistics
 
