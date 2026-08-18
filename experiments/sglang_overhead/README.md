@@ -66,7 +66,31 @@ python experiments/sglang_overhead/scripts/run.py \
   --model-revision "$MODEL_REVISION"
 ```
 
-For the A100 point, copy or mount the H100 `workload/` directory unchanged. On the A100 node, verify/cache the exact recorded model revision before switching offline, then run the same command with `--output-dir experiments/sglang_overhead/results/a100`.
+For the A100 point, copy or mount the H100 `experiments/sglang_overhead/workload/` directory unchanged. On the A100 node, verify/cache the exact H100 model revision before switching offline:
+
+```bash
+export HF_TOKEN=...
+
+python experiments/publication/prefetch_models.py \
+  --models Qwen/Qwen3-4B \
+  --expected-json experiments/sglang_overhead/workload/model_revisions.json \
+  --output-json /tmp/a100_overhead_model_revisions.json
+
+MODEL_REVISION="$(python -c 'import json; print(json.load(open("experiments/sglang_overhead/workload/model_revisions.json"))["Qwen/Qwen3-4B"])')"
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+
+python experiments/sglang_overhead/scripts/run.py \
+  --workload-dir experiments/sglang_overhead/workload \
+  --output-dir experiments/sglang_overhead/results/a100 \
+  --frameworks raw_sglang,mmirage_sglang \
+  --repetitions 3 \
+  --gpu-index 0 \
+  --concurrency 64 \
+  --max-tokens 1024 \
+  --temperature 0.0 \
+  --model-revision "$MODEL_REVISION"
+```
 
 The runner also accepts `--dry-run` for command inspection.
 
