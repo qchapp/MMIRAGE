@@ -22,7 +22,7 @@ and READMEs.
 
 The A matrix is the consolidated benchmark suite. Every experiment consumes the
 **same task**: rewrite an UltraChat user prompt with a fixed prompt template,
-model `Qwen/Qwen3-4B`, fixed shard split, and output contract.
+model `Qwen/Qwen3-4B`, fixed shard split, and output contract; framework-native prompt/chat serialization may differ.
 
 ### GPU scaling (`gpu_scaling`)
 

@@ -4,6 +4,6 @@ output_root: experiments/a_matrix/results/gpu_scaling
 gpu_count: 1
 visible_gpus: [0]
 repetitions: 3
-batch_size: 256
+batch_size: 64
 environment:
   TOKENIZERS_PARALLELISM: "false"

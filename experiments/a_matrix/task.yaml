@@ -2,8 +2,8 @@
 #
 # Every framework (MMIRAGE, raw SGLang, DataTrove, NeMo Curator, distilabel,
 # Ray Data LLM) consumes the same workload rows (see scripts/prepare_workload.py)
-# and the same prompt template, so the model input is byte-identical across
-# frameworks and across the A setups (gpu_scaling, a100_4gpu, recovery).
+# and the same prompt template, model, decoding budget, and output contract;
+# framework-native prompt/chat serialization may differ.
 #
 # The template below must stay byte-identical to:
 #   - REWRITE_PROMPT_TEMPLATE in experiments/_shared/native_frameworks.py

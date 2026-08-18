@@ -102,6 +102,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--overwrite", action="store_true", help="Pass --overwrite to the underlying runners.")
     parser.add_argument("--repetitions", type=int, default=None, help="Override repetitions (default 3).")
     parser.add_argument(
+        "--serial", action="store_true", help="Run at most one unit at a time (no concurrent GPU scaling units)."
+    )
+    parser.add_argument(
         "--reuse-fastruns",
         action="store_true",
         help="Skip units satisfied by the 2026-08-15 fast-runs archive (see configs/reused_units.yaml).",
@@ -251,6 +254,14 @@ def _scaling_native_cmds(setup: str, framework: str, gpu_count: int, gpus: Seque
             str(repetitions),
             "--model",
             MODEL,
+            "--concurrency",
+            "64",
+            "--temperature",
+            "0.0",
+            "--max-new-tokens",
+            "256",
+            "--prompt-style",
+            "rewrite",
         ]
         + (["--overwrite"] if overwrite else [])
     ]
@@ -262,80 +273,92 @@ def _recovery_shared_root() -> str:
 
 def _recovery_mmirage_cmds(condition: str, gpus: Sequence[str], overwrite: bool) -> List[List[str]]:
     shared_root = _recovery_shared_root()
-    run_dir = f"{shared_root}/runs/{condition}/rep_01"
-    base = [
-        sys.executable,
-        str(SHARD_RECOVERY_DIR / "scripts" / "run_local.py"),
-        "run-condition",
-        "--condition",
-        condition,
-        "--rep",
-        "1",
-        "--shared-root",
-        shared_root,
-        "--max-active-shards",
-        "4",
-        "--gpu-ids",
-        ",".join(gpus),
-        "--config",
-        str(A_MATRIX_DIR / "configs" / "mmirage_recovery.yaml"),
-    ]
-    if overwrite:
-        base.append("--overwrite")
-    commands = [base]
-    if condition != "baseline":
-        commands.append(
-            [
+    commands: List[List[str]] = []
+    for rep in range(1, 4):
+        rep_label = f"rep_{rep:02d}"
+        run_cond_cmd = [
+            sys.executable,
+            str(SHARD_RECOVERY_DIR / "scripts" / "run_local.py"),
+            "run-condition",
+            "--condition",
+            condition,
+            "--rep",
+            str(rep),
+            "--shared-root",
+            shared_root,
+            "--max-active-shards",
+            "4",
+            "--gpu-ids",
+            ",".join(gpus),
+            "--config",
+            str(A_MATRIX_DIR / "configs" / "mmirage_recovery.yaml"),
+        ]
+        if condition != "baseline":
+            run_cond_cmd += ["--kill-after-seconds", "30"]
+        if overwrite:
+            run_cond_cmd.append("--overwrite")
+        commands.append(run_cond_cmd)
+        if condition != "baseline":
+            retry_cmd = [
                 sys.executable,
                 str(SHARD_RECOVERY_DIR / "scripts" / "run_local.py"),
                 "retry",
                 "--condition",
                 condition,
                 "--rep",
-                "1",
+                str(rep),
                 "--shared-root",
                 shared_root,
                 "--config",
                 str(A_MATRIX_DIR / "configs" / "mmirage_recovery.yaml"),
             ]
+            commands.append(retry_cmd)
+        commands.append(
+            [
+                "mmirage",
+                "merge-dir",
+                "--input-dir",
+                f"{shared_root}/runs/{condition}/{rep_label}/output",
+                "--output-dir",
+                f"{shared_root}/runs/{condition}/{rep_label}/merged",
+            ]
         )
-    commands.append(
-        [
-            "mmirage",
-            "merge-dir",
-            "--input-dir",
-            f"{run_dir}/output",
-            "--output-dir",
-            f"{run_dir}/merged",
-        ]
-    )
     return commands
 
 
 def _recovery_native_cmds(framework: str, condition: str, gpus: Sequence[str], overwrite: bool) -> List[List[str]]:
     venv_env = {"datatrove": "MMIRAGE_DATATROVE_PYTHON", "nemo_curator": "MMIRAGE_NEMO_CURATOR_PYTHON", "distilabel": "MMIRAGE_DISTILABEL_PYTHON", "ray_data_llm": "MMIRAGE_RAY_DATA_LLM_PYTHON"}.get(framework)
     python = _python(venv_env) if venv_env else sys.executable
-    return [
-        [
-            python,
-            str(SHARD_RECOVERY_DIR / "scripts" / "run_native_recovery_competitor.py"),
-            "--framework",
-            framework,
-            "--condition",
-            condition,
-            "--rep",
-            "1",
-            "--shared-root",
-            _recovery_shared_root(),
-            "--gpu-ids",
-            ",".join(gpus),
-            "--max-active-shards",
-            "4",
-            "--model",
-            MODEL,
-        ]
-        + (["--overwrite"] if overwrite else [])
-    ]
+    commands: List[List[str]] = []
+    for rep in range(1, 4):
+        commands.append(
+            [
+                python,
+                str(SHARD_RECOVERY_DIR / "scripts" / "run_native_recovery_competitor.py"),
+                "--framework",
+                framework,
+                "--condition",
+                condition,
+                "--rep",
+                str(rep),
+                "--shared-root",
+                _recovery_shared_root(),
+                "--gpu-ids",
+                ",".join(gpus),
+                "--max-active-shards",
+                "4",
+                "--model",
+                MODEL,
+                "--concurrency",
+                "64",
+                "--max-new-tokens",
+                "256",
+                "--kill-after-seconds",
+                "30",
+            ]
+            + (["--overwrite"] if overwrite else [])
+        )
+    return commands
 
 
 def _text_mmirage_cmds(gpus: Sequence[str], overwrite: bool) -> List[List[str]]:
@@ -372,6 +395,12 @@ def _text_native_cmds(framework: str, repetitions: int, gpus: Sequence[str], ove
             MODEL,
             "--prompt-style",
             "summarize",
+            "--concurrency",
+            "64",
+            "--temperature",
+            "0.0",
+            "--max-new-tokens",
+            "128",
         ]
         + (["--overwrite"] if overwrite else [])
     ]
@@ -412,6 +441,14 @@ def _vlm_native_cmds(framework: str, repetitions: int, gpus: Sequence[str], over
         str(repetitions),
         "--model",
         VLM_MODEL,
+        "--concurrency",
+        "64",
+        "--temperature",
+        "0.1",
+        "--top-p",
+        "0.9",
+        "--max-new-tokens",
+        "1024",
     ]
     if venv_env:
         command += ["--worker-python", _python(venv_env)]
@@ -707,7 +744,7 @@ def _finish_command(running: _RunningUnit) -> None:
         running.pending_commands.clear()
 
 
-def run_scheduler(units: List[Unit], gpu_ids: List[str], dry_run: bool) -> int:
+def run_scheduler(units: List[Unit], gpu_ids: List[str], dry_run: bool, serial: bool = False) -> int:
     if dry_run:
         return 0
     pending = list(units)
@@ -721,6 +758,8 @@ def run_scheduler(units: List[Unit], gpu_ids: List[str], dry_run: bool) -> int:
         while pending or running:
             launched_any = False
             for unit in list(pending):
+                if serial and running:
+                    break
                 if unit.gpus_needed > len(free_gpus):
                     continue
                 if unit.setup == "gpu_scaling" and unit.framework in active_frameworks:
@@ -858,7 +897,7 @@ def main() -> int:
             unit.log_path.open("wb").close()
             print(f"  CLEAR {unit.label} log")
 
-    return run_scheduler(units, gpu_ids, dry_run=False)
+    return run_scheduler(units, gpu_ids, dry_run=False, serial=args.serial)
 
 
 if __name__ == "__main__":

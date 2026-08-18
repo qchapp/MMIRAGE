@@ -25,7 +25,7 @@ loading_params:
       output_dir: ${MMIRAGE_RECOVERY_OUTPUT_DIR}
   num_shards: 16
   shard_id: "$SLURM_ARRAY_TASK_ID"
-  batch_size: 128
+  batch_size: 64
 
 processing_params:
   inputs:

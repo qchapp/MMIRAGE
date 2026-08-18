@@ -68,7 +68,7 @@ land in `experiments/run_all_logs/<stage>.log`; per-unit logs and a final
 
 The MMIRAGE-only cells of the fast-run reproduction on 2026-08-15 (see
 `RUNLOG.md`, pod `mmirage-exp-4gpu-0-0`) are byte-consistent with their A-matrix
-counterparts (same workload rows, model, batch size 256, 3 repetitions; the
+counterparts (same workload rows, model, batch size 64 (publication suite), 3 repetitions; the
 prompt differs only in the trailing newline noted below) and are reused instead
 of rerunning today:
 
