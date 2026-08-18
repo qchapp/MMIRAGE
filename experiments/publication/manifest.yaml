@@ -51,5 +51,9 @@ experiments:
 entry_points:
   h100: experiments/publication/run_h100.sh
   a100: experiments/publication/run_a100.sh
-verification: experiments/publication/verify_refactor.py
 tracker: experiments/progress_tracker.py
+development_only:
+  pre_export_verifier: experiments/publication/verify_refactor.py
+  anonymous_export_omits:
+    - experiments/publication/verify_refactor.py
+    - experiments/publication/_verification/
