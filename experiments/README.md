@@ -5,18 +5,18 @@ This directory contains the evaluation used in the paper. All commands below are
 | Experiment | Comparison | Hardware |
 |---|---|---|
 | [`scaling/`](scaling/) | UltraChat rewrite throughput: MMIRAGE, Direct SGLang, DataTrove, NeMo Curator | 1/2/4× H100; 4× A100 |
-| [`recovery/`](recovery/) | shard reuse and recomputation after injected failures | 4× H100 |
+| [`recovery/`](recovery/) | shard reuse and recomputation after injected worker failures | 4× H100 |
 | [`text_shortening/`](text_shortening/) | CNN/DailyMail summarization: MMIRAGE, DataTrove, NeMo Curator | 4× H100 |
 | [`vlm_enrichment/`](vlm_enrichment/) | MedTrinity multimodal enrichment: MMIRAGE, SGLang, DataTrove, NeMo Curator | 4× H100 |
 | [`sglang_overhead/`](sglang_overhead/) | endpoint-matched MMIRAGE vs raw SGLang | 1× H100; 1× A100 |
 
-All reported cells use three repetitions. Exact models, decoding settings, concurrency/batch sizes, failure conditions, and interpretation boundaries are listed in [`publication/PROTOCOL.md`](publication/PROTOCOL.md) and [`publication/LIMITATIONS.md`](publication/LIMITATIONS.md).
+All reported cells use three repetitions. Exact source datasets, workload sizes, selection rules, transformation prompts, models, decoding settings, GPU placement, and failure conditions are documented in [`publication/PROTOCOL.md`](publication/PROTOCOL.md) and in each experiment's README.
 
 ## Environments
 
-The main MMIRAGE/SGLang environment and the isolated competitor environments are described in [`publication/ENVIRONMENTS.md`](publication/ENVIRONMENTS.md). The corresponding requirement files are under `publication/environment/`.
+The main MMIRAGE/SGLang environment and isolated competitor environments are described in [`publication/ENVIRONMENTS.md`](publication/ENVIRONMENTS.md). Exact requirement files are under `publication/environment/`.
 
-The H100 run requires exactly four visible H100 GPUs and a Hugging Face token. The A100 run requires exactly four visible A100 GPUs and reuses the H100-prepared scaling and endpoint-overhead workloads.
+The H100 run requires exactly four visible H100 GPUs and `HF_TOKEN` in the environment. The A100 run requires exactly four visible A100 GPUs and reuses the H100-prepared scaling and endpoint-overhead workloads.
 
 ## H100 evaluation
 
@@ -32,7 +32,7 @@ Run the full H100 evaluation:
 bash experiments/publication/run_h100.sh
 ```
 
-The driver prepares the deterministic workloads, resolves exact model revisions before timed execution, and runs scaling, recovery, text shortening, VLM enrichment, and endpoint-matched overhead. Generated results are written under each experiment's `results/` directory.
+The driver prepares deterministic workloads, resolves exact model revisions before timed execution, and runs scaling, recovery, text shortening, VLM enrichment, and endpoint-matched overhead. Generated results are written under each experiment's `results/` directory.
 
 ## A100 transfer point
 
@@ -68,4 +68,4 @@ python experiments/progress_tracker.py --suite a100
 
 ## Outputs
 
-Expected result/provenance files are summarized in [`publication/ARTIFACTS.md`](publication/ARTIFACTS.md). Generated workloads, model outputs, and result directories are intentionally untracked.
+Expected result and provenance files are summarized in [`publication/ARTIFACTS.md`](publication/ARTIFACTS.md). Generated workloads, model outputs, and result directories are untracked.
