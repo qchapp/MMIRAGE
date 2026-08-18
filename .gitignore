@@ -145,16 +145,14 @@ tests/mock_data/shards/
 # devcontainer
 .devcontainer/
 
-# Publication experiment artifacts. Workloads are deterministic/regenerable or
-# copied between the H100/A100 nodes; results and run state are never source.
+# Publication experiment artifacts
 experiments/*/workload/
 experiments/*/results/
 experiments/*/runs/
-experiments/*/recovery_root/
+experiments/*/workdir/
 experiments/**/*_for_paper*
 experiments/**/*.png
 experiments/**/*.zip
-experiments/run_all_logs/
 
 # Local run/launch artifacts
 /run_*.out
