@@ -1,0 +1,10 @@
+vlm_recipe: experiments/vlm_enrichment/configs/mmirage_vlm.yaml
+rows_jsonl: experiments/vlm_enrichment/workload/rows.jsonl
+image_base_path: experiments/vlm_enrichment/workload
+output_root: experiments/vlm_enrichment/results
+gpu_count: 4
+visible_gpus: [0, 1, 2, 3]
+repetitions: 3
+batch_size: 64
+environment:
+  TOKENIZERS_PARALLELISM: "false"

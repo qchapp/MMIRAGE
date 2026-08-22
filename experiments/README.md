@@ -1,22 +1,71 @@
-# Experiments
+# Publication experiments
 
-Experiment-specific commands, configs, and runbooks live under `experiments/<name>/`. Do not use repository-level `scripts/` for experiment entry points.
+This directory contains the evaluation used in the paper. All commands below are run from the repository root.
 
-Run every command from the repository root unless an experiment README says otherwise.
-
-## Available Experiments
-
-| Experiment | Purpose | Start here |
+| Experiment | Comparison | Hardware |
 |---|---|---|
-| `raw_sglang_overhead` | Measures MMIRAGE throughput retention against a matched raw SGLang HTTP baseline. | `experiments/raw_sglang_overhead/README.md` |
-| `shard_recovery` | Measures shard-scoped recovery when selected shard workloads are terminated and only incomplete shards are retried. | `experiments/shard_recovery/README.md` |
-| `single_node_h100_scaling` | Measures single-node multi-GPU strong scaling with independent one-GPU shard workers. | `experiments/single_node_h100_scaling/README.md` |
-| `nemo_curator_comparison` | Compares MMIRAGE with NeMo Curator/Data Designer on a matched LLM-only multimodal ChartQA transformation. | `experiments/nemo_curator_comparison/README.md` |
+| [`scaling/`](scaling/) | UltraChat rewrite throughput: MMIRAGE, Direct SGLang, DataTrove, NeMo Curator | 1/2/4× H100; 4× A100 |
+| [`recovery/`](recovery/) | shard reuse and recomputation after injected worker failures | 4× H100 |
+| [`text_shortening/`](text_shortening/) | CNN/DailyMail summarization: MMIRAGE, DataTrove, NeMo Curator | 4× H100 |
+| [`vlm_enrichment/`](vlm_enrichment/) | MedTrinity multimodal enrichment: MMIRAGE, SGLang, DataTrove, NeMo Curator | 4× H100 |
+| [`sglang_overhead/`](sglang_overhead/) | endpoint-matched MMIRAGE vs raw SGLang | 1× H100; 1× A100 |
 
-## Repository Policy
+All reported cells use three repetitions. Exact source datasets, workload sizes, selection rules, transformation prompts, models, decoding settings, GPU placement, and failure conditions are documented in [`publication/PROTOCOL.md`](publication/PROTOCOL.md) and in each experiment's README. Each experiment README also gives commands for reproducing that experiment by itself without running the full hardware suite.
 
-- Keep fixed recipes and execution configs under `experiments/<name>/configs/`.
-- Keep runnable experiment commands under `experiments/<name>/scripts/`.
-- Keep generated outputs local unless an experiment README explicitly says a small workload or fixture is committed.
-- Common generated paths include `results/`, `runs/`, `recovery_root/`, plots, archives, and paper-evidence bundles.
-- Shared helper code for experiment scripts lives in `experiments/_shared/`. These helpers are benchmark scaffolding, not MMIRAGE runtime code.
+## Environments
+
+The main MMIRAGE/SGLang environment and isolated competitor environments are described in [`publication/ENVIRONMENTS.md`](publication/ENVIRONMENTS.md). Exact requirement files are under `publication/environment/`.
+
+The H100 run requires exactly four visible H100 GPUs and `HF_TOKEN` in the environment. The A100 run requires exactly four visible A100 GPUs and reuses the H100-prepared scaling and endpoint-overhead workloads.
+
+## H100 evaluation
+
+Inspect the planned commands without running inference:
+
+```bash
+bash experiments/publication/run_h100.sh --dry-run
+```
+
+Run the full H100 evaluation:
+
+```bash
+bash experiments/publication/run_h100.sh
+```
+
+The driver prepares deterministic workloads, resolves exact model revisions before timed execution, and runs scaling, recovery, text shortening, VLM enrichment, and endpoint-matched overhead. Generated results are written under each experiment's `results/` directory.
+
+## A100 transfer point
+
+The A100 node must use the H100-produced workload directories unchanged:
+
+```text
+experiments/scaling/workload/
+experiments/sglang_overhead/workload/
+```
+
+Inspect the A100 commands:
+
+```bash
+bash experiments/publication/run_a100.sh --dry-run
+```
+
+Run the four-GPU scaling transfer point and one-GPU endpoint-overhead experiment:
+
+```bash
+bash experiments/publication/run_a100.sh
+```
+
+The A100 driver verifies the H100 workload hashes and model revision before execution.
+
+## Monitoring
+
+A read-only progress dashboard can be attached while either suite is running:
+
+```bash
+python experiments/progress_tracker.py --suite h100
+python experiments/progress_tracker.py --suite a100
+```
+
+## Outputs
+
+Expected result and provenance files are summarized in [`publication/ARTIFACTS.md`](publication/ARTIFACTS.md). Generated workloads, model outputs, and result directories are untracked.
