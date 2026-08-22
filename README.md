@@ -47,6 +47,19 @@ mmirage merge-dir --input-dir /path/to/shards --output-dir /path/to/merged
 
 MMIRAGE supports text and multimodal `llm` processors, provider `batch_api` execution, image generation, custom Python processors, JSON/Jinja-based structured outputs, and local or SLURM sharding.
 
+## Batch providers and prompt export
+
+The `batch_api` processor supports OpenAI and Anthropic. Set `provider: openai` with `OPENAI_API_KEY`, or `provider: anthropic` with `ANTHROPIC_API_KEY`; then use `run`, `check`, and `merge` for the asynchronous lifecycle.
+
+Provider-ready requests can be inspected without credentials or network submission:
+
+```bash
+mmirage run --config configs/config_mock_anthropic_batch.yaml \
+  --export-prompts /tmp/mmirage_prompts.jsonl
+```
+
+See the [Batch API guide](docs/batch_api.md) for provider configuration, multimodal requests, prompt-export behavior, and result collection.
+
 ## Experiments
 
 Evaluation code and reproduction instructions are in [`experiments/README.md`](experiments/README.md). The experiments cover strong scaling, shard recovery, text-task generalization, multimodal enrichment, and endpoint-matched SGLang overhead. Exact datasets, prompts, workload construction, and comparison settings are documented in [`experiments/publication/PROTOCOL.md`](experiments/publication/PROTOCOL.md).
