@@ -29,7 +29,7 @@ from mmirage.config.utils import load_mmirage_config  # noqa: E402
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--shared-root", default=os.environ.get("MMIRAGE_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-    parser.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "mmirage_recovery.yaml"))
+    parser.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "recovery" / "configs" / "mmirage_recovery.yaml"))
     parser.add_argument("--conditions", default="baseline,fail_1,fail_4")
     parser.add_argument("--reps", default="1")
     parser.add_argument("--output-dir", default=None)

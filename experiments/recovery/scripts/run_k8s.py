@@ -46,8 +46,8 @@ def parse_args() -> argparse.Namespace:
         p.add_argument("--pvc", required=True)
         p.add_argument("--image", required=True)
         p.add_argument("--shared-root", default=os.environ.get("MMIRAGE_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-        p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "mmirage_recovery.yaml"))
-        p.add_argument("--config-in-container", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "mmirage_recovery.yaml"))
+        p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "recovery" / "configs" / "mmirage_recovery.yaml"))
+        p.add_argument("--config-in-container", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "recovery" / "configs" / "mmirage_recovery.yaml"))
         p.add_argument("--repo-dir-in-container", default=str(DEFAULT_CONTAINER_REPO))
         p.add_argument("--image-pull-policy", default="IfNotPresent")
         p.add_argument("--service-account", default=None)
@@ -78,7 +78,7 @@ def parse_args() -> argparse.Namespace:
     status_p.add_argument("--condition", choices=sorted(CONDITION_FAILURE_SHARDS), required=True)
     status_p.add_argument("--rep", type=int, default=1)
     status_p.add_argument("--shared-root", default=os.environ.get("MMIRAGE_RECOVERY_ROOT", DEFAULT_SHARED_ROOT))
-    status_p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "shard_recovery" / "configs" / "mmirage_recovery.yaml"))
+    status_p.add_argument("--config", default=str(DEFAULT_CONTAINER_REPO / "experiments" / "recovery" / "configs" / "mmirage_recovery.yaml"))
 
     return parser.parse_args()
 
@@ -171,7 +171,7 @@ def pod_manifest(args: argparse.Namespace, condition: str, rep: int, phase: str,
         "workingDir": args.repo_dir_in_container,
         "command": ["python"],
         "args": [
-            f"{args.repo_dir_in_container}/experiments/shard_recovery/scripts/run_pod.py",
+            f"{args.repo_dir_in_container}/experiments/recovery/scripts/run_pod.py",
             "--config",
             args.config_in_container,
             "--shard-id",

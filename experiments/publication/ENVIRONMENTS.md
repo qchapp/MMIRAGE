@@ -4,13 +4,16 @@ The evaluation uses one main MMIRAGE/SGLang environment and isolated Python envi
 
 ## Main environment
 
-Install MMIRAGE with its GPU dependencies in the environment used to launch the publication drivers:
+Install the fully pinned Python 3.12/CUDA 12.9 environment used for the publication runs, then install the repository itself without resolving dependencies again:
 
 ```bash
-python -m pip install -e ".[gpu]"
+python -m pip install \
+  --extra-index-url https://download.pytorch.org/whl/cu129 \
+  -r requirements-hpc-lock.txt
+python -m pip install --no-deps -e .
 ```
 
-This interpreter is used for MMIRAGE, workload preparation, SGLang, and orchestration. The shell drivers invoke it as `python`.
+This interpreter is used for MMIRAGE, workload preparation, SGLang, and orchestration. The shell drivers invoke it as `python`. The direct MMIRAGE and `gpu` dependencies in `requirements-hpc-lock.txt` must remain compatible with `pyproject.toml`; the lock also fixes the transitive packages and CUDA wheels used for the reported environment.
 
 ## Competitor environments
 
